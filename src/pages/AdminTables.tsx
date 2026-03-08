@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { QrCode, Plus, Edit, Users, Trash2, ShoppingCart } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { getPlanLimits, formatLimit } from "@/lib/planLimits";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
