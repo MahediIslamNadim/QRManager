@@ -74,6 +74,38 @@ const AdminDashboard = () => {
           <StatCard title="গড় অর্ডার মূল্য" value={`৳${stats?.avgOrder ?? 0}`} icon={TrendingUp} />
         </div>
 
+        {/* Upgrade Banner */}
+        {restaurantPlan !== "enterprise" && (
+          <Card className="border-primary/30 bg-gradient-to-r from-primary/5 via-primary/10 to-accent/5 overflow-hidden relative">
+            <CardContent className="p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-primary/15 flex items-center justify-center flex-shrink-0">
+                  <Crown className="w-6 h-6 text-primary" />
+                </div>
+                <div>
+                  <h3 className="font-display font-bold text-foreground text-lg">
+                    {restaurantPlan === "basic" ? "প্রিমিয়ামে আপগ্রেড করুন" : "এন্টারপ্রাইজে আপগ্রেড করুন"}
+                  </h3>
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    বর্তমান প্ল্যান: <span className="font-semibold text-foreground capitalize">{limits.label}</span> — 
+                    {restaurantPlan === "basic"
+                      ? ` আনলিমিটেড মেনু, রিয়েলটাইম অর্ডার, অ্যাডভান্সড অ্যানালিটিক্স পান`
+                      : ` মাল্টি-ব্রাঞ্চ সাপোর্ট, কাস্টম ব্র্যান্ডিং পান`}
+                  </p>
+                  <div className="flex gap-3 mt-2 text-xs text-muted-foreground">
+                    <span>মেনু: {stats?.todayOrders !== undefined ? "—" : ""} {formatLimit(limits.maxMenuItems)}</span>
+                    <span>টেবিল: {formatLimit(limits.maxTables)}</span>
+                    <span>কর্মী: {formatLimit(limits.maxStaff)}</span>
+                  </div>
+                </div>
+              </div>
+              <Button variant="hero" onClick={() => navigate("/admin/settings")} className="flex-shrink-0">
+                আপগ্রেড করুন <ArrowRight className="w-4 h-4" />
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
         <Card>
           <CardHeader>
             <CardTitle className="font-display text-lg flex items-center gap-2">
