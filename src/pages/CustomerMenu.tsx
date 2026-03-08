@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ShoppingCart, Plus, Minus, UtensilsCrossed, X, Send, Image as ImageIcon } from "lucide-react";
+import { ShoppingCart, Plus, Minus, UtensilsCrossed, X, Send, Image as ImageIcon, Flame, Star } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -19,6 +19,7 @@ interface MenuItem {
   category: string;
   description: string;
   available: boolean;
+  image_url?: string | null;
 }
 
 interface CartItem extends MenuItem {
@@ -44,7 +45,6 @@ const CustomerMenu = () => {
   useEffect(() => {
     const fetchData = async () => {
       if (isDemo) {
-        // Demo data
         setRestaurant({ name: "Spice Garden" });
         setTableName("T-5");
         const demoItems: MenuItem[] = [
@@ -62,7 +62,6 @@ const CustomerMenu = () => {
         return;
       }
 
-      // Fetch real data
       const [restRes, menuRes] = await Promise.all([
         supabase.from("restaurants").select("*").eq("id", restaurantId).single(),
         supabase.from("menu_items").select("*").eq("restaurant_id", restaurantId).eq("available", true).order("sort_order"),
@@ -118,7 +117,6 @@ const CustomerMenu = () => {
 
     setSubmitting(true);
     try {
-      // Create order
       const { data: order, error: orderErr } = await supabase
         .from("orders")
         .insert({
@@ -129,10 +127,9 @@ const CustomerMenu = () => {
         })
         .select()
         .single();
-      
+
       if (orderErr) throw orderErr;
 
-      // Create order items
       const items = cart.map(c => ({
         order_id: order.id,
         menu_item_id: c.id,
@@ -157,75 +154,140 @@ const CustomerMenu = () => {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-muted-foreground font-medium animate-pulse">মেনু লোড হচ্ছে...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-b from-background via-background to-accent/20">
       {/* Header */}
-      <header className="sticky top-0 z-20 bg-card/90 backdrop-blur-xl border-b border-border">
+      <header className="sticky top-0 z-20 bg-card/80 backdrop-blur-2xl border-b border-border/50 shadow-sm">
         <div className="max-w-2xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center">
+            <div className="w-11 h-11 rounded-2xl gradient-primary flex items-center justify-center shadow-lg shadow-primary/20">
               <UtensilsCrossed className="w-5 h-5 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="font-display font-bold text-foreground text-lg">{restaurant?.name || "Restaurant"}</h1>
-              <p className="text-xs text-muted-foreground">টেবিল {tableName} • QR মেনু</p>
+              <h1 className="font-display font-bold text-foreground text-lg leading-tight">{restaurant?.name || "Restaurant"}</h1>
+              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
+                টেবিল {tableName} • লাইভ মেনু
+              </p>
             </div>
           </div>
-          <button onClick={() => setShowCart(true)} className="relative w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+          <button
+            onClick={() => setShowCart(true)}
+            className="relative w-11 h-11 rounded-2xl bg-primary/10 hover:bg-primary/20 flex items-center justify-center transition-all duration-300 hover:scale-105 active:scale-95"
+          >
             <ShoppingCart className="w-5 h-5 text-primary" />
             {totalItems > 0 && (
-              <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full gradient-primary text-primary-foreground text-xs flex items-center justify-center font-bold">{totalItems}</span>
+              <span className="absolute -top-1.5 -right-1.5 w-5.5 h-5.5 min-w-[22px] min-h-[22px] rounded-full gradient-primary text-primary-foreground text-[11px] flex items-center justify-center font-bold shadow-lg shadow-primary/30 animate-bounce">
+                {totalItems}
+              </span>
             )}
           </button>
         </div>
       </header>
 
       {/* Categories */}
-      <div className="sticky top-[73px] z-10 bg-background/90 backdrop-blur-sm border-b border-border">
+      <div className="sticky top-[73px] z-10 bg-background/80 backdrop-blur-xl border-b border-border/30">
         <div className="max-w-2xl mx-auto px-4 py-3 flex gap-2 overflow-x-auto scrollbar-hide">
           {categories.map((cat) => (
-            <button key={cat} onClick={() => setActiveCategory(cat)}
-              className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
-                activeCategory === cat ? "gradient-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-accent"
-              }`}>{cat}</button>
+            <button
+              key={cat}
+              onClick={() => setActiveCategory(cat)}
+              className={`px-5 py-2.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all duration-300 ${
+                activeCategory === cat
+                  ? "gradient-primary text-primary-foreground shadow-md shadow-primary/25 scale-105"
+                  : "bg-card text-muted-foreground hover:text-foreground hover:bg-accent border border-border/50"
+              }`}
+            >
+              {cat}
+            </button>
           ))}
         </div>
       </div>
 
       {/* Menu Items */}
-      <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
-        {filtered.length === 0 && <p className="text-center text-muted-foreground py-8">কোনো আইটেম নেই</p>}
-        {filtered.map((item) => {
+      <div className="max-w-2xl mx-auto px-4 py-6 space-y-5 pb-32">
+        {filtered.length === 0 && (
+          <div className="text-center py-16">
+            <UtensilsCrossed className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
+            <p className="text-muted-foreground font-medium">কোনো আইটেম নেই</p>
+          </div>
+        )}
+        {filtered.map((item, index) => {
           const cartItem = cart.find(c => c.id === item.id);
+          const imgUrl = getImageUrl(item.image_url || null);
           return (
-            <div key={item.id} className="menu-item-card flex overflow-hidden">
-              <div className="w-28 sm:w-36 bg-gradient-to-br from-accent to-secondary flex items-center justify-center flex-shrink-0 overflow-hidden">
-                {(item as any).image_url ? (
-                  <img src={getImageUrl((item as any).image_url)!} alt={item.name} className="w-full h-full object-cover" />
+            <div
+              key={item.id}
+              className="group bg-card rounded-2xl border border-border/60 overflow-hidden transition-all duration-500 hover:shadow-xl hover:shadow-primary/5 hover:-translate-y-1 animate-fade-up"
+              style={{ animationDelay: `${index * 80}ms` }}
+            >
+              {/* Image Section */}
+              <div className="relative h-44 sm:h-52 w-full overflow-hidden bg-gradient-to-br from-accent via-secondary to-accent">
+                {imgUrl ? (
+                  <img
+                    src={imgUrl}
+                    alt={item.name}
+                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
+                  />
                 ) : (
-                  <ImageIcon className="w-8 h-8 text-muted-foreground/20" />
+                  <div className="w-full h-full flex flex-col items-center justify-center gap-2">
+                    <div className="w-16 h-16 rounded-2xl bg-muted/50 flex items-center justify-center">
+                      <ImageIcon className="w-8 h-8 text-muted-foreground/30" />
+                    </div>
+                  </div>
                 )}
-              </div>
-              <div className="flex-1 p-4 flex flex-col justify-between">
-                <div>
-                  <h3 className="font-display font-semibold text-foreground">{item.name}</h3>
-                  <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{item.description}</p>
+                {/* Price Badge */}
+                <div className="absolute top-3 right-3 gradient-primary text-primary-foreground px-3.5 py-1.5 rounded-xl text-sm font-bold shadow-lg shadow-primary/30 backdrop-blur-sm">
+                  ৳{item.price}
                 </div>
-                <div className="flex items-center justify-between mt-3">
-                  <span className="text-lg font-bold text-primary">৳{item.price}</span>
+                {/* Category Badge */}
+                <div className="absolute top-3 left-3 bg-card/80 backdrop-blur-md text-foreground px-3 py-1 rounded-lg text-xs font-semibold border border-border/30">
+                  {item.category}
+                </div>
+                {/* Gradient overlay at bottom */}
+                <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-card to-transparent" />
+              </div>
+
+              {/* Content Section */}
+              <div className="px-4 pb-4 -mt-4 relative z-10">
+                <h3 className="font-display font-bold text-foreground text-lg leading-snug">{item.name}</h3>
+                <p className="text-sm text-muted-foreground mt-1.5 line-clamp-2 leading-relaxed">{item.description}</p>
+
+                {/* Add to Cart */}
+                <div className="mt-4 flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-muted-foreground/60">
+                    <Flame className="w-3.5 h-3.5" />
+                    <span className="text-xs font-medium">জনপ্রিয়</span>
+                  </div>
                   {cartItem ? (
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => updateQuantity(item.id, -1)} className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center"><Minus className="w-4 h-4 text-foreground" /></button>
-                      <span className="text-sm font-bold text-foreground w-6 text-center">{cartItem.quantity}</span>
-                      <button onClick={() => updateQuantity(item.id, 1)} className="w-8 h-8 rounded-lg gradient-primary flex items-center justify-center"><Plus className="w-4 h-4 text-primary-foreground" /></button>
+                    <div className="flex items-center gap-1 bg-secondary rounded-xl p-1">
+                      <button
+                        onClick={() => updateQuantity(item.id, -1)}
+                        className="w-9 h-9 rounded-lg bg-card hover:bg-accent flex items-center justify-center transition-colors border border-border/50 active:scale-90"
+                      >
+                        <Minus className="w-4 h-4 text-foreground" />
+                      </button>
+                      <span className="text-sm font-bold text-foreground w-8 text-center">{cartItem.quantity}</span>
+                      <button
+                        onClick={() => updateQuantity(item.id, 1)}
+                        className="w-9 h-9 rounded-lg gradient-primary flex items-center justify-center shadow-md shadow-primary/20 active:scale-90 transition-transform"
+                      >
+                        <Plus className="w-4 h-4 text-primary-foreground" />
+                      </button>
                     </div>
                   ) : (
-                    <button onClick={() => addToCart(item)} className="px-4 py-2 rounded-lg gradient-primary text-primary-foreground text-sm font-medium flex items-center gap-1">
+                    <button
+                      onClick={() => addToCart(item)}
+                      className="px-5 py-2.5 rounded-xl gradient-primary text-primary-foreground text-sm font-semibold flex items-center gap-2 shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-all duration-300 active:scale-95 hover:scale-105"
+                    >
                       <Plus className="w-4 h-4" /> যোগ করুন
                     </button>
                   )}
@@ -238,46 +300,101 @@ const CustomerMenu = () => {
 
       {/* Floating Cart Button */}
       {totalItems > 0 && !showCart && (
-        <div className="fixed bottom-6 left-4 right-4 max-w-2xl mx-auto z-30">
-          <button onClick={() => setShowCart(true)} className="w-full gradient-primary text-primary-foreground rounded-2xl p-4 flex items-center justify-between shadow-xl">
-            <div className="flex items-center gap-3"><ShoppingCart className="w-5 h-5" /><span className="font-medium">{totalItems} আইটেম</span></div>
-            <span className="font-bold text-lg">৳{totalPrice}</span>
+        <div className="fixed bottom-6 left-4 right-4 max-w-2xl mx-auto z-30 animate-fade-up">
+          <button
+            onClick={() => setShowCart(true)}
+            className="w-full gradient-primary text-primary-foreground rounded-2xl p-4 flex items-center justify-between shadow-2xl shadow-primary/30 hover:shadow-primary/40 transition-all duration-300 active:scale-[0.98]"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-primary-foreground/20 flex items-center justify-center">
+                <ShoppingCart className="w-5 h-5" />
+              </div>
+              <div className="text-left">
+                <span className="font-bold text-base">{totalItems} আইটেম</span>
+                <p className="text-xs text-primary-foreground/70">কার্ট দেখুন</p>
+              </div>
+            </div>
+            <span className="font-bold text-xl">৳{totalPrice}</span>
           </button>
         </div>
       )}
 
       {/* Cart Drawer */}
       {showCart && (
-        <div className="fixed inset-0 z-50 bg-foreground/50 backdrop-blur-sm" onClick={() => setShowCart(false)}>
-          <div className="absolute bottom-0 left-0 right-0 bg-card rounded-t-3xl max-h-[80vh] overflow-y-auto animate-slide-in" onClick={e => e.stopPropagation()}>
-            <div className="p-6">
+        <div className="fixed inset-0 z-50 bg-foreground/60 backdrop-blur-md" onClick={() => setShowCart(false)}>
+          <div
+            className="absolute bottom-0 left-0 right-0 bg-card rounded-t-3xl max-h-[85vh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}
+            style={{ animation: "slideUp 0.35s cubic-bezier(0.32, 0.72, 0, 1)" }}
+          >
+            {/* Handle bar */}
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="w-10 h-1 rounded-full bg-border" />
+            </div>
+            <div className="p-6 pt-3">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="font-display font-bold text-xl text-foreground">আপনার কার্ট</h2>
-                <button onClick={() => setShowCart(false)} className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center"><X className="w-4 h-4 text-foreground" /></button>
+                <div>
+                  <h2 className="font-display font-bold text-xl text-foreground">আপনার কার্ট</h2>
+                  <p className="text-sm text-muted-foreground">{totalItems} আইটেম • টেবিল {tableName}</p>
+                </div>
+                <button
+                  onClick={() => setShowCart(false)}
+                  className="w-9 h-9 rounded-xl bg-secondary hover:bg-accent flex items-center justify-center transition-colors"
+                >
+                  <X className="w-4 h-4 text-foreground" />
+                </button>
               </div>
               {cart.length === 0 ? (
-                <p className="text-center text-muted-foreground py-8">কার্ট খালি</p>
+                <div className="text-center py-12">
+                  <ShoppingCart className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
+                  <p className="text-muted-foreground font-medium">কার্ট খালি</p>
+                </div>
               ) : (
                 <>
-                  <div className="space-y-4 mb-6">
+                  <div className="space-y-3 mb-6">
                     {cart.map((item) => (
-                      <div key={item.id} className="flex items-center justify-between p-3 rounded-xl bg-secondary/50">
-                        <div className="flex-1">
-                          <p className="font-medium text-foreground">{item.name}</p>
-                          <p className="text-sm text-muted-foreground">৳{item.price} x {item.quantity}</p>
+                      <div key={item.id} className="flex items-center gap-3 p-3 rounded-xl bg-secondary/50 border border-border/30">
+                        <div className="w-14 h-14 rounded-xl bg-accent overflow-hidden flex-shrink-0">
+                          {item.image_url ? (
+                            <img src={getImageUrl(item.image_url)!} alt={item.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <ImageIcon className="w-5 h-5 text-muted-foreground/30" />
+                            </div>
+                          )}
                         </div>
-                        <div className="flex items-center gap-3">
-                          <span className="font-bold text-foreground">৳{item.price * item.quantity}</span>
-                          <button onClick={() => removeFromCart(item.id)} className="text-destructive"><X className="w-4 h-4" /></button>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-foreground truncate">{item.name}</p>
+                          <p className="text-sm text-muted-foreground">৳{item.price} × {item.quantity}</p>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className="font-bold text-foreground text-sm">৳{item.price * item.quantity}</span>
+                          <button onClick={() => removeFromCart(item.id)} className="w-7 h-7 rounded-lg bg-destructive/10 hover:bg-destructive/20 flex items-center justify-center transition-colors">
+                            <X className="w-3.5 h-3.5 text-destructive" />
+                          </button>
                         </div>
                       </div>
                     ))}
                   </div>
-                  <div className="border-t border-border pt-4 mb-6">
-                    <div className="flex justify-between text-lg font-bold text-foreground"><span>মোট</span><span>৳{totalPrice}</span></div>
+                  <div className="border-t border-border pt-4 mb-6 space-y-2">
+                    <div className="flex justify-between text-sm text-muted-foreground">
+                      <span>সাবটোটাল</span>
+                      <span>৳{totalPrice}</span>
+                    </div>
+                    <div className="flex justify-between text-lg font-bold text-foreground">
+                      <span>মোট</span>
+                      <span className="text-primary">৳{totalPrice}</span>
+                    </div>
                   </div>
-                  <Button variant="hero" size="lg" className="w-full h-14 text-base rounded-2xl" onClick={submitOrder} disabled={submitting}>
-                    <Send className="w-5 h-5" /> {submitting ? "পাঠানো হচ্ছে..." : "অর্ডার পাঠান"}
+                  <Button
+                    variant="hero"
+                    size="lg"
+                    className="w-full h-14 text-base rounded-2xl shadow-lg shadow-primary/20"
+                    onClick={submitOrder}
+                    disabled={submitting}
+                  >
+                    <Send className="w-5 h-5" />
+                    {submitting ? "পাঠানো হচ্ছে..." : "অর্ডার পাঠান"}
                   </Button>
                 </>
               )}
@@ -285,6 +402,13 @@ const CustomerMenu = () => {
           </div>
         </div>
       )}
+
+      <style>{`
+        @keyframes slideUp {
+          from { transform: translateY(100%); }
+          to { transform: translateY(0); }
+        }
+      `}</style>
     </div>
   );
 };
