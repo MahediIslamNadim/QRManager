@@ -15,6 +15,31 @@ const WaiterDashboard = () => {
   const queryClient = useQueryClient();
   const [editOrder, setEditOrder] = useState<any>(null);
   const [editItems, setEditItems] = useState<any[]>([]);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const prevOrderIdsRef = useRef<Set<string>>(new Set());
+  const isFirstLoadRef = useRef(true);
+
+  const playNotificationSound = useCallback(() => {
+    if (!soundEnabled) return;
+    try {
+      const ctx = new AudioContext();
+      const playTone = (freq: number, start: number, dur: number) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = freq;
+        osc.type = "sine";
+        gain.gain.setValueAtTime(0.3, ctx.currentTime + start);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + start + dur);
+        osc.start(ctx.currentTime + start);
+        osc.stop(ctx.currentTime + start + dur);
+      };
+      playTone(880, 0, 0.15);
+      playTone(1100, 0.15, 0.15);
+      playTone(1320, 0.3, 0.2);
+    } catch {}
+  }, [soundEnabled]);
 
   const { data: orders = [] } = useQuery({
     queryKey: ["waiter-orders", restaurantId],
