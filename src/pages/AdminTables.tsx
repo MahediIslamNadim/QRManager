@@ -158,7 +158,7 @@ const AdminTables = () => {
           <div className="bg-warning/10 border border-warning/30 rounded-xl p-3 text-sm text-warning flex items-center gap-2">
             ⚠️ আপনার {limits.label} প্ল্যানের টেবিল লিমিট ({formatLimit(limits.maxTables)}) পূর্ণ হয়েছে। আরো যোগ করতে প্ল্যান আপগ্রেড করুন।
           </div>
-        )
+        )}
 
         <Dialog open={showForm} onOpenChange={setShowForm}>
           <DialogContent>
