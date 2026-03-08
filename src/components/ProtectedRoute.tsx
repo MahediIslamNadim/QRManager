@@ -7,7 +7,7 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
-  const { user, role, loading } = useAuth();
+  const { user, role, loading, trialExpired } = useAuth();
 
   if (loading) {
     return (
@@ -24,8 +24,12 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
     return <Navigate to="/login" replace />;
   }
 
+  // If trial expired, redirect admin users to trial-expired page
+  if (trialExpired && role === "admin") {
+    return <Navigate to="/trial-expired" replace />;
+  }
+
   if (allowedRoles && role && !allowedRoles.includes(role)) {
-    // Redirect to appropriate dashboard
     if (role === "super_admin") return <Navigate to="/super-admin" replace />;
     if (role === "waiter") return <Navigate to="/waiter" replace />;
     return <Navigate to="/admin" replace />;

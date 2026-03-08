@@ -22,6 +22,7 @@ import AdminAnalytics from "./pages/AdminAnalytics";
 import AdminSettings from "./pages/AdminSettings";
 import WaiterDashboard from "./pages/WaiterDashboard";
 import CustomerMenu from "./pages/CustomerMenu";
+import TrialExpired from "./pages/TrialExpired";
 
 const queryClient = new QueryClient();
 
