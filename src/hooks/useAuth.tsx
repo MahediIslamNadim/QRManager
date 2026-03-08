@@ -26,6 +26,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<string | null>(null);
   const [restaurantId, setRestaurantId] = useState<string | null>(null);
+  const [restaurantPlan, setRestaurantPlan] = useState("basic");
   const [loading, setLoading] = useState(true);
   const [trialExpired, setTrialExpired] = useState(false);
 
