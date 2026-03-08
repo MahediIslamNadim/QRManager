@@ -28,8 +28,9 @@ const Index = () => {
       {/* Hero */}
       <section className="relative overflow-hidden">
         <div className="absolute inset-0">
-          <div className="absolute top-20 left-1/4 w-96 h-96 rounded-full bg-primary/5 blur-3xl" />
-          <div className="absolute bottom-0 right-1/4 w-80 h-80 rounded-full bg-primary/8 blur-3xl" />
+          <div className="absolute top-20 left-1/4 w-96 h-96 rounded-full bg-primary/8 blur-3xl" />
+          <div className="absolute bottom-0 right-1/4 w-80 h-80 rounded-full bg-rose/6 blur-3xl" />
+          <div className="absolute top-1/2 right-10 w-60 h-60 rounded-full bg-info/6 blur-3xl" />
         </div>
         <div className="max-w-6xl mx-auto px-6 py-24 md:py-32 relative z-10">
           <div className="max-w-3xl mx-auto text-center animate-fade-up">
