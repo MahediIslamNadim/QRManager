@@ -1,13 +1,18 @@
+import { useNavigate } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
 import StatCard from "@/components/StatCard";
-import { ShoppingCart, DollarSign, Users, TrendingUp, Clock } from "lucide-react";
+import { ShoppingCart, DollarSign, Users, TrendingUp, Clock, Crown, ArrowRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
+import { getPlanLimits, formatLimit } from "@/lib/planLimits";
 
 const AdminDashboard = () => {
-  const { user, restaurantId } = useAuth();
+  const { user, restaurantId, restaurantPlan } = useAuth();
+  const navigate = useNavigate();
+  const limits = getPlanLimits(restaurantPlan);
 
   const { data: stats } = useQuery({
     queryKey: ["admin-stats", restaurantId],
