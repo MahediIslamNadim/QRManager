@@ -13,6 +13,7 @@ import SuperAdminRestaurants from "./pages/SuperAdminRestaurants";
 import SuperAdminUsers from "./pages/SuperAdminUsers";
 import SuperAdminAnalytics from "./pages/SuperAdminAnalytics";
 import SuperAdminSettings from "./pages/SuperAdminSettings";
+import SuperAdminPayments from "./pages/SuperAdminPayments";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminMenu from "./pages/AdminMenu";
 import AdminTables from "./pages/AdminTables";
