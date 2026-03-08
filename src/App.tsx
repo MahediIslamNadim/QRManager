@@ -56,10 +56,13 @@ const App = () => (
             {/* Waiter */}
             <Route path="/waiter" element={<ProtectedRoute allowedRoles={["waiter", "admin", "super_admin"]}><WaiterDashboard /></ProtectedRoute>} />
             
+            {/* Trial Expired */}
+            <Route path="/trial-expired" element={<TrialExpired />} />
+            
             {/* Customer */}
             <Route path="/menu/demo" element={<CustomerMenu />} />
             <Route path="/menu/:restaurantId" element={<CustomerMenu />} />
-            
+
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
