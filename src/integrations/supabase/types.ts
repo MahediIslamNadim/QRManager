@@ -145,6 +145,7 @@ export type Database = {
           id: string
           notes: string | null
           restaurant_id: string
+          seat_id: string | null
           status: string
           table_id: string | null
           total: number
@@ -155,6 +156,7 @@ export type Database = {
           id?: string
           notes?: string | null
           restaurant_id: string
+          seat_id?: string | null
           status?: string
           table_id?: string | null
           total?: number
@@ -165,6 +167,7 @@ export type Database = {
           id?: string
           notes?: string | null
           restaurant_id?: string
+          seat_id?: string | null
           status?: string
           table_id?: string | null
           total?: number
@@ -176,6 +179,13 @@ export type Database = {
             columns: ["restaurant_id"]
             isOneToOne: false
             referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_seat_id_fkey"
+            columns: ["seat_id"]
+            isOneToOne: false
+            referencedRelation: "table_seats"
             referencedColumns: ["id"]
           },
           {
@@ -349,6 +359,48 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      table_seats: {
+        Row: {
+          created_at: string
+          id: string
+          restaurant_id: string
+          seat_number: number
+          status: string
+          table_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          restaurant_id: string
+          seat_number: number
+          status?: string
+          table_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          restaurant_id?: string
+          seat_number?: number
+          status?: string
+          table_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "table_seats_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "table_seats_table_id_fkey"
+            columns: ["table_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_tables"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
