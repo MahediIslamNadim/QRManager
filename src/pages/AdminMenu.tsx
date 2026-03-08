@@ -62,10 +62,12 @@ const AdminMenu = () => {
     return fileName;
   };
 
+  const isAtMenuLimit = menuItems.length >= limits.maxMenuItems;
+
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!restaurantId) throw new Error("No restaurant");
-      setUploading(true);
+      if (!editingItem && isAtMenuLimit) throw new Error(`আপনার ${limits.label} প্ল্যানে সর্বোচ্চ ${formatLimit(limits.maxMenuItems)} টি আইটেম যোগ করা যায়। আপগ্রেড করুন।`);
 
       let image_url = editingItem?.image_url || null;
 
