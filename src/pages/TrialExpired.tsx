@@ -15,8 +15,8 @@ const plans = [
   { id: "enterprise", name: "Enterprise", price: 2500, priceText: "২,৫০০ টাকা/মাস", features: ["সব Premium ফিচার", "মাল্টি-ব্রাঞ্চ", "কাস্টম ব্র্যান্ডিং", "ডেডিকেটেড সাপোর্ট"] },
 ];
 
-const BKASH_NUMBER = "01XXXXXXXXX";
-const NAGAD_NUMBER = "01XXXXXXXXX";
+const BKASH_NUMBER = "01786130439";
+const NAGAD_NUMBER = "01786130439";
 
 const TrialExpired = () => {
   const { user, restaurantId, signOut } = useAuth();
