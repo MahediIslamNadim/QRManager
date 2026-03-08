@@ -1,15 +1,20 @@
+import { useEffect, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ShoppingCart, Clock, CheckCircle, UserCheck, Bell } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { ShoppingCart, Clock, CheckCircle, Plus, Minus, Edit, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const WaiterDashboard = () => {
   const { restaurantId } = useAuth();
   const queryClient = useQueryClient();
+  const [editOrder, setEditOrder] = useState<any>(null);
+  const [editItems, setEditItems] = useState<any[]>([]);
 
   const { data: orders = [] } = useQuery({
     queryKey: ["waiter-orders", restaurantId],
@@ -17,15 +22,26 @@ const WaiterDashboard = () => {
       if (!restaurantId) return [];
       const { data } = await supabase
         .from("orders")
-        .select("*, restaurant_tables(name), order_items(name, quantity)")
+        .select("*, restaurant_tables(name), order_items(id, name, quantity, price, menu_item_id)")
         .eq("restaurant_id", restaurantId)
         .in("status", ["pending", "preparing"])
         .order("created_at", { ascending: false });
       return data || [];
     },
     enabled: !!restaurantId,
-    refetchInterval: 3000,
   });
+
+  // Realtime
+  useEffect(() => {
+    if (!restaurantId) return;
+    const channel = supabase
+      .channel("waiter-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => {
+        queryClient.invalidateQueries({ queryKey: ["waiter-orders"] });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [restaurantId, queryClient]);
 
   const updateStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
@@ -36,6 +52,47 @@ const WaiterDashboard = () => {
       queryClient.invalidateQueries({ queryKey: ["waiter-orders"] });
       toast.success("স্ট্যাটাস আপডেট হয়েছে");
     },
+  });
+
+  const openEditOrder = (order: any) => {
+    setEditOrder(order);
+    setEditItems((order.order_items || []).map((i: any) => ({ ...i })));
+  };
+
+  const updateItemQty = (idx: number, delta: number) => {
+    setEditItems(prev => prev.map((item, i) => {
+      if (i === idx) {
+        const nq = Math.max(0, item.quantity + delta);
+        return { ...item, quantity: nq };
+      }
+      return item;
+    }));
+  };
+
+  const saveEditMutation = useMutation({
+    mutationFn: async () => {
+      if (!editOrder) return;
+      const toDelete = editItems.filter(i => i.quantity === 0);
+      const toUpdate = editItems.filter(i => i.quantity > 0);
+
+      // Delete removed items
+      for (const item of toDelete) {
+        await supabase.from("order_items").delete().eq("id", item.id);
+      }
+      // Update quantities
+      for (const item of toUpdate) {
+        await supabase.from("order_items").update({ quantity: item.quantity }).eq("id", item.id);
+      }
+      // Recalculate total
+      const newTotal = toUpdate.reduce((s, i) => s + i.price * i.quantity, 0);
+      await supabase.from("orders").update({ total: newTotal }).eq("id", editOrder.id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["waiter-orders"] });
+      toast.success("অর্ডার আপডেট হয়েছে");
+      setEditOrder(null);
+    },
+    onError: (err: any) => toast.error(err.message),
   });
 
   const pendingCount = orders.filter((o: any) => o.status === "pending").length;
@@ -95,7 +152,10 @@ const WaiterDashboard = () => {
                           <Clock className="w-3 h-3" /> {timeAgo(order.created_at)}
                         </p>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-shrink-0">
+                        <Button size="sm" variant="outline" onClick={() => openEditOrder(order)}>
+                          <Edit className="w-3.5 h-3.5" />
+                        </Button>
                         {order.status === "pending" && (
                           <Button size="sm" variant="hero" onClick={() => updateStatus.mutate({ id: order.id, status: "preparing" })}>
                             গ্রহণ করুন
@@ -115,6 +175,39 @@ const WaiterDashboard = () => {
           )}
         </div>
       </div>
+
+      {/* Edit Order Dialog */}
+      <Dialog open={!!editOrder} onOpenChange={() => setEditOrder(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle className="font-display">অর্ডার এডিট — #{editOrder?.id?.slice(0, 6)}</DialogTitle></DialogHeader>
+          <div className="space-y-3 max-h-[50vh] overflow-y-auto">
+            {editItems.map((item, idx) => (
+              <div key={item.id} className={`flex items-center gap-3 p-3 rounded-xl border border-border/30 ${item.quantity === 0 ? "opacity-40 bg-destructive/5" : "bg-secondary/50"}`}>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-foreground text-sm truncate">{item.name}</p>
+                  <p className="text-xs text-muted-foreground">৳{item.price}</p>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button onClick={() => updateItemQty(idx, -1)} className="w-8 h-8 rounded-lg bg-card border border-border flex items-center justify-center hover:bg-accent active:scale-90 transition-all">
+                    {item.quantity <= 1 ? <X className="w-3.5 h-3.5 text-destructive" /> : <Minus className="w-3.5 h-3.5" />}
+                  </button>
+                  <span className="w-8 text-center font-bold text-sm text-foreground">{item.quantity}</span>
+                  <button onClick={() => updateItemQty(idx, 1)} className="w-8 h-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center active:scale-90 transition-all">
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <span className="text-sm font-bold text-foreground w-16 text-right">৳{item.price * item.quantity}</span>
+              </div>
+            ))}
+          </div>
+          <div className="border-t border-border pt-3 flex justify-between items-center">
+            <span className="font-bold text-foreground">মোট: ৳{editItems.filter(i => i.quantity > 0).reduce((s, i) => s + i.price * i.quantity, 0)}</span>
+            <Button variant="hero" onClick={() => saveEditMutation.mutate()} disabled={saveEditMutation.isPending}>
+              {saveEditMutation.isPending ? "সেভ হচ্ছে..." : "সেভ করুন"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 };

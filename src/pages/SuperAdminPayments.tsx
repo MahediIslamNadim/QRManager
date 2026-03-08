@@ -16,6 +16,7 @@ interface PaymentRequest {
   restaurant_id: string;
   user_id: string;
   plan: string;
+  billing_cycle?: string;
   amount: number;
   payment_method: string;
   transaction_id: string;
@@ -42,7 +43,6 @@ const SuperAdminPayments = () => {
         .order("created_at", { ascending: false });
       if (error) throw error;
       
-      // Get restaurant names
       const restIds = [...new Set((data || []).map((p: any) => p.restaurant_id))];
       const { data: restaurants } = await supabase
         .from("restaurants")
@@ -65,21 +65,18 @@ const SuperAdminPayments = () => {
 
   const approveMutation = useMutation({
     mutationFn: async ({ paymentId, restaurantId, plan, userId }: { paymentId: string; restaurantId: string; plan: string; userId: string }) => {
-      // Update payment status
       const { error: payError } = await supabase
         .from("payment_requests" as any)
         .update({ status: "approved", admin_notes: adminNotes || null, updated_at: new Date().toISOString() } as any)
         .eq("id", paymentId);
       if (payError) throw payError;
 
-      // Activate restaurant
       const { error: restError } = await supabase
         .from("restaurants")
         .update({ status: "active_paid", plan, updated_at: new Date().toISOString() })
         .eq("id", restaurantId);
       if (restError) throw restError;
 
-      // Send notification to user
       await supabase.from("notifications" as any).insert({
         user_id: userId,
         title: "পেমেন্ট অনুমোদিত ✅",
@@ -105,7 +102,6 @@ const SuperAdminPayments = () => {
         .eq("id", paymentId);
       if (error) throw error;
 
-      // Send notification to user
       await supabase.from("notifications" as any).insert({
         user_id: userId,
         title: "পেমেন্ট প্রত্যাখ্যাত ❌",
@@ -130,6 +126,8 @@ const SuperAdminPayments = () => {
   };
 
   const pendingCount = payments.filter(p => p.status === "pending").length;
+
+  const getBillingLabel = (cycle?: string) => cycle === "yearly" ? "বার্ষিক" : "মাসিক";
 
   return (
     <DashboardLayout role="super_admin" title="পেমেন্ট ম্যানেজমেন্ট">
@@ -183,7 +181,10 @@ const SuperAdminPayments = () => {
                         </div>
                       </td>
                       <td className="p-4">
-                        <span className="px-3 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary capitalize">{p.plan}</span>
+                        <div>
+                          <span className="px-3 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary capitalize">{p.plan}</span>
+                          <span className="text-xs text-muted-foreground ml-1">{getBillingLabel(p.billing_cycle)}</span>
+                        </div>
                       </td>
                       <td className="p-4 text-muted-foreground capitalize hidden sm:table-cell">{p.payment_method}</td>
                       <td className="p-4 font-mono text-sm text-foreground hidden md:table-cell">{p.transaction_id}</td>
@@ -200,9 +201,7 @@ const SuperAdminPayments = () => {
                         </span>
                       </td>
                       <td className="p-4 text-right">
-                        <Button variant="outline" size="sm" onClick={() => openReview(p)}>
-                          রিভিউ
-                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => openReview(p)}>রিভিউ</Button>
                       </td>
                     </tr>
                   ))}
@@ -213,17 +212,14 @@ const SuperAdminPayments = () => {
         </Card>
       </div>
 
-      {/* Review Dialog */}
       <Dialog open={dialogOpen} onOpenChange={v => { setDialogOpen(v); if (!v) setSelectedPayment(null); }}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="font-display">পেমেন্ট রিভিউ</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle className="font-display">পেমেন্ট রিভিউ</DialogTitle></DialogHeader>
           {selectedPayment && (
             <div className="space-y-4 pt-2">
               <div className="bg-accent/50 rounded-lg p-4 space-y-2 text-sm">
                 <div className="flex justify-between"><span className="text-muted-foreground">রেস্টুরেন্ট:</span><span className="font-medium text-foreground">{selectedPayment.restaurant_name}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">প্ল্যান:</span><span className="font-medium text-foreground capitalize">{selectedPayment.plan}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">প্ল্যান:</span><span className="font-medium text-foreground capitalize">{selectedPayment.plan} ({getBillingLabel(selectedPayment.billing_cycle)})</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">টাকা:</span><span className="font-bold text-primary">৳{selectedPayment.amount}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">মাধ্যম:</span><span className="font-medium text-foreground capitalize">{selectedPayment.payment_method}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Transaction ID:</span><span className="font-mono text-foreground">{selectedPayment.transaction_id}</span></div>
