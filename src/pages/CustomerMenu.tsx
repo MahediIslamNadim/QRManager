@@ -81,6 +81,16 @@ const CustomerMenu = () => {
         if (tableData) setTableName(tableData.name);
       }
 
+      // If seat QR, fetch seat info and mark occupied
+      if (seatId) {
+        const { data: seatData } = await supabase.from("table_seats").select("seat_number").eq("id", seatId).single();
+        if (seatData) {
+          setSeatNumber(seatData.seat_number);
+          // Mark seat as occupied
+          await supabase.from("table_seats").update({ status: "occupied" }).eq("id", seatId);
+        }
+      }
+
       setLoading(false);
     };
     fetchData();
