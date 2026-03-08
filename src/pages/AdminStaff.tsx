@@ -68,7 +68,7 @@ const AdminStaff = () => {
   const addStaffMutation = useMutation({
     mutationFn: async () => {
       const { data, error } = await supabase.functions.invoke("create-staff", {
-        body: { email, password, full_name: name, role },
+        body: { email, password, full_name: name, role, restaurant_id: restaurantId },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
