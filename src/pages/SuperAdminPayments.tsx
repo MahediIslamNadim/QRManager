@@ -244,6 +244,7 @@ const SuperAdminPayments = () => {
                       paymentId: selectedPayment.id,
                       restaurantId: selectedPayment.restaurant_id,
                       plan: selectedPayment.plan,
+                      userId: selectedPayment.user_id,
                     })}
                     disabled={approveMutation.isPending}
                   >
