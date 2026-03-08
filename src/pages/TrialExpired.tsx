@@ -1,16 +1,80 @@
+import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertTriangle, Crown, LogOut } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AlertTriangle, Crown, LogOut, CheckCircle, Loader2, Smartphone } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const plans = [
-  { id: "basic", name: "Basic", price: "৫০০ টাকা/মাস", features: ["মেনু ম্যানেজমেন্ট", "QR কোড", "অর্ডার ম্যানেজমেন্ট"] },
-  { id: "premium", name: "Premium", price: "১,০০০ টাকা/মাস", features: ["সব Basic ফিচার", "এনালিটিক্স", "স্টাফ ম্যানেজমেন্ট", "প্রায়োরিটি সাপোর্ট"] },
-  { id: "enterprise", name: "Enterprise", price: "২,৫০০ টাকা/মাস", features: ["সব Premium ফিচার", "মাল্টি-ব্রাঞ্চ", "কাস্টম ব্র্যান্ডিং", "ডেডিকেটেড সাপোর্ট"] },
+  { id: "basic", name: "Basic", price: 500, priceText: "৫০০ টাকা/মাস", features: ["মেনু ম্যানেজমেন্ট", "QR কোড", "অর্ডার ম্যানেজমেন্ট"] },
+  { id: "premium", name: "Premium", price: 1000, priceText: "১,০০০ টাকা/মাস", features: ["সব Basic ফিচার", "এনালিটিক্স", "স্টাফ ম্যানেজমেন্ট", "প্রায়োরিটি সাপোর্ট"] },
+  { id: "enterprise", name: "Enterprise", price: 2500, priceText: "২,৫০০ টাকা/মাস", features: ["সব Premium ফিচার", "মাল্টি-ব্রাঞ্চ", "কাস্টম ব্র্যান্ডিং", "ডেডিকেটেড সাপোর্ট"] },
 ];
 
+const BKASH_NUMBER = "01XXXXXXXXX";
+const NAGAD_NUMBER = "01XXXXXXXXX";
+
 const TrialExpired = () => {
-  const { signOut } = useAuth();
+  const { user, restaurantId, signOut } = useAuth();
+  const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState("bkash");
+  const [transactionId, setTransactionId] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+
+  const selectedPlanData = plans.find(p => p.id === selectedPlan);
+
+  const handleSubmitPayment = async () => {
+    if (!transactionId.trim() || !selectedPlan || !user || !restaurantId) {
+      toast.error("সব তথ্য পূরণ করুন");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const { error } = await supabase.from("payment_requests" as any).insert({
+        restaurant_id: restaurantId,
+        user_id: user.id,
+        plan: selectedPlan,
+        amount: selectedPlanData?.price || 0,
+        payment_method: paymentMethod,
+        transaction_id: transactionId.trim(),
+        phone_number: phoneNumber.trim() || null,
+        status: "pending",
+      });
+      if (error) throw error;
+      setSubmitted(true);
+      toast.success("পেমেন্ট রিকোয়েস্ট পাঠানো হয়েছে! যাচাই করা হলে আপনার অ্যাকাউন্ট সক্রিয় হবে।");
+    } catch (err: any) {
+      toast.error(err.message || "পেমেন্ট রিকোয়েস্ট ব্যর্থ");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (submitted) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="max-w-md w-full text-center space-y-6 animate-fade-up">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-success/10 mx-auto">
+            <CheckCircle className="w-8 h-8 text-success" />
+          </div>
+          <h1 className="text-2xl font-display font-bold text-foreground">পেমেন্ট রিকোয়েস্ট পাঠানো হয়েছে!</h1>
+          <p className="text-muted-foreground">
+            আপনার Transaction ID: <strong className="text-foreground">{transactionId}</strong><br />
+            যাচাই করা হলে আপনার অ্যাকাউন্ট স্বয়ংক্রিয়ভাবে সক্রিয় হবে। সাধারণত ১-২ ঘণ্টার মধ্যে যাচাই সম্পন্ন হয়।
+          </p>
+          <Button variant="ghost" onClick={signOut} className="text-muted-foreground">
+            <LogOut className="w-4 h-4 mr-2" /> লগ আউট
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -21,13 +85,21 @@ const TrialExpired = () => {
           </div>
           <h1 className="text-3xl font-display font-bold text-foreground">ট্রায়াল সময় শেষ!</h1>
           <p className="text-muted-foreground max-w-md mx-auto">
-            আপনার ১৪ দিনের ফ্রি ট্রায়াল শেষ হয়ে গেছে। সার্ভিস চালু রাখতে একটি প্যাকেজ নির্বাচন করুন।
+            আপনার ১৪ দিনের ফ্রি ট্রায়াল শেষ হয়ে গেছে। সার্ভিস চালু রাখতে একটি প্যাকেজ নির্বাচন করুন এবং পেমেন্ট করুন।
           </p>
         </div>
 
+        {/* Plan Selection */}
         <div className="grid sm:grid-cols-3 gap-4">
           {plans.map((plan) => (
-            <Card key={plan.id} className={`relative ${plan.id === "premium" ? "border-primary shadow-lg" : ""}`}>
+            <Card
+              key={plan.id}
+              className={`relative cursor-pointer transition-all ${
+                selectedPlan === plan.id ? "border-primary shadow-lg ring-2 ring-primary/20" :
+                plan.id === "premium" ? "border-primary/50" : ""
+              }`}
+              onClick={() => setSelectedPlan(plan.id)}
+            >
               {plan.id === "premium" && (
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                   <span className="px-3 py-1 rounded-full text-xs font-medium bg-primary text-primary-foreground flex items-center gap-1">
@@ -37,7 +109,7 @@ const TrialExpired = () => {
               )}
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg font-display">{plan.name}</CardTitle>
-                <p className="text-2xl font-bold text-primary">{plan.price}</p>
+                <p className="text-2xl font-bold text-primary">{plan.priceText}</p>
               </CardHeader>
               <CardContent className="space-y-3">
                 <ul className="space-y-2 text-sm text-muted-foreground">
@@ -48,16 +120,84 @@ const TrialExpired = () => {
                     </li>
                   ))}
                 </ul>
-                <Button variant={plan.id === "premium" ? "hero" : "outline"} className="w-full" onClick={() => {
-                  // TODO: Implement payment flow
-                  window.open("https://wa.me/+8801XXXXXXXXX?text=আমি " + plan.name + " প্যাকেজ নিতে চাই", "_blank");
-                }}>
-                  নির্বাচন করুন
+                <Button
+                  variant={selectedPlan === plan.id ? "hero" : "outline"}
+                  className="w-full"
+                  onClick={(e) => { e.stopPropagation(); setSelectedPlan(plan.id); }}
+                >
+                  {selectedPlan === plan.id ? "✓ নির্বাচিত" : "নির্বাচন করুন"}
                 </Button>
               </CardContent>
             </Card>
           ))}
         </div>
+
+        {/* Payment Form */}
+        {selectedPlan && (
+          <Card className="animate-fade-up">
+            <CardHeader>
+              <CardTitle className="text-lg font-display flex items-center gap-2">
+                <Smartphone className="w-5 h-5" /> পেমেন্ট করুন — {selectedPlanData?.name} ({selectedPlanData?.priceText})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="bg-accent/50 rounded-lg p-4 space-y-2 text-sm">
+                <p className="font-medium text-foreground">পেমেন্ট নির্দেশনা:</p>
+                <p className="text-muted-foreground">১. নিচের যেকোনো একটি নম্বরে <strong className="text-primary">{selectedPlanData?.priceText}</strong> পাঠান</p>
+                <div className="grid grid-cols-2 gap-3 my-2">
+                  <div className="bg-background rounded-md p-3 text-center border border-border">
+                    <p className="font-bold text-primary">bKash</p>
+                    <p className="text-foreground font-mono">{BKASH_NUMBER}</p>
+                    <p className="text-xs text-muted-foreground">Send Money</p>
+                  </div>
+                  <div className="bg-background rounded-md p-3 text-center border border-border">
+                    <p className="font-bold text-primary">Nagad</p>
+                    <p className="text-foreground font-mono">{NAGAD_NUMBER}</p>
+                    <p className="text-xs text-muted-foreground">Send Money</p>
+                  </div>
+                </div>
+                <p className="text-muted-foreground">২. Transaction ID নিচে দিন</p>
+              </div>
+
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>পেমেন্ট মাধ্যম</Label>
+                  <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="bkash">bKash</SelectItem>
+                      <SelectItem value="nagad">Nagad</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>আপনার মোবাইল নম্বর</Label>
+                  <Input placeholder="01XXXXXXXXX" value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)} />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Transaction ID <span className="text-destructive">*</span></Label>
+                <Input
+                  placeholder="যেমন: TXN12345ABC"
+                  value={transactionId}
+                  onChange={e => setTransactionId(e.target.value)}
+                  required
+                />
+              </div>
+
+              <Button
+                variant="hero"
+                className="w-full h-12"
+                onClick={handleSubmitPayment}
+                disabled={submitting || !transactionId.trim()}
+              >
+                {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                {submitting ? "পাঠানো হচ্ছে..." : "পেমেন্ট রিকোয়েস্ট পাঠান"}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         <div className="text-center">
           <Button variant="ghost" onClick={signOut} className="text-muted-foreground">

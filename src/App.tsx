@@ -13,6 +13,7 @@ import SuperAdminRestaurants from "./pages/SuperAdminRestaurants";
 import SuperAdminUsers from "./pages/SuperAdminUsers";
 import SuperAdminAnalytics from "./pages/SuperAdminAnalytics";
 import SuperAdminSettings from "./pages/SuperAdminSettings";
+import SuperAdminPayments from "./pages/SuperAdminPayments";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminMenu from "./pages/AdminMenu";
 import AdminTables from "./pages/AdminTables";
@@ -42,6 +43,7 @@ const App = () => (
             <Route path="/super-admin/restaurants" element={<ProtectedRoute allowedRoles={["super_admin"]}><SuperAdminRestaurants /></ProtectedRoute>} />
             <Route path="/super-admin/users" element={<ProtectedRoute allowedRoles={["super_admin"]}><SuperAdminUsers /></ProtectedRoute>} />
             <Route path="/super-admin/analytics" element={<ProtectedRoute allowedRoles={["super_admin"]}><SuperAdminAnalytics /></ProtectedRoute>} />
+            <Route path="/super-admin/payments" element={<ProtectedRoute allowedRoles={["super_admin"]}><SuperAdminPayments /></ProtectedRoute>} />
             <Route path="/super-admin/settings" element={<ProtectedRoute allowedRoles={["super_admin"]}><SuperAdminSettings /></ProtectedRoute>} />
             
             {/* Admin */}
