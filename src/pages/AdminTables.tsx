@@ -81,6 +81,7 @@ const AdminTables = () => {
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!restaurantId) throw new Error("No restaurant");
+      const payload = { restaurant_id: restaurantId, name: form.name, seats: Number(form.seats) };
       if (!editingTable && isAtTableLimit) throw new Error(`আপনার ${limits.label} প্ল্যানে সর্বোচ্চ ${formatLimit(limits.maxTables)} টি টেবিল যোগ করা যায়। আপগ্রেড করুন।`);
       if (editingTable) {
         const { error } = await supabase.from("restaurant_tables").update(payload).eq("id", editingTable.id);
