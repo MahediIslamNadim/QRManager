@@ -56,6 +56,23 @@ const WaiterDashboard = () => {
     enabled: !!restaurantId,
   });
 
+  // Detect new orders and play sound
+  useEffect(() => {
+    if (!orders.length && isFirstLoadRef.current) return;
+    const currentIds = new Set(orders.map((o: any) => o.id));
+    if (isFirstLoadRef.current) {
+      prevOrderIdsRef.current = currentIds;
+      isFirstLoadRef.current = false;
+      return;
+    }
+    const newOrders = orders.filter((o: any) => !prevOrderIdsRef.current.has(o.id) && o.status === "pending");
+    if (newOrders.length > 0) {
+      playNotificationSound();
+      toast.success(`🔔 ${newOrders.length} টি নতুন অর্ডার এসেছে!`, { duration: 5000 });
+    }
+    prevOrderIdsRef.current = currentIds;
+  }, [orders, playNotificationSound]);
+
   // Realtime
   useEffect(() => {
     if (!restaurantId) return;
