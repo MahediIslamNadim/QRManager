@@ -27,7 +27,7 @@ const AdminOrders = () => {
       if (!restaurantId) return [];
       const { data } = await supabase
         .from("orders")
-        .select("*, restaurant_tables(name), order_items(id, name, quantity, price, menu_item_id)")
+        .select("*, restaurant_tables(name), table_seats(seat_number), order_items(id, name, quantity, price, menu_item_id)")
         .eq("restaurant_id", restaurantId)
         .order("created_at", { ascending: false });
       return data || [];
