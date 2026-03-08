@@ -149,7 +149,7 @@ const WaiterDashboard = () => {
 
   return (
     <DashboardLayout role="waiter" title="ওয়েটার ড্যাশবোর্ড">
-      <div className="space-y-6 animate-fade-up">
+      <div className="space-y-6 animate-fade-up relative">
         <div className="grid grid-cols-3 gap-4">
           <button
             onClick={() => setSoundEnabled(!soundEnabled)}
