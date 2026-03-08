@@ -151,6 +151,13 @@ const WaiterDashboard = () => {
     <DashboardLayout role="waiter" title="ওয়েটার ড্যাশবোর্ড">
       <div className="space-y-6 animate-fade-up">
         <div className="grid grid-cols-3 gap-4">
+          <button
+            onClick={() => setSoundEnabled(!soundEnabled)}
+            className={`absolute top-4 right-4 p-2 rounded-full transition-all ${soundEnabled ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}
+            title={soundEnabled ? "সাউন্ড বন্ধ করুন" : "সাউন্ড চালু করুন"}
+          >
+            {soundEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
+          </button>
           <div className="stat-card text-center">
             <ShoppingCart className="w-6 h-6 text-primary mx-auto mb-2" />
             <p className="text-2xl font-display font-bold text-foreground">{orders.length}</p>
