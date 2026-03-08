@@ -291,6 +291,23 @@ const AdminTables = () => {
                         <UserPlus className="w-3.5 h-3.5" />
                       </button>
                     </div>
+                    {/* Seat info */}
+                    {(() => {
+                      const tableSeats = allSeats.filter((s: any) => s.table_id === table.id);
+                      if (tableSeats.length > 0) {
+                        const occupied = tableSeats.filter((s: any) => s.status === "occupied").length;
+                        const available = tableSeats.filter((s: any) => s.status === "available").length;
+                        return (
+                          <div className="flex items-center justify-center gap-1.5 text-xs mb-1" onClick={e => e.stopPropagation()}>
+                            <Armchair className="w-3 h-3 text-muted-foreground" />
+                            <span className="text-success font-medium">{available} ফাঁকা</span>
+                            <span className="text-muted-foreground">•</span>
+                            <span className="text-destructive font-medium">{occupied} ব্যস্ত</span>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
                     {orderCount > 0 && (
                       <div className="flex items-center justify-center gap-1 text-xs text-primary font-medium mb-2">
                         <ShoppingCart className="w-3 h-3" /> {orderCount} অর্ডার • ৳{totalAmount}
@@ -306,8 +323,9 @@ const AdminTables = () => {
                       <option value="occupied">ব্যস্ত</option>
                       <option value="reserved">রিজার্ভড</option>
                     </select>
-                    <div className="flex gap-2 justify-center" onClick={e => e.stopPropagation()}>
+                    <div className="flex gap-2 justify-center flex-wrap" onClick={e => e.stopPropagation()}>
                       <Button variant="outline" size="sm" onClick={() => setShowQR(menuUrl(table.id))}><QrCode className="w-3 h-3" /> QR</Button>
+                      <Button variant="outline" size="sm" onClick={() => setSeatTable(table)}><Armchair className="w-3 h-3" /> সিট</Button>
                       <Button variant="ghost" size="sm" onClick={() => { setForm({ name: table.name, seats: String(table.seats) }); setEditingTable(table); setShowForm(true); }}><Edit className="w-3 h-3" /></Button>
                       <Button variant="ghost" size="sm" className="text-destructive" onClick={() => deleteMutation.mutate(table.id)}><Trash2 className="w-3 h-3" /></Button>
                     </div>
