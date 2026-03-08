@@ -2,16 +2,24 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Edit, Trash2, Image as ImageIcon, X } from "lucide-react";
-import { useState } from "react";
+import { Plus, Edit, Trash2, Image as ImageIcon, Upload, X } from "lucide-react";
+import { useState, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 
 const categories = ["সব", "বিরিয়ানি", "কাবাব", "ভাত", "পানীয়", "ডেজার্ট", "other"];
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+
+const getImageUrl = (path: string | null) => {
+  if (!path) return null;
+  if (path.startsWith("http")) return path;
+  return `${SUPABASE_URL}/storage/v1/object/public/menu-images/${path}`;
+};
 
 const AdminMenu = () => {
   const { restaurantId } = useAuth();
@@ -20,6 +28,10 @@ const AdminMenu = () => {
   const [showForm, setShowForm] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [form, setForm] = useState({ name: "", price: "", category: "other", description: "", available: true });
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: menuItems = [], isLoading } = useQuery({
     queryKey: ["menu-items", restaurantId],
@@ -37,9 +49,29 @@ const AdminMenu = () => {
 
   const filtered = activeCategory === "সব" ? menuItems : menuItems.filter((i: any) => i.category === activeCategory);
 
+  const uploadImage = async (file: File): Promise<string | null> => {
+    const ext = file.name.split(".").pop();
+    const fileName = `${restaurantId}/${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from("menu-images").upload(fileName, file, { upsert: true });
+    if (error) {
+      console.error("Upload error:", error);
+      throw new Error("ইমেজ আপলোড ব্যর্থ: " + error.message);
+    }
+    return fileName;
+  };
+
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!restaurantId) throw new Error("No restaurant");
+      setUploading(true);
+
+      let image_url = editingItem?.image_url || null;
+
+      // Upload image if selected
+      if (imageFile) {
+        image_url = await uploadImage(imageFile);
+      }
+
       const payload = {
         restaurant_id: restaurantId,
         name: form.name,
@@ -47,7 +79,9 @@ const AdminMenu = () => {
         category: form.category,
         description: form.description,
         available: form.available,
+        image_url,
       };
+
       if (editingItem) {
         const { error } = await supabase.from("menu_items").update(payload).eq("id", editingItem.id);
         if (error) throw error;
@@ -62,6 +96,7 @@ const AdminMenu = () => {
       resetForm();
     },
     onError: (err: any) => toast.error(err.message),
+    onSettled: () => setUploading(false),
   });
 
   const deleteMutation = useMutation({
@@ -87,12 +122,31 @@ const AdminMenu = () => {
     setForm({ name: "", price: "", category: "other", description: "", available: true });
     setEditingItem(null);
     setShowForm(false);
+    setImageFile(null);
+    setImagePreview(null);
   };
 
   const openEdit = (item: any) => {
     setForm({ name: item.name, price: String(item.price), category: item.category, description: item.description || "", available: item.available });
     setEditingItem(item);
+    setImageFile(null);
+    setImagePreview(item.image_url ? getImageUrl(item.image_url) : null);
     setShowForm(true);
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("শুধুমাত্র ইমেজ ফাইল আপলোড করুন");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("ফাইল সাইজ ৫MB এর বেশি হতে পারবে না");
+      return;
+    }
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
   };
 
   return (
@@ -113,11 +167,45 @@ const AdminMenu = () => {
 
         {/* Add/Edit Dialog */}
         <Dialog open={showForm} onOpenChange={setShowForm}>
-          <DialogContent>
+          <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle className="font-display">{editingItem ? "আইটেম সম্পাদনা" : "নতুন আইটেম"}</DialogTitle>
             </DialogHeader>
             <form onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(); }} className="space-y-4">
+              {/* Image Upload */}
+              <div>
+                <Label>ছবি</Label>
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="mt-2 relative h-40 rounded-xl border-2 border-dashed border-border hover:border-primary/50 transition-colors cursor-pointer overflow-hidden bg-secondary/30 flex items-center justify-center group"
+                >
+                  {imagePreview ? (
+                    <>
+                      <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-foreground/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <div className="text-primary-foreground text-sm font-medium flex items-center gap-2">
+                          <Upload className="w-4 h-4" /> ছবি পরিবর্তন করুন
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setImageFile(null); setImagePreview(null); }}
+                        className="absolute top-2 right-2 w-7 h-7 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center z-10"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </>
+                  ) : (
+                    <div className="text-center">
+                      <Upload className="w-8 h-8 text-muted-foreground/50 mx-auto mb-2" />
+                      <p className="text-sm text-muted-foreground">ক্লিক করে ছবি আপলোড করুন</p>
+                      <p className="text-xs text-muted-foreground/60 mt-1">JPG, PNG — সর্বোচ্চ ৫MB</p>
+                    </div>
+                  )}
+                </div>
+                <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
+              </div>
+
               <div><Label>নাম</Label><Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required /></div>
               <div><Label>মূল্য (৳)</Label><Input type="number" value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} required /></div>
               <div>
@@ -132,8 +220,8 @@ const AdminMenu = () => {
                 <Switch checked={form.available} onCheckedChange={v => setForm(f => ({ ...f, available: v }))} />
                 <Label>উপলব্ধ</Label>
               </div>
-              <Button type="submit" variant="hero" className="w-full" disabled={saveMutation.isPending}>
-                {saveMutation.isPending ? "সেভ হচ্ছে..." : "সেভ করুন"}
+              <Button type="submit" variant="hero" className="w-full" disabled={saveMutation.isPending || uploading}>
+                {uploading ? "আপলোড হচ্ছে..." : saveMutation.isPending ? "সেভ হচ্ছে..." : "সেভ করুন"}
               </Button>
             </form>
           </DialogContent>
@@ -145,27 +233,34 @@ const AdminMenu = () => {
           <p className="text-center text-muted-foreground py-12">কোনো মেনু আইটেম নেই। "আইটেম যোগ করুন" বাটনে ক্লিক করুন।</p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filtered.map((item: any) => (
-              <div key={item.id} className="menu-item-card">
-                <div className="h-40 bg-gradient-to-br from-accent to-secondary flex items-center justify-center">
-                  <ImageIcon className="w-12 h-12 text-muted-foreground/30" />
-                </div>
-                <div className="p-5">
-                  <h3 className="font-display font-semibold text-foreground text-lg">{item.name}</h3>
-                  <p className="text-sm text-muted-foreground mt-1">{item.description}</p>
-                  <div className="flex items-center justify-between mt-4">
-                    <span className="text-xl font-bold text-primary">৳{item.price}</span>
-                    <div className="flex items-center gap-2">
-                      <Switch checked={item.available} onCheckedChange={v => toggleAvailability.mutate({ id: item.id, available: v })} />
-                      <Button variant="ghost" size="icon" onClick={() => openEdit(item)}><Edit className="w-4 h-4" /></Button>
-                      <Button variant="ghost" size="icon" className="text-destructive" onClick={() => deleteMutation.mutate(item.id)}>
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+            {filtered.map((item: any) => {
+              const imgUrl = getImageUrl(item.image_url);
+              return (
+                <div key={item.id} className="menu-item-card">
+                  <div className="h-40 bg-gradient-to-br from-accent to-secondary flex items-center justify-center overflow-hidden">
+                    {imgUrl ? (
+                      <img src={imgUrl} alt={item.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <ImageIcon className="w-12 h-12 text-muted-foreground/30" />
+                    )}
+                  </div>
+                  <div className="p-5">
+                    <h3 className="font-display font-semibold text-foreground text-lg">{item.name}</h3>
+                    <p className="text-sm text-muted-foreground mt-1">{item.description}</p>
+                    <div className="flex items-center justify-between mt-4">
+                      <span className="text-xl font-bold text-primary">৳{item.price}</span>
+                      <div className="flex items-center gap-2">
+                        <Switch checked={item.available} onCheckedChange={v => toggleAvailability.mutate({ id: item.id, available: v })} />
+                        <Button variant="ghost" size="icon" onClick={() => openEdit(item)}><Edit className="w-4 h-4" /></Button>
+                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => deleteMutation.mutate(item.id)}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
