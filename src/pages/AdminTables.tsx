@@ -23,6 +23,7 @@ const AdminTables = () => {
   const [form, setForm] = useState({ name: "", seats: "4" });
   const [showQR, setShowQR] = useState<string | null>(null);
   const [selectedTable, setSelectedTable] = useState<any>(null);
+  const [seatTable, setSeatTable] = useState<any>(null);
 
   const { data: tables = [] } = useQuery({
     queryKey: ["tables", restaurantId],
