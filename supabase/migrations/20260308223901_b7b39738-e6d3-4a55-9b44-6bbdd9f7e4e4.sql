@@ -1,0 +1,1 @@
+ALTER TABLE public.restaurant_tables ADD COLUMN IF NOT EXISTS current_customers integer NOT NULL DEFAULT 0;

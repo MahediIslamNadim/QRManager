@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { QrCode, Plus, Edit, Users, Trash2, ShoppingCart } from "lucide-react";
+import { QrCode, Plus, Edit, Users, Trash2, ShoppingCart, UserPlus, UserMinus } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { getPlanLimits, formatLimit } from "@/lib/planLimits";
 import { supabase } from "@/integrations/supabase/client";
@@ -246,8 +246,31 @@ const AdminTables = () => {
                       <div className={`w-2 h-2 rounded-full ${color.dot}`} />
                       <span className="text-xs font-medium text-muted-foreground">{color.label}</span>
                     </div>
-                    <div className="flex items-center justify-center gap-1 text-sm text-muted-foreground mb-1">
-                      <Users className="w-3.5 h-3.5" /><span>{table.seats} সিট</span>
+                    <div className="flex items-center justify-center gap-3 text-sm text-muted-foreground mb-1">
+                      <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" />{table.seats} সিট</span>
+                      <span className="flex items-center gap-1 font-semibold text-foreground">👤 {table.current_customers || 0} জন</span>
+                    </div>
+                    {/* Customer count controls */}
+                    <div className="flex items-center justify-center gap-2 mb-2" onClick={e => e.stopPropagation()}>
+                      <button
+                        onClick={() => {
+                          const nc = Math.max(0, (table.current_customers || 0) - 1);
+                          supabase.from("restaurant_tables").update({ current_customers: nc }).eq("id", table.id).then(() => queryClient.invalidateQueries({ queryKey: ["tables", restaurantId] }));
+                        }}
+                        className="w-7 h-7 rounded-lg bg-card border border-border flex items-center justify-center hover:bg-accent active:scale-90 transition-all"
+                      >
+                        <UserMinus className="w-3.5 h-3.5 text-destructive" />
+                      </button>
+                      <span className="text-sm font-bold text-foreground w-6 text-center">{table.current_customers || 0}</span>
+                      <button
+                        onClick={() => {
+                          const nc = Math.min(table.seats, (table.current_customers || 0) + 1);
+                          supabase.from("restaurant_tables").update({ current_customers: nc }).eq("id", table.id).then(() => queryClient.invalidateQueries({ queryKey: ["tables", restaurantId] }));
+                        }}
+                        className="w-7 h-7 rounded-lg bg-primary text-primary-foreground flex items-center justify-center active:scale-90 transition-all"
+                      >
+                        <UserPlus className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                     {orderCount > 0 && (
                       <div className="flex items-center justify-center gap-1 text-xs text-primary font-medium mb-2">

@@ -273,6 +273,7 @@ export type Database = {
       restaurant_tables: {
         Row: {
           created_at: string
+          current_customers: number
           id: string
           name: string
           qr_code: string | null
@@ -282,6 +283,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          current_customers?: number
           id?: string
           name: string
           qr_code?: string | null
@@ -291,6 +293,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          current_customers?: number
           id?: string
           name?: string
           qr_code?: string | null
