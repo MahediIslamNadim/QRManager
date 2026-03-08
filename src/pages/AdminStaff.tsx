@@ -26,23 +26,33 @@ const AdminStaff = () => {
     queryKey: ["staff", restaurantId],
     queryFn: async () => {
       if (!restaurantId) return [];
-      // Get user_roles for this context
+      
+      // Get staff linked to this restaurant
+      const { data: staffLinks } = await supabase
+        .from("staff_restaurants")
+        .select("user_id")
+        .eq("restaurant_id", restaurantId);
+      
+      if (!staffLinks || staffLinks.length === 0) return [];
+      
+      const userIds = staffLinks.map(s => s.user_id);
+      
+      // Get roles for these users
       const { data: roles } = await supabase
         .from("user_roles")
-        .select("user_id, role");
+        .select("user_id, role")
+        .in("user_id", userIds);
       
       if (!roles) return [];
 
-      // Get profiles for those users
-      const userIds = roles.map(r => r.user_id);
+      // Get profiles
       const { data: profiles } = await supabase
         .from("profiles")
-        .select("id, full_name, email, phone");
-
-      if (!profiles) return [];
+        .select("id, full_name, email, phone")
+        .in("id", userIds);
 
       return roles.map(r => {
-        const profile = profiles.find(p => p.id === r.user_id);
+        const profile = profiles?.find(p => p.id === r.user_id);
         return {
           id: r.user_id,
           name: profile?.full_name || "N/A",
