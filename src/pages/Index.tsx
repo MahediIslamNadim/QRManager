@@ -68,16 +68,16 @@ const Index = () => {
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
-              { icon: QrCode, title: "QR কোড অর্ডারিং", desc: "প্রতিটি টেবিলে QR কোড। কাস্টমার স্ক্যান করে সরাসরি অর্ডার দেয়।" },
-              { icon: ShoppingCart, title: "রিয়েল-টাইম অর্ডার", desc: "অর্ডার তাৎক্ষণিকভাবে রান্নাঘরে যায়। ওয়েটার রিয়েল-টাইমে আপডেট পায়।" },
-              { icon: BarChart3, title: "বিশ্লেষণ ড্যাশবোর্ড", desc: "বিক্রয়, জনপ্রিয় আইটেম, এবং কাস্টমার ইনসাইটস এক জায়গায়।" },
-              { icon: Shield, title: "নিরাপদ ও নির্ভরযোগ্য", desc: "ডাটা এনক্রিপশন এবং নিরাপদ পেমেন্ট প্রসেসিং।" },
-              { icon: Zap, title: "দ্রুত সেটআপ", desc: "কয়েক মিনিটেই আপনার রেস্টুরেন্ট সেটআপ করুন। কোনো টেকনিক্যাল জ্ঞান লাগবে না।" },
-              { icon: Globe, title: "মাল্টি-রেস্টুরেন্ট", desc: "একাধিক রেস্টুরেন্ট ম্যানেজ করুন একটি প্ল্যাটফর্ম থেকে।" },
+              { icon: QrCode, title: "QR কোড অর্ডারিং", desc: "প্রতিটি টেবিলে QR কোড। কাস্টমার স্ক্যান করে সরাসরি অর্ডার দেয়।", color: "bg-primary/10 text-primary" },
+              { icon: ShoppingCart, title: "রিয়েল-টাইম অর্ডার", desc: "অর্ডার তাৎক্ষণিকভাবে রান্নাঘরে যায়। ওয়েটার রিয়েল-টাইমে আপডেট পায়।", color: "bg-info/10 text-info" },
+              { icon: BarChart3, title: "বিশ্লেষণ ড্যাশবোর্ড", desc: "বিক্রয়, জনপ্রিয় আইটেম, এবং কাস্টমার ইনসাইটস এক জায়গায়।", color: "bg-success/10 text-success" },
+              { icon: Shield, title: "নিরাপদ ও নির্ভরযোগ্য", desc: "ডাটা এনক্রিপশন এবং নিরাপদ পেমেন্ট প্রসেসিং।", color: "bg-rose/10 text-rose" },
+              { icon: Zap, title: "দ্রুত সেটআপ", desc: "কয়েক মিনিটেই আপনার রেস্টুরেন্ট সেটআপ করুন। কোনো টেকনিক্যাল জ্ঞান লাগবে না।", color: "bg-amber/10 text-amber" },
+              { icon: Globe, title: "মাল্টি-রেস্টুরেন্ট", desc: "একাধিক রেস্টুরেন্ট ম্যানেজ করুন একটি প্ল্যাটফর্ম থেকে।", color: "bg-accent text-accent-foreground" },
             ].map((feature, i) => (
               <div key={i} className="stat-card text-center">
-                <div className="w-14 h-14 rounded-2xl bg-accent flex items-center justify-center mx-auto mb-5">
-                  <feature.icon className="w-7 h-7 text-accent-foreground" />
+                <div className={`w-14 h-14 rounded-2xl ${feature.color} flex items-center justify-center mx-auto mb-5`}>
+                  <feature.icon className="w-7 h-7" />
                 </div>
                 <h3 className="font-display font-semibold text-foreground text-lg mb-3">{feature.title}</h3>
                 <p className="text-muted-foreground text-sm font-body">{feature.desc}</p>
