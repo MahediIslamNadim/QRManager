@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
 import DashboardSidebar from "./DashboardSidebar";
+import NotificationBell from "./NotificationBell";
 
 interface DashboardLayoutProps {
   children: ReactNode;
