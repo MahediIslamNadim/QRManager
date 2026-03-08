@@ -57,20 +57,11 @@ const AdminStaff = () => {
 
   const addStaffMutation = useMutation({
     mutationFn: async () => {
-      // Sign up user via edge function or direct signup
-      const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { data: { full_name: name } },
+      const { data, error } = await supabase.functions.invoke("create-staff", {
+        body: { email, password, full_name: name, role },
       });
-      if (signUpErr) throw signUpErr;
-      if (!signUpData.user) throw new Error("ব্যবহারকারী তৈরি হয়নি");
-
-      // Add role
-      const { error: roleErr } = await supabase
-        .from("user_roles")
-        .insert({ user_id: signUpData.user.id, role });
-      if (roleErr) throw roleErr;
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
     },
     onSuccess: () => {
       toast.success("কর্মী সফলভাবে যোগ করা হয়েছে");
