@@ -6,6 +6,7 @@ interface AuthContextType {
   user: User | null;
   role: string | null;
   restaurantId: string | null;
+  restaurantPlan: string;
   loading: boolean;
   trialExpired: boolean;
   signOut: () => Promise<void>;
