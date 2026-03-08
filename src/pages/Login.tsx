@@ -218,19 +218,13 @@ const Login = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="basic">
-                        <div className="flex flex-col items-start">
-                          <span className="font-medium">Basic — ফ্রি (১৪ দিন)</span>
-                        </div>
+                        <span className="font-medium">Basic — ৫০০ টাকা/মাস (১৪ দিন ফ্রি)</span>
                       </SelectItem>
                       <SelectItem value="premium">
-                        <div className="flex flex-col items-start">
-                          <span className="font-medium">Premium — ফ্রি (১৪ দিন)</span>
-                        </div>
+                        <span className="font-medium">Premium — ১,০০০ টাকা/মাস (১৪ দিন ফ্রি)</span>
                       </SelectItem>
                       <SelectItem value="enterprise">
-                        <div className="flex flex-col items-start">
-                          <span className="font-medium">Enterprise — ফ্রি (১৪ দিন)</span>
-                        </div>
+                        <span className="font-medium">Enterprise — ২,৫০০ টাকা/মাস (১৪ দিন ফ্রি)</span>
                       </SelectItem>
                     </SelectContent>
                   </Select>

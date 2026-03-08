@@ -161,11 +161,12 @@ const SuperAdminRestaurants = () => {
                       </td>
                       <td className="p-4">
                         <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          r.status === "active" ? "bg-success/10 text-success" :
+                          r.status === "active_paid" ? "bg-success/10 text-success" :
+                          r.status === "active" ? "bg-primary/10 text-primary" :
                           r.status === "pending" ? "bg-warning/10 text-warning" :
                           "bg-muted text-muted-foreground"
                         }`}>
-                          {r.status === "active" ? "সক্রিয়" : r.status === "pending" ? "পেন্ডিং" : "নিষ্ক্রিয়"}
+                          {r.status === "active_paid" ? "পেইড ✓" : r.status === "active" ? "ট্রায়াল" : r.status === "pending" ? "পেন্ডিং" : "নিষ্ক্রিয়"}
                         </span>
                       </td>
                       <td className="p-4 text-right">
