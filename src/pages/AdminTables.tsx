@@ -335,6 +335,15 @@ const AdminTables = () => {
             })}
           </div>
         )}
+        {/* Seat Management */}
+        {seatTable && restaurantId && (
+          <SeatManagement
+            table={seatTable}
+            restaurantId={restaurantId}
+            open={!!seatTable}
+            onClose={() => setSeatTable(null)}
+          />
+        )}
       </div>
     </DashboardLayout>
   );

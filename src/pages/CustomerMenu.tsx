@@ -30,6 +30,7 @@ const CustomerMenu = () => {
   const { restaurantId } = useParams();
   const [searchParams] = useSearchParams();
   const tableId = searchParams.get("table");
+  const seatId = searchParams.get("seat");
   const isDemo = !restaurantId;
 
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
