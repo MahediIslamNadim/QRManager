@@ -247,9 +247,14 @@ const WaiterDashboard = () => {
                   <CardContent className="p-5">
                     <div className="flex items-start justify-between">
                       <div>
-                        <div className="flex items-center gap-2 mb-2">
+                        <div className="flex items-center gap-2 mb-2 flex-wrap">
                           <h3 className="font-display font-semibold text-foreground">#{order.id.slice(0, 6)}</h3>
                           <span className="text-sm font-body text-muted-foreground">• {order.restaurant_tables?.name || "N/A"}</span>
+                          {order.table_seats?.seat_number && (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
+                              সিট {order.table_seats.seat_number}
+                            </span>
+                          )}
                         </div>
                         <div className="flex flex-wrap gap-1 mb-2">
                           {order.order_items?.map((item: any, i: number) => (
