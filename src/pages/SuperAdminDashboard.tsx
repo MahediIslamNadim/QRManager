@@ -58,10 +58,10 @@ const SuperAdminDashboard = () => {
     <DashboardLayout role="super_admin" title="সুপার অ্যাডমিন ড্যাশবোর্ড">
       <div className="space-y-8 animate-fade-up">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <StatCard title="মোট রেস্টুরেন্ট" value={stats?.totalRestaurants ?? 0} icon={Store} />
-          <StatCard title="মোট ব্যবহারকারী" value={stats?.totalUsers ?? 0} icon={Users} />
-          <StatCard title="মোট আয়" value={`৳${stats?.totalRevenue ?? 0}`} icon={DollarSign} />
-          <StatCard title="অ্যাক্টিভ অর্ডার" value={stats?.activeOrders ?? 0} icon={TrendingUp} />
+          <StatCard title="মোট রেস্টুরেন্ট" value={stats?.totalRestaurants ?? 0} icon={Store} colorScheme="primary" />
+          <StatCard title="মোট ব্যবহারকারী" value={stats?.totalUsers ?? 0} icon={Users} colorScheme="info" />
+          <StatCard title="মোট আয়" value={`৳${stats?.totalRevenue ?? 0}`} icon={DollarSign} colorScheme="success" />
+          <StatCard title="অ্যাক্টিভ অর্ডার" value={stats?.activeOrders ?? 0} icon={TrendingUp} colorScheme="rose" />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

@@ -68,10 +68,10 @@ const AdminDashboard = () => {
     <DashboardLayout role="admin" title="অ্যাডমিন ড্যাশবোর্ড">
       <div className="space-y-8 animate-fade-up">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <StatCard title="আজকের অর্ডার" value={stats?.todayOrders ?? 0} icon={ShoppingCart} />
-          <StatCard title="আজকের আয়" value={`৳${stats?.todayRevenue ?? 0}`} icon={DollarSign} />
-          <StatCard title="অ্যাক্টিভ টেবিল" value={`${stats?.activeTables ?? 0}/${stats?.totalTables ?? 0}`} icon={Users} />
-          <StatCard title="গড় অর্ডার মূল্য" value={`৳${stats?.avgOrder ?? 0}`} icon={TrendingUp} />
+          <StatCard title="আজকের অর্ডার" value={stats?.todayOrders ?? 0} icon={ShoppingCart} colorScheme="primary" />
+          <StatCard title="আজকের আয়" value={`৳${stats?.todayRevenue ?? 0}`} icon={DollarSign} colorScheme="success" />
+          <StatCard title="অ্যাক্টিভ টেবিল" value={`${stats?.activeTables ?? 0}/${stats?.totalTables ?? 0}`} icon={Users} colorScheme="info" />
+          <StatCard title="গড় অর্ডার মূল্য" value={`৳${stats?.avgOrder ?? 0}`} icon={TrendingUp} colorScheme="rose" />
         </div>
 
         {/* Upgrade Banner */}
