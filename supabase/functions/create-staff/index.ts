@@ -22,7 +22,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Verify the calling user is an admin or super_admin
     const callerClient = createClient(supabaseUrl, serviceRoleKey);
     const anonClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!, {
       global: { headers: { Authorization: authHeader } },
@@ -50,7 +49,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { email, password, full_name, role } = await req.json();
+    const { email, password, full_name, role, restaurant_id } = await req.json();
 
     if (!email || !password || !role) {
       return new Response(JSON.stringify({ error: "Missing required fields" }), {
@@ -66,7 +65,26 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Create user using admin API (won't affect caller's session)
+    // Get caller's restaurant_id if not provided
+    let restId = restaurant_id;
+    if (!restId) {
+      const { data: callerRest } = await callerClient
+        .from("restaurants")
+        .select("id")
+        .eq("owner_id", caller.id)
+        .limit(1)
+        .single();
+      restId = callerRest?.id;
+    }
+
+    if (!restId) {
+      return new Response(JSON.stringify({ error: "No restaurant found" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Create user
     const { data: newUser, error: createErr } = await callerClient.auth.admin.createUser({
       email,
       password,
@@ -88,6 +106,18 @@ Deno.serve(async (req) => {
 
     if (roleErr) {
       return new Response(JSON.stringify({ error: roleErr.message }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Link staff to restaurant
+    const { error: linkErr } = await callerClient
+      .from("staff_restaurants")
+      .insert({ user_id: newUser.user.id, restaurant_id: restId });
+
+    if (linkErr) {
+      return new Response(JSON.stringify({ error: linkErr.message }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
