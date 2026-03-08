@@ -40,9 +40,9 @@ const App = () => (
           {/* Waiter */}
           <Route path="/waiter" element={<WaiterDashboard />} />
           
-          {/* Customer */}
-          <Route path="/menu/:restaurantId" element={<CustomerMenu />} />
+          {/* Customer - demo route must come before parameterized route */}
           <Route path="/menu/demo" element={<CustomerMenu />} />
+          <Route path="/menu/:restaurantId" element={<CustomerMenu />} />
           
           <Route path="*" element={<NotFound />} />
         </Routes>
