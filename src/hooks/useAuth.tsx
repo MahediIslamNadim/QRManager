@@ -25,27 +25,43 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   const fetchUserData = async (userId: string) => {
-    // Get role
-    const { data: roles } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId);
-    
-    if (roles && roles.length > 0) {
-      setRole(roles[0].role);
-    } else {
-      setRole("admin"); // default role for new users
-    }
+    try {
+      // Get role
+      const { data: roles, error: roleError } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId);
+      
+      if (roleError) console.error("Role fetch error:", roleError);
+      
+      if (roles && roles.length > 0) {
+        setRole(roles[0].role);
+      } else {
+        setRole("admin"); // default role for new users
+      }
 
-    // Get restaurant
-    const { data: restaurants } = await supabase
-      .from("restaurants")
-      .select("id")
-      .eq("owner_id", userId)
-      .limit(1);
-    
-    if (restaurants && restaurants.length > 0) {
-      setRestaurantId(restaurants[0].id);
+      // Get restaurant using RPC to avoid RLS issues
+      const { data: restId, error: restError } = await supabase
+        .rpc("get_user_restaurant_id", { _user_id: userId });
+      
+      if (restError) console.error("Restaurant fetch error:", restError);
+      
+      if (restId) {
+        setRestaurantId(restId);
+      } else {
+        // Fallback: direct query
+        const { data: restaurants } = await supabase
+          .from("restaurants")
+          .select("id")
+          .eq("owner_id", userId)
+          .limit(1);
+        
+        if (restaurants && restaurants.length > 0) {
+          setRestaurantId(restaurants[0].id);
+        }
+      }
+    } catch (err) {
+      console.error("fetchUserData error:", err);
     }
   };
 
@@ -54,8 +70,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       async (event, session) => {
         if (session?.user) {
           setUser(session.user);
-          // Use setTimeout to avoid Supabase auth deadlock
-          setTimeout(() => fetchUserData(session.user.id), 0);
+          await fetchUserData(session.user.id);
         } else {
           setUser(null);
           setRole(null);
