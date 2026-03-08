@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { ShoppingCart, Clock, CheckCircle, Plus, Minus, Edit, X } from "lucide-react";
+import { ShoppingCart, Clock, CheckCircle, Plus, Minus, Edit, X, Volume2, VolumeX } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -15,6 +15,31 @@ const WaiterDashboard = () => {
   const queryClient = useQueryClient();
   const [editOrder, setEditOrder] = useState<any>(null);
   const [editItems, setEditItems] = useState<any[]>([]);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const prevOrderIdsRef = useRef<Set<string>>(new Set());
+  const isFirstLoadRef = useRef(true);
+
+  const playNotificationSound = useCallback(() => {
+    if (!soundEnabled) return;
+    try {
+      const ctx = new AudioContext();
+      const playTone = (freq: number, start: number, dur: number) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = freq;
+        osc.type = "sine";
+        gain.gain.setValueAtTime(0.3, ctx.currentTime + start);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + start + dur);
+        osc.start(ctx.currentTime + start);
+        osc.stop(ctx.currentTime + start + dur);
+      };
+      playTone(880, 0, 0.15);
+      playTone(1100, 0.15, 0.15);
+      playTone(1320, 0.3, 0.2);
+    } catch {}
+  }, [soundEnabled]);
 
   const { data: orders = [] } = useQuery({
     queryKey: ["waiter-orders", restaurantId],
@@ -30,6 +55,23 @@ const WaiterDashboard = () => {
     },
     enabled: !!restaurantId,
   });
+
+  // Detect new orders and play sound
+  useEffect(() => {
+    if (!orders.length && isFirstLoadRef.current) return;
+    const currentIds = new Set(orders.map((o: any) => o.id));
+    if (isFirstLoadRef.current) {
+      prevOrderIdsRef.current = currentIds;
+      isFirstLoadRef.current = false;
+      return;
+    }
+    const newOrders = orders.filter((o: any) => !prevOrderIdsRef.current.has(o.id) && o.status === "pending");
+    if (newOrders.length > 0) {
+      playNotificationSound();
+      toast.success(`🔔 ${newOrders.length} টি নতুন অর্ডার এসেছে!`, { duration: 5000 });
+    }
+    prevOrderIdsRef.current = currentIds;
+  }, [orders, playNotificationSound]);
 
   // Realtime
   useEffect(() => {
@@ -107,8 +149,15 @@ const WaiterDashboard = () => {
 
   return (
     <DashboardLayout role="waiter" title="ওয়েটার ড্যাশবোর্ড">
-      <div className="space-y-6 animate-fade-up">
+      <div className="space-y-6 animate-fade-up relative">
         <div className="grid grid-cols-3 gap-4">
+          <button
+            onClick={() => setSoundEnabled(!soundEnabled)}
+            className={`absolute top-4 right-4 p-2 rounded-full transition-all ${soundEnabled ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}
+            title={soundEnabled ? "সাউন্ড বন্ধ করুন" : "সাউন্ড চালু করুন"}
+          >
+            {soundEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
+          </button>
           <div className="stat-card text-center">
             <ShoppingCart className="w-6 h-6 text-primary mx-auto mb-2" />
             <p className="text-2xl font-display font-bold text-foreground">{orders.length}</p>
