@@ -88,6 +88,9 @@ const AdminTables = () => {
       .on("postgres_changes", { event: "*", schema: "public", table: "restaurant_tables" }, () => {
         queryClient.invalidateQueries({ queryKey: ["tables", restaurantId] });
       })
+      .on("postgres_changes", { event: "*", schema: "public", table: "table_seats" }, () => {
+        queryClient.invalidateQueries({ queryKey: ["all-seats", restaurantId] });
+      })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [restaurantId, queryClient]);
