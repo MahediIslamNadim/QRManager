@@ -27,7 +27,7 @@ const AdminOrders = () => {
       if (!restaurantId) return [];
       const { data } = await supabase
         .from("orders")
-        .select("*, restaurant_tables(name), order_items(id, name, quantity, price, menu_item_id)")
+        .select("*, restaurant_tables(name), table_seats(seat_number), order_items(id, name, quantity, price, menu_item_id)")
         .eq("restaurant_id", restaurantId)
         .order("created_at", { ascending: false });
       return data || [];
@@ -150,9 +150,14 @@ const AdminOrders = () => {
                         <ShoppingCart className="w-6 h-6 text-accent-foreground" />
                       </div>
                       <div>
-                        <div className="flex items-center gap-3 mb-1">
+                        <div className="flex items-center gap-3 mb-1 flex-wrap">
                           <h3 className="font-display font-semibold text-foreground text-lg">#{order.id.slice(0, 6)}</h3>
                           <span className="text-sm text-muted-foreground">{order.restaurant_tables?.name || "N/A"}</span>
+                          {order.table_seats?.seat_number && (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
+                              সিট {order.table_seats.seat_number}
+                            </span>
+                          )}
                         </div>
                         <div className="flex flex-wrap gap-2 mb-2">
                           {order.order_items?.map((item: any, i: number) => (
