@@ -72,25 +72,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
       }
 
-      // Check trial expiry for admin users (not super_admin)
-      if (bestRole === "admin" && foundRestId) {
+      // Check trial expiry and plan for admin users (not super_admin)
+      if (foundRestId) {
         const { data: restaurant } = await supabase
           .from("restaurants")
-          .select("trial_ends_at, status")
+          .select("trial_ends_at, status, plan")
           .eq("id", foundRestId)
           .single();
 
         if (restaurant) {
-          const trialEndsAt = restaurant.trial_ends_at ? new Date(restaurant.trial_ends_at) : null;
-          const now = new Date();
+          setRestaurantPlan(restaurant.plan || "basic");
 
-          if (trialEndsAt && now > trialEndsAt && restaurant.status !== "active_paid") {
-            // Trial expired - deactivate restaurant
-            await supabase
-              .from("restaurants")
-              .update({ status: "inactive" })
-              .eq("id", foundRestId);
-            setTrialExpired(true);
+          if (bestRole === "admin") {
+            const trialEndsAt = restaurant.trial_ends_at ? new Date(restaurant.trial_ends_at) : null;
+            const now = new Date();
+
+            if (trialEndsAt && now > trialEndsAt && restaurant.status !== "active_paid") {
+              await supabase
+                .from("restaurants")
+                .update({ status: "inactive" })
+                .eq("id", foundRestId);
+              setTrialExpired(true);
+            } else {
+              setTrialExpired(false);
+            }
           } else {
             setTrialExpired(false);
           }
