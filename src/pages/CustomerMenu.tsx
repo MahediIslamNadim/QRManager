@@ -134,6 +134,7 @@ const CustomerMenu = () => {
         .insert({
           restaurant_id: restaurantId!,
           table_id: tableId || null,
+          seat_id: seatId || null,
           total: totalPrice,
           status: "pending",
         })
