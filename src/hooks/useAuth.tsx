@@ -35,7 +35,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (roleError) console.error("Role fetch error:", roleError);
       
       if (roles && roles.length > 0) {
-        setRole(roles[0].role);
+        // Priority: super_admin > admin > waiter
+        const priority = ["super_admin", "admin", "waiter"];
+        const bestRole = roles
+          .map(r => r.role)
+          .sort((a, b) => priority.indexOf(a) - priority.indexOf(b))[0];
+        setRole(bestRole);
       } else {
         setRole("admin"); // default role for new users
       }
