@@ -250,14 +250,24 @@ const AdminMenu = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filtered.map((item: any) => {
               const imgUrl = getImageUrl(item.image_url);
+              const isAvailable = item.available;
               return (
-                <div key={item.id} className="menu-item-card">
-                  <div className="h-40 bg-gradient-to-br from-accent to-secondary flex items-center justify-center overflow-hidden">
+                <div key={item.id} className={`menu-item-card relative ${!isAvailable ? "opacity-80" : ""}`}>
+                  <div className={`h-40 bg-gradient-to-br from-accent to-secondary flex items-center justify-center overflow-hidden relative ${!isAvailable ? "grayscale" : ""}`}>
                     {imgUrl ? (
                       <img src={imgUrl} alt={item.name} className="w-full h-full object-cover" />
                     ) : (
                       <ImageIcon className="w-12 h-12 text-muted-foreground/30" />
                     )}
+                    {/* Stock badge on image */}
+                    <div className={`absolute top-2 left-2 px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 ${
+                      isAvailable
+                        ? "bg-success/90 text-success-foreground"
+                        : "bg-destructive/90 text-destructive-foreground"
+                    }`}>
+                      {isAvailable ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+                      {isAvailable ? "ইন স্টক" : "স্টক আউট"}
+                    </div>
                   </div>
                   <div className="p-5">
                     <h3 className="font-display font-semibold text-foreground text-lg">{item.name}</h3>
@@ -265,7 +275,16 @@ const AdminMenu = () => {
                     <div className="flex items-center justify-between mt-4">
                       <span className="text-xl font-bold text-primary">৳{item.price}</span>
                       <div className="flex items-center gap-2">
-                        <Switch checked={item.available} onCheckedChange={v => toggleAvailability.mutate({ id: item.id, available: v })} />
+                        <div className="flex items-center gap-1.5">
+                          <Switch
+                            checked={isAvailable}
+                            onCheckedChange={v => toggleAvailability.mutate({ id: item.id, available: v })}
+                            className={isAvailable ? "data-[state=checked]:bg-success" : ""}
+                          />
+                          <span className={`text-xs font-semibold ${isAvailable ? "text-success" : "text-destructive"}`}>
+                            {isAvailable ? "চালু" : "বন্ধ"}
+                          </span>
+                        </div>
                         <Button variant="ghost" size="icon" onClick={() => openEdit(item)}><Edit className="w-4 h-4" /></Button>
                         <Button variant="ghost" size="icon" className="text-destructive" onClick={() => deleteMutation.mutate(item.id)}>
                           <Trash2 className="w-4 h-4" />
