@@ -6,6 +6,7 @@ interface AuthContextType {
   user: User | null;
   role: string | null;
   restaurantId: string | null;
+  restaurantPlan: string;
   loading: boolean;
   trialExpired: boolean;
   signOut: () => Promise<void>;
@@ -15,6 +16,7 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   role: null,
   restaurantId: null,
+  restaurantPlan: "basic",
   loading: true,
   trialExpired: false,
   signOut: async () => {},
@@ -24,6 +26,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<string | null>(null);
   const [restaurantId, setRestaurantId] = useState<string | null>(null);
+  const [restaurantPlan, setRestaurantPlan] = useState("basic");
   const [loading, setLoading] = useState(true);
   const [trialExpired, setTrialExpired] = useState(false);
 
@@ -69,25 +72,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
       }
 
-      // Check trial expiry for admin users (not super_admin)
-      if (bestRole === "admin" && foundRestId) {
+      // Check trial expiry and plan for admin users (not super_admin)
+      if (foundRestId) {
         const { data: restaurant } = await supabase
           .from("restaurants")
-          .select("trial_ends_at, status")
+          .select("trial_ends_at, status, plan")
           .eq("id", foundRestId)
           .single();
 
         if (restaurant) {
-          const trialEndsAt = restaurant.trial_ends_at ? new Date(restaurant.trial_ends_at) : null;
-          const now = new Date();
+          setRestaurantPlan(restaurant.plan || "basic");
 
-          if (trialEndsAt && now > trialEndsAt && restaurant.status !== "active_paid") {
-            // Trial expired - deactivate restaurant
-            await supabase
-              .from("restaurants")
-              .update({ status: "inactive" })
-              .eq("id", foundRestId);
-            setTrialExpired(true);
+          if (bestRole === "admin") {
+            const trialEndsAt = restaurant.trial_ends_at ? new Date(restaurant.trial_ends_at) : null;
+            const now = new Date();
+
+            if (trialEndsAt && now > trialEndsAt && restaurant.status !== "active_paid") {
+              await supabase
+                .from("restaurants")
+                .update({ status: "inactive" })
+                .eq("id", foundRestId);
+              setTrialExpired(true);
+            } else {
+              setTrialExpired(false);
+            }
           } else {
             setTrialExpired(false);
           }
@@ -152,7 +160,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, role, restaurantId, loading, trialExpired, signOut }}>
+    <AuthContext.Provider value={{ user, role, restaurantId, restaurantPlan, loading, trialExpired, signOut }}>
       {children}
     </AuthContext.Provider>
   );

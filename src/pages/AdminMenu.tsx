@@ -6,6 +6,7 @@ import { Plus, Edit, Trash2, Image as ImageIcon, Upload, X } from "lucide-react"
 import { useState, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { getPlanLimits, formatLimit } from "@/lib/planLimits";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -22,7 +23,8 @@ const getImageUrl = (path: string | null) => {
 };
 
 const AdminMenu = () => {
-  const { restaurantId } = useAuth();
+  const { restaurantId, restaurantPlan } = useAuth();
+  const limits = getPlanLimits(restaurantPlan);
   const queryClient = useQueryClient();
   const [activeCategory, setActiveCategory] = useState("সব");
   const [showForm, setShowForm] = useState(false);
@@ -60,9 +62,12 @@ const AdminMenu = () => {
     return fileName;
   };
 
+  const isAtMenuLimit = menuItems.length >= limits.maxMenuItems;
+
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!restaurantId) throw new Error("No restaurant");
+      if (!editingItem && isAtMenuLimit) throw new Error(`আপনার ${limits.label} প্ল্যানে সর্বোচ্চ ${formatLimit(limits.maxMenuItems)} টি আইটেম যোগ করা যায়। আপগ্রেড করুন।`);
       setUploading(true);
 
       let image_url = editingItem?.image_url || null;
@@ -160,10 +165,20 @@ const AdminMenu = () => {
               </Button>
             ))}
           </div>
-          <Button variant="hero" onClick={() => { resetForm(); setShowForm(true); }}>
-            <Plus className="w-4 h-4" /> আইটেম যোগ করুন
-          </Button>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-muted-foreground bg-secondary px-3 py-1.5 rounded-full">
+              {menuItems.length}/{formatLimit(limits.maxMenuItems)} আইটেম
+            </span>
+            <Button variant="hero" onClick={() => { resetForm(); setShowForm(true); }} disabled={isAtMenuLimit}>
+              <Plus className="w-4 h-4" /> আইটেম যোগ করুন
+            </Button>
+          </div>
         </div>
+        {isAtMenuLimit && (
+          <div className="bg-warning/10 border border-warning/30 rounded-xl p-3 text-sm text-warning flex items-center gap-2">
+            ⚠️ আপনার {limits.label} প্ল্যানের মেনু আইটেম লিমিট ({formatLimit(limits.maxMenuItems)}) পূর্ণ হয়েছে। আরো যোগ করতে প্ল্যান আপগ্রেড করুন।
+          </div>
+        )}
 
         {/* Add/Edit Dialog */}
         <Dialog open={showForm} onOpenChange={setShowForm}>

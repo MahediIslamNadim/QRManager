@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { QrCode, Plus, Edit, Users, Trash2, ShoppingCart } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { getPlanLimits, formatLimit } from "@/lib/planLimits";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -13,7 +14,8 @@ import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const AdminTables = () => {
-  const { restaurantId } = useAuth();
+  const { restaurantId, restaurantPlan } = useAuth();
+  const limits = getPlanLimits(restaurantPlan);
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [editingTable, setEditingTable] = useState<any>(null);
@@ -74,10 +76,13 @@ const AdminTables = () => {
     return () => { supabase.removeChannel(channel); };
   }, [restaurantId, queryClient]);
 
+  const isAtTableLimit = tables.length >= limits.maxTables;
+
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!restaurantId) throw new Error("No restaurant");
       const payload = { restaurant_id: restaurantId, name: form.name, seats: Number(form.seats) };
+      if (!editingTable && isAtTableLimit) throw new Error(`আপনার ${limits.label} প্ল্যানে সর্বোচ্চ ${formatLimit(limits.maxTables)} টি টেবিল যোগ করা যায়। আপগ্রেড করুন।`);
       if (editingTable) {
         const { error } = await supabase.from("restaurant_tables").update(payload).eq("id", editingTable.id);
         if (error) throw error;
@@ -141,10 +146,20 @@ const AdminTables = () => {
             <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-warning" /><span className="text-sm text-muted-foreground">প্রস্তুত হচ্ছে</span></div>
             <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-primary" /><span className="text-sm text-muted-foreground">সার্ভ/ব্যস্ত</span></div>
           </div>
-          <Button variant="hero" onClick={() => { setForm({ name: "", seats: "4" }); setEditingTable(null); setShowForm(true); }}>
-            <Plus className="w-4 h-4" /> টেবিল যোগ করুন
-          </Button>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-muted-foreground bg-secondary px-3 py-1.5 rounded-full">
+              {tables.length}/{formatLimit(limits.maxTables)} টেবিল
+            </span>
+            <Button variant="hero" onClick={() => { setForm({ name: "", seats: "4" }); setEditingTable(null); setShowForm(true); }} disabled={isAtTableLimit}>
+              <Plus className="w-4 h-4" /> টেবিল যোগ করুন
+            </Button>
+          </div>
         </div>
+        {isAtTableLimit && (
+          <div className="bg-warning/10 border border-warning/30 rounded-xl p-3 text-sm text-warning flex items-center gap-2">
+            ⚠️ আপনার {limits.label} প্ল্যানের টেবিল লিমিট ({formatLimit(limits.maxTables)}) পূর্ণ হয়েছে। আরো যোগ করতে প্ল্যান আপগ্রেড করুন।
+          </div>
+        )}
 
         <Dialog open={showForm} onOpenChange={setShowForm}>
           <DialogContent>
