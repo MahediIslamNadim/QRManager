@@ -34,18 +34,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       if (roleError) console.error("Role fetch error:", roleError);
       
+      let bestRole = "admin"; // default
       if (roles && roles.length > 0) {
-        // Priority: super_admin > admin > waiter
         const priority = ["super_admin", "admin", "waiter"];
-        const bestRole = roles
+        bestRole = roles
           .map(r => r.role)
           .sort((a, b) => priority.indexOf(a) - priority.indexOf(b))[0];
-        setRole(bestRole);
-      } else {
-        setRole("admin"); // default role for new users
       }
+      console.log("User roles:", roles, "Best role:", bestRole);
+      setRole(bestRole);
 
-      // Get restaurant using RPC to avoid RLS issues
+      // Get restaurant
       const { data: restId, error: restError } = await supabase
         .rpc("get_user_restaurant_id", { _user_id: userId });
       
@@ -54,13 +53,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (restId) {
         setRestaurantId(restId);
       } else {
-        // Fallback: direct query
         const { data: restaurants } = await supabase
           .from("restaurants")
           .select("id")
           .eq("owner_id", userId)
           .limit(1);
-        
         if (restaurants && restaurants.length > 0) {
           setRestaurantId(restaurants[0].id);
         }
@@ -71,29 +68,46 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
+    let mounted = true;
+
+    // First get session
+    const init = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!mounted) return;
+      
+      if (session?.user) {
+        setUser(session.user);
+        await fetchUserData(session.user.id);
+      }
+      if (mounted) setLoading(false);
+    };
+
+    init();
+
+    // Then listen for changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        if (!mounted) return;
         if (session?.user) {
           setUser(session.user);
-          await fetchUserData(session.user.id);
+          // Use setTimeout to avoid Supabase deadlock
+          setTimeout(async () => {
+            await fetchUserData(session.user.id);
+            if (mounted) setLoading(false);
+          }, 0);
         } else {
           setUser(null);
           setRole(null);
           setRestaurantId(null);
+          setLoading(false);
         }
-        setLoading(false);
       }
     );
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        setUser(session.user);
-        fetchUserData(session.user.id);
-      }
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signOut = async () => {
