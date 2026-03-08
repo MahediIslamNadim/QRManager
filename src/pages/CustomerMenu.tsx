@@ -36,6 +36,7 @@ const CustomerMenu = () => {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [restaurant, setRestaurant] = useState<any>(null);
   const [tableName, setTableName] = useState<string>("N/A");
+  const [seatNumber, setSeatNumber] = useState<number | null>(null);
   const [categories, setCategories] = useState<string[]>(["সব"]);
   const [activeCategory, setActiveCategory] = useState("সব");
   const [cart, setCart] = useState<CartItem[]>([]);
