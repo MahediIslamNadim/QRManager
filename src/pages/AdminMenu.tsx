@@ -6,6 +6,7 @@ import { Plus, Edit, Trash2, Image as ImageIcon, Upload, X } from "lucide-react"
 import { useState, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { getPlanLimits, formatLimit } from "@/lib/planLimits";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
