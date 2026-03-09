@@ -55,8 +55,15 @@ const Login = () => {
         if (error) throw error;
 
         if (data.user) {
+          // Only Basic plan gets 14-day trial
+          const isBasicPlan = selectedPlan === "basic";
           const trialEndsAt = new Date();
-          trialEndsAt.setDate(trialEndsAt.getDate() + 14);
+          if (isBasicPlan) {
+            trialEndsAt.setDate(trialEndsAt.getDate() + 14);
+          } else {
+            // Premium/Enterprise: no trial, set to past to force immediate payment
+            trialEndsAt.setDate(trialEndsAt.getDate() - 1);
+          }
 
           const { data: restaurant, error: restError } = await supabase
             .from("restaurants")
@@ -66,7 +73,7 @@ const Login = () => {
               phone: restaurantPhone.trim() || null,
               plan: selectedPlan,
               owner_id: data.user.id,
-              status: "active",
+              status: isBasicPlan ? "active" : "active",
               trial_ends_at: trialEndsAt.toISOString(),
             })
             .select()
@@ -98,7 +105,11 @@ const Login = () => {
             ]);
           }
 
-          toast.success("অ্যাকাউন্ট তৈরি হয়েছে! ১৪ দিনের ফ্রি ট্রায়াল শুরু হয়েছে।");
+          if (isBasicPlan) {
+            toast.success("অ্যাকাউন্ট তৈরি হয়েছে! ১৪ দিনের ফ্রি ট্রায়াল শুরু হয়েছে।");
+          } else {
+            toast.info("অ্যাকাউন্ট তৈরি হয়েছে! প্যাকেজ সক্রিয় করতে পেমেন্ট করুন।");
+          }
         }
       } else {
         const { error } = await supabase.auth.signInWithPassword({
@@ -274,16 +285,23 @@ const Login = () => {
                     <SelectContent>
                       <SelectItem value="basic">
                         <span className="font-medium">Basic — ৫০০ টাকা/মাস</span>
+                        <span className="text-xs text-success ml-2">✦ ১৪ দিন ফ্রি ট্রায়াল</span>
                       </SelectItem>
                       <SelectItem value="premium">
                         <span className="font-medium">Premium — ১,০০০ টাকা/মাস</span>
+                        <span className="text-xs text-muted-foreground ml-2">• পেমেন্ট প্রয়োজন</span>
                       </SelectItem>
                       <SelectItem value="enterprise">
                         <span className="font-medium">Enterprise — ২,৫০০ টাকা/মাস</span>
+                        <span className="text-xs text-muted-foreground ml-2">• পেমেন্ট প্রয়োজন</span>
                       </SelectItem>
                     </SelectContent>
                   </Select>
-                  <p className="text-[11px] text-muted-foreground">সব প্যাকেজে ১৪ দিনের ফ্রি ট্রায়াল অন্তর্ভুক্ত</p>
+                  <p className={`text-[11px] ${selectedPlan === "basic" ? "text-success" : "text-warning"}`}>
+                    {selectedPlan === "basic" 
+                      ? "✦ Basic প্যাকেজে ১৪ দিনের ফ্রি ট্রায়াল অন্তর্ভুক্ত" 
+                      : "⚠ এই প্যাকেজে ট্রায়াল নেই — সাইন আপের পর পেমেন্ট করে সক্রিয় করতে হবে"}
+                  </p>
                 </div>
               </>
             )}
