@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, useSearchParams } from "react-router-dom";
+import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ShoppingCart, Plus, Minus, UtensilsCrossed, X, Send, Image as ImageIcon, Flame, CheckCircle, XCircle, Package, Search } from "lucide-react";
 import { toast } from "sonner";
@@ -48,6 +48,7 @@ const getCategoryColor = (category: string) => {
 const CustomerMenu = () => {
   const { restaurantId } = useParams();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const tableId = searchParams.get("table");
   const seatId = searchParams.get("seat");
   const isDemo = !restaurantId;
@@ -103,6 +104,15 @@ const CustomerMenu = () => {
       if (tableId) {
         const { data: tableData } = await supabase.from("restaurant_tables").select("name").eq("id", tableId).single();
         if (tableData) setTableName(tableData.name);
+
+        // If table QR scanned but no seat selected, check if seats exist and redirect to seat selection
+        if (!seatId) {
+          const { data: seatsData } = await supabase.from("table_seats").select("id").eq("table_id", tableId).limit(1);
+          if (seatsData && seatsData.length > 0) {
+            navigate(`/menu/${restaurantId}/select-seat?table=${tableId}`, { replace: true });
+            return;
+          }
+        }
       }
 
       if (seatId) {

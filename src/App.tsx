@@ -25,6 +25,7 @@ import WaiterDashboard from "./pages/WaiterDashboard";
 import WaiterSeats from "./pages/WaiterSeats";
 import WaiterNotifications from "./pages/WaiterNotifications";
 import CustomerMenu from "./pages/CustomerMenu";
+import CustomerSeatSelect from "./pages/CustomerSeatSelect";
 import TrialExpired from "./pages/TrialExpired";
 
 const queryClient = new QueryClient();
@@ -67,6 +68,7 @@ const App = () => (
             
             {/* Customer */}
             <Route path="/menu/demo" element={<CustomerMenu />} />
+            <Route path="/menu/:restaurantId/select-seat" element={<CustomerSeatSelect />} />
             <Route path="/menu/:restaurantId" element={<CustomerMenu />} />
 
             <Route path="*" element={<NotFound />} />
