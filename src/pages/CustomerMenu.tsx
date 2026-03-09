@@ -104,6 +104,15 @@ const CustomerMenu = () => {
       if (tableId) {
         const { data: tableData } = await supabase.from("restaurant_tables").select("name").eq("id", tableId).single();
         if (tableData) setTableName(tableData.name);
+
+        // If table QR scanned but no seat selected, check if seats exist and redirect to seat selection
+        if (!seatId) {
+          const { data: seatsData } = await supabase.from("table_seats").select("id").eq("table_id", tableId).limit(1);
+          if (seatsData && seatsData.length > 0) {
+            navigate(`/menu/${restaurantId}/select-seat?table=${tableId}`, { replace: true });
+            return;
+          }
+        }
       }
 
       if (seatId) {
