@@ -67,28 +67,47 @@ Deno.serve(async (req) => {
     }
 
     if (action === "delete") {
-      // Delete user role first
-      await adminClient.from("user_roles").delete().eq("user_id", user_id);
+      console.log("Deleting user:", user_id);
       
-      // Delete staff restaurant links
-      await adminClient.from("staff_restaurants").delete().eq("user_id", user_id);
-      
-      // Delete profile
-      await adminClient.from("profiles").delete().eq("id", user_id);
-      
-      // Delete auth user
-      const { error: deleteErr } = await adminClient.auth.admin.deleteUser(user_id);
-      if (deleteErr) {
-        return new Response(JSON.stringify({ error: deleteErr.message }), {
+      try {
+        // Delete notifications first
+        const { error: notifErr } = await adminClient.from("notifications").delete().eq("user_id", user_id);
+        if (notifErr) console.log("Notifications delete error (may be ok):", notifErr.message);
+
+        // Delete user role
+        const { error: roleErr } = await adminClient.from("user_roles").delete().eq("user_id", user_id);
+        if (roleErr) console.log("Role delete error (may be ok):", roleErr.message);
+        
+        // Delete staff restaurant links
+        const { error: staffErr } = await adminClient.from("staff_restaurants").delete().eq("user_id", user_id);
+        if (staffErr) console.log("Staff delete error (may be ok):", staffErr.message);
+        
+        // Delete profile
+        const { error: profileErr } = await adminClient.from("profiles").delete().eq("id", user_id);
+        if (profileErr) console.log("Profile delete error (may be ok):", profileErr.message);
+        
+        // Delete auth user last
+        const { error: deleteErr } = await adminClient.auth.admin.deleteUser(user_id);
+        if (deleteErr) {
+          console.error("Auth user delete error:", deleteErr.message);
+          return new Response(JSON.stringify({ error: deleteErr.message }), {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        console.log("User deleted successfully:", user_id);
+        return new Response(
+          JSON.stringify({ success: true, message: "User deleted" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      } catch (err) {
+        console.error("Delete operation failed:", err);
+        return new Response(JSON.stringify({ error: err.message || "Delete failed" }), {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-
-      return new Response(
-        JSON.stringify({ success: true, message: "User deleted" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
     }
 
     if (action === "update") {
