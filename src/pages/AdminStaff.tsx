@@ -70,8 +70,19 @@ const AdminStaff = () => {
       const { data, error } = await supabase.functions.invoke("create-staff", {
         body: { email, password, full_name: name, role, restaurant_id: restaurantId },
       });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      if (error) {
+        // Parse error message from response
+        const errorMessage = error.message || "কর্মী যোগ করতে সমস্যা হয়েছে";
+        throw new Error(errorMessage);
+      }
+      if (data?.error) {
+        // Handle specific error messages
+        if (data.error.includes("already been registered") || data.error.includes("email_exists")) {
+          throw new Error("এই ইমেইল দিয়ে আগেই ইউজার আছে");
+        }
+        throw new Error(data.error);
+      }
+      return data;
     },
     onSuccess: () => {
       toast.success("কর্মী সফলভাবে যোগ করা হয়েছে");
