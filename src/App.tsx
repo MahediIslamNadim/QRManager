@@ -68,6 +68,7 @@ const App = () => (
             
             {/* Customer */}
             <Route path="/menu/demo" element={<CustomerMenu />} />
+            <Route path="/menu/:restaurantId/select-seat" element={<CustomerSeatSelect />} />
             <Route path="/menu/:restaurantId" element={<CustomerMenu />} />
 
             <Route path="*" element={<NotFound />} />
