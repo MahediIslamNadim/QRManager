@@ -51,28 +51,28 @@
 
     --radius: 0.75rem;
 
-    --sidebar-background: 340 30% 15%;
-    --sidebar-foreground: 340 10% 96%;
-    --sidebar-primary: 340 65% 55%;
+    --sidebar-background: 220 55% 15%;
+    --sidebar-foreground: 200 20% 96%;
+    --sidebar-primary: 340 55% 65%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 340 25% 25%;
-    --sidebar-accent-foreground: 340 10% 96%;
-    --sidebar-border: 340 20% 28%;
-    --sidebar-ring: 340 65% 55%;
+    --sidebar-accent: 220 50% 25%;
+    --sidebar-accent-foreground: 200 20% 96%;
+    --sidebar-border: 220 45% 28%;
+    --sidebar-ring: 340 55% 65%;
 
     --font-display: 'Playfair Display', serif;
     --font-body: 'DM Sans', sans-serif;
 
-    --gradient-primary: linear-gradient(135deg, hsl(340 65% 55%), hsl(350 60% 65%));
-    --gradient-warm: linear-gradient(135deg, hsl(340 30% 15%), hsl(340 25% 25%));
-    --gradient-card: linear-gradient(145deg, hsl(0 0% 100%), hsl(340 20% 98%));
-    --gradient-accent: linear-gradient(135deg, hsl(330 50% 45%), hsl(345 55% 55%));
-    --gradient-sunset: linear-gradient(135deg, hsl(340 65% 55%), hsl(330 50% 45%), hsl(350 60% 65%));
+    --gradient-primary: linear-gradient(135deg, hsl(220 75% 50%), hsl(340 55% 65%));
+    --gradient-warm: linear-gradient(135deg, hsl(220 55% 15%), hsl(220 50% 25%));
+    --gradient-card: linear-gradient(145deg, hsl(0 0% 100%), hsl(340 30% 98%));
+    --gradient-accent: linear-gradient(135deg, hsl(340 55% 65%), hsl(350 50% 75%));
+    --gradient-sunset: linear-gradient(135deg, hsl(220 75% 50%), hsl(340 55% 65%), hsl(350 50% 75%));
 
-    --shadow-soft: 0 2px 15px -3px hsl(340 65% 55% / 0.15);
-    --shadow-card: 0 4px 25px -5px hsl(340 30% 12% / 0.1);
-    --shadow-elevated: 0 10px 40px -10px hsl(340 65% 55% / 0.25);
-    --shadow-colorful: 0 8px 30px -6px hsl(340 65% 55% / 0.3);
+    --shadow-soft: 0 2px 15px -3px hsl(220 75% 50% / 0.15);
+    --shadow-card: 0 4px 25px -5px hsl(220 30% 12% / 0.1);
+    --shadow-elevated: 0 10px 40px -10px hsl(340 55% 65% / 0.25);
+    --shadow-colorful: 0 8px 30px -6px hsl(220 75% 50% / 0.3);
   }
 
   .dark {
