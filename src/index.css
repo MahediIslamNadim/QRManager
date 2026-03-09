@@ -51,14 +51,14 @@
 
     --radius: 0.75rem;
 
-    --sidebar-background: 220 55% 15%;
-    --sidebar-foreground: 200 20% 96%;
-    --sidebar-primary: 175 70% 45%;
-    --sidebar-primary-foreground: 220 55% 12%;
-    --sidebar-accent: 220 50% 25%;
-    --sidebar-accent-foreground: 200 20% 96%;
-    --sidebar-border: 220 45% 28%;
-    --sidebar-ring: 175 70% 45%;
+    --sidebar-background: 340 30% 15%;
+    --sidebar-foreground: 340 10% 96%;
+    --sidebar-primary: 340 65% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 340 25% 25%;
+    --sidebar-accent-foreground: 340 10% 96%;
+    --sidebar-border: 340 20% 28%;
+    --sidebar-ring: 340 65% 55%;
 
     --font-display: 'Playfair Display', serif;
     --font-body: 'DM Sans', sans-serif;
