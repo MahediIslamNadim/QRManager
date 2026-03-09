@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { Navigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AlertTriangle, Crown, LogOut, CheckCircle, Loader2, Smartphone } from "lucide-react";
+import { AlertTriangle, Crown, LogOut, CheckCircle, Loader2, Smartphone, Zap, Gift } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -26,8 +27,37 @@ const TrialExpired = () => {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [trialActivated, setTrialActivated] = useState(false);
+  const [activatingTrial, setActivatingTrial] = useState(false);
 
-  const selectedPlanData = plans.find(p => p.id === selectedPlan);
+  const selectedPlanData = paidPlans.find(p => p.id === selectedPlan);
+
+  const handleActivateTrial = async () => {
+    if (!user || !restaurantId) return;
+    setActivatingTrial(true);
+    try {
+      const trialEndsAt = new Date();
+      trialEndsAt.setDate(trialEndsAt.getDate() + 14);
+
+      const { error } = await supabase
+        .from("restaurants")
+        .update({
+          plan: "basic",
+          status: "active",
+          trial_ends_at: trialEndsAt.toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", restaurantId);
+
+      if (error) throw error;
+      toast.success("১৪ দিনের ফ্রি ট্রায়াল সক্রিয় হয়েছে!");
+      setTrialActivated(true);
+    } catch (err: any) {
+      toast.error(err.message || "ট্রায়াল সক্রিয় করতে সমস্যা হয়েছে");
+    } finally {
+      setActivatingTrial(false);
+    }
+  };
 
   const handleSubmitPayment = async () => {
     if (!transactionId.trim() || !selectedPlan || !user || !restaurantId) {
@@ -48,13 +78,17 @@ const TrialExpired = () => {
       });
       if (error) throw error;
       setSubmitted(true);
-      toast.success("পেমেন্ট রিকোয়েস্ট পাঠানো হয়েছে! যাচাই করা হলে আপনার অ্যাকাউন্ট সক্রিয় হবে।");
+      toast.success("পেমেন্ট রিকোয়েস্ট পাঠানো হয়েছে!");
     } catch (err: any) {
       toast.error(err.message || "পেমেন্ট রিকোয়েস্ট ব্যর্থ");
     } finally {
       setSubmitting(false);
     }
   };
+
+  if (trialActivated) {
+    return <Navigate to="/admin" replace />;
+  }
 
   if (submitted) {
     return (
@@ -78,29 +112,65 @@ const TrialExpired = () => {
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="max-w-3xl w-full space-y-6 animate-fade-up">
+      <div className="max-w-4xl w-full space-y-8 animate-fade-up">
         <div className="text-center space-y-3">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-warning/10 mx-auto">
             <AlertTriangle className="w-8 h-8 text-warning" />
           </div>
-          <h1 className="text-3xl font-display font-bold text-foreground">পেমেন্ট প্রয়োজন</h1>
-          <p className="text-muted-foreground max-w-md mx-auto">
-            আপনার প্যাকেজ সক্রিয় করতে পেমেন্ট করুন। Basic প্যাকেজে ১৪ দিনের ফ্রি ট্রায়াল পেতে Basic নির্বাচন করুন।
+          <h1 className="text-3xl font-display font-bold text-foreground">প্যাকেজ নির্বাচন করুন</h1>
+          <p className="text-muted-foreground max-w-lg mx-auto">
+            ফ্রি ট্রায়াল ব্যবহার করুন অথবা পেইড প্ল্যান বেছে নিন।
           </p>
         </div>
 
-        {/* Plan Selection */}
+        {/* Trial Card */}
+        <Card
+          className={`border-2 border-dashed border-success/50 bg-success/5 cursor-pointer transition-all hover:shadow-lg ${
+            selectedPlan === "trial" ? "ring-2 ring-success border-success shadow-lg" : ""
+          }`}
+          onClick={() => setSelectedPlan("trial")}
+        >
+          <CardContent className="flex flex-col sm:flex-row items-center gap-6 p-6">
+            <div className="w-14 h-14 rounded-2xl bg-success/10 flex items-center justify-center flex-shrink-0">
+              <Gift className="w-7 h-7 text-success" />
+            </div>
+            <div className="flex-1 text-center sm:text-left space-y-1">
+              <h3 className="text-xl font-display font-bold text-foreground">ফ্রি ট্রায়াল — ১৪ দিন</h3>
+              <p className="text-muted-foreground text-sm">কোনো পেমেন্ট ছাড়াই Basic ফিচার ব্যবহার করুন। মেনু, QR কোড, অর্ডার ম্যানেজমেন্ট সব ফ্রি!</p>
+              <p className="text-xs text-success font-medium">✦ কোনো টাকা লাগবে না • স্বয়ংক্রিয়ভাবে সক্রিয় হবে</p>
+            </div>
+            <Button
+              variant="hero"
+              size="lg"
+              className="bg-success hover:bg-success/90 text-white flex-shrink-0"
+              onClick={(e) => { e.stopPropagation(); handleActivateTrial(); }}
+              disabled={activatingTrial}
+            >
+              {activatingTrial ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Zap className="w-4 h-4 mr-2" />}
+              {activatingTrial ? "সক্রিয় হচ্ছে..." : "ট্রায়াল শুরু করুন"}
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Divider */}
+        <div className="flex items-center gap-4">
+          <div className="flex-1 h-px bg-border" />
+          <span className="text-sm text-muted-foreground font-medium px-2">অথবা পেইড প্ল্যান বেছে নিন</span>
+          <div className="flex-1 h-px bg-border" />
+        </div>
+
+        {/* Paid Plans */}
         <div className="grid sm:grid-cols-3 gap-4">
-          {plans.map((plan) => (
+          {paidPlans.map((plan) => (
             <Card
               key={plan.id}
               className={`relative cursor-pointer transition-all ${
                 selectedPlan === plan.id ? "border-primary shadow-lg ring-2 ring-primary/20" :
-                plan.id === "premium" ? "border-primary/50" : ""
+                plan.popular ? "border-primary/50" : ""
               }`}
               onClick={() => setSelectedPlan(plan.id)}
             >
-              {plan.id === "premium" && (
+              {plan.popular && (
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                   <span className="px-3 py-1 rounded-full text-xs font-medium bg-primary text-primary-foreground flex items-center gap-1">
                     <Crown className="w-3 h-3" /> জনপ্রিয়
@@ -133,7 +203,7 @@ const TrialExpired = () => {
         </div>
 
         {/* Payment Form */}
-        {selectedPlan && (
+        {selectedPlan && selectedPlan !== "trial" && (
           <Card className="animate-fade-up">
             <CardHeader>
               <CardTitle className="text-lg font-display flex items-center gap-2">
