@@ -83,9 +83,9 @@ const TrialExpired = () => {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-warning/10 mx-auto">
             <AlertTriangle className="w-8 h-8 text-warning" />
           </div>
-          <h1 className="text-3xl font-display font-bold text-foreground">ট্রায়াল সময় শেষ!</h1>
+          <h1 className="text-3xl font-display font-bold text-foreground">পেমেন্ট প্রয়োজন</h1>
           <p className="text-muted-foreground max-w-md mx-auto">
-            আপনার ১৪ দিনের ফ্রি ট্রায়াল শেষ হয়ে গেছে। সার্ভিস চালু রাখতে একটি প্যাকেজ নির্বাচন করুন এবং পেমেন্ট করুন।
+            আপনার প্যাকেজ সক্রিয় করতে পেমেন্ট করুন। Basic প্যাকেজে ১৪ দিনের ফ্রি ট্রায়াল পেতে Basic নির্বাচন করুন।
           </p>
         </div>
 
