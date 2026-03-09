@@ -1,11 +1,35 @@
+import { useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Users, Shield } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Users, Shield, Pencil, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+
+interface User {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  phone: string | null;
+  role: string;
+  created_at: string;
+}
 
 const SuperAdminUsers = () => {
+  const queryClient = useQueryClient();
+  const [editUser, setEditUser] = useState<User | null>(null);
+  const [deleteUser, setDeleteUser] = useState<User | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editRole, setEditRole] = useState("");
+
   const { data: users = [], isLoading } = useQuery({
     queryKey: ["all-users"],
     queryFn: async () => {
@@ -24,6 +48,60 @@ const SuperAdminUsers = () => {
     },
   });
 
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      if (!editUser) return;
+      const { data, error } = await supabase.functions.invoke("manage-user", {
+        body: {
+          action: "update",
+          user_id: editUser.id,
+          updates: {
+            full_name: editName,
+            phone: editPhone,
+            role: editRole,
+          },
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: () => {
+      toast.success("ব্যবহারকারী আপডেট হয়েছে");
+      setEditUser(null);
+      queryClient.invalidateQueries({ queryKey: ["all-users"] });
+    },
+    onError: (err: any) => toast.error(err.message || "আপডেট করতে সমস্যা হয়েছে"),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      if (!deleteUser) return;
+      const { data, error } = await supabase.functions.invoke("manage-user", {
+        body: {
+          action: "delete",
+          user_id: deleteUser.id,
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: () => {
+      toast.success("ব্যবহারকারী মুছে ফেলা হয়েছে");
+      setDeleteUser(null);
+      queryClient.invalidateQueries({ queryKey: ["all-users"] });
+    },
+    onError: (err: any) => toast.error(err.message || "মুছতে সমস্যা হয়েছে"),
+  });
+
+  const openEdit = (user: User) => {
+    setEditUser(user);
+    setEditName(user.full_name || "");
+    setEditPhone(user.phone || "");
+    setEditRole(user.role);
+  };
+
   const roleLabel = (role: string) => {
     switch (role) {
       case "super_admin": return "সুপার অ্যাডমিন";
@@ -41,7 +119,7 @@ const SuperAdminUsers = () => {
         {isLoading && <p className="text-center text-muted-foreground py-8">লোড হচ্ছে...</p>}
         
         <div className="grid gap-3">
-          {users.map((u: any) => (
+          {users.map((u: User) => (
             <Card key={u.id}>
               <CardContent className="flex items-center justify-between p-4">
                 <div className="flex items-center gap-4">
@@ -53,9 +131,22 @@ const SuperAdminUsers = () => {
                     <p className="text-sm text-muted-foreground">{u.email}</p>
                   </div>
                 </div>
-                <Badge variant={u.role === "super_admin" ? "default" : "secondary"}>
-                  {roleLabel(u.role)}
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant={u.role === "super_admin" ? "default" : "secondary"}>
+                    {roleLabel(u.role)}
+                  </Badge>
+                  <Button variant="ghost" size="icon" onClick={() => openEdit(u)}>
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => setDeleteUser(u)}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ))}
@@ -69,6 +160,65 @@ const SuperAdminUsers = () => {
           )}
         </div>
       </div>
+
+      {/* Edit Dialog */}
+      <Dialog open={!!editUser} onOpenChange={() => setEditUser(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="font-display">ব্যবহারকারী এডিট করুন</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label>নাম</Label>
+              <Input value={editName} onChange={e => setEditName(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>ফোন</Label>
+              <Input value={editPhone} onChange={e => setEditPhone(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>ভূমিকা</Label>
+              <Select value={editRole} onValueChange={setEditRole}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="super_admin">সুপার অ্যাডমিন</SelectItem>
+                  <SelectItem value="admin">অ্যাডমিন</SelectItem>
+                  <SelectItem value="waiter">ওয়েটার</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button 
+              className="w-full" 
+              variant="hero" 
+              onClick={() => updateMutation.mutate()} 
+              disabled={updateMutation.isPending}
+            >
+              {updateMutation.isPending ? "আপডেট হচ্ছে..." : "আপডেট করুন"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteUser} onOpenChange={() => setDeleteUser(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>ব্যবহারকারী মুছে ফেলবেন?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteUser?.full_name || deleteUser?.email} - এই ব্যবহারকারীকে মুছে ফেললে তার সব তথ্য মুছে যাবে। এটি পূর্বাবস্থায় ফেরানো যাবে না।
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>বাতিল</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => deleteMutation.mutate()}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteMutation.isPending ? "মুছছে..." : "মুছে ফেলুন"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 };
