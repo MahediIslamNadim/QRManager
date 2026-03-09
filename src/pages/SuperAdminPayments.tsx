@@ -125,9 +125,84 @@ const SuperAdminPayments = () => {
     onError: (err: any) => toast.error(err.message),
   });
 
+  const updatePaymentMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedPayment) return;
+
+      const payload = {
+        plan: editPlan,
+        amount: editAmount,
+        status: editStatus,
+        admin_notes: adminNotes || null,
+        updated_at: new Date().toISOString(),
+      } as any;
+
+      const { error: paymentError } = await supabase
+        .from("payment_requests" as any)
+        .update(payload)
+        .eq("id", selectedPayment.id);
+
+      if (paymentError) throw paymentError;
+
+      if (editStatus === "approved") {
+        const { error: restaurantError } = await supabase
+          .from("restaurants")
+          .update({ status: "active_paid", plan: editPlan, updated_at: new Date().toISOString() })
+          .eq("id", selectedPayment.restaurant_id);
+
+        if (restaurantError) throw restaurantError;
+      }
+    },
+    onSuccess: () => {
+      toast.success("পেমেন্ট আপডেট হয়েছে");
+      setDialogOpen(false);
+      setSelectedPayment(null);
+      setAdminNotes("");
+      queryClient.invalidateQueries({ queryKey: ["all-payments"] });
+    },
+    onError: (err: any) => toast.error(err.message || "আপডেট করতে সমস্যা হয়েছে"),
+  });
+
+  const deletePaymentMutation = useMutation({
+    mutationFn: async (paymentId: string) => {
+      const { error } = await supabase
+        .from("payment_requests" as any)
+        .delete()
+        .eq("id", paymentId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("পেমেন্ট রিকোয়েস্ট মুছে ফেলা হয়েছে");
+      if (dialogOpen) {
+        setDialogOpen(false);
+        setSelectedPayment(null);
+      }
+      queryClient.invalidateQueries({ queryKey: ["all-payments"] });
+    },
+    onError: (err: any) => toast.error(err.message || "ডিলিট করতে সমস্যা হয়েছে"),
+  });
+
+  const reopenMutation = useMutation({
+    mutationFn: async ({ paymentId }: { paymentId: string }) => {
+      const { error } = await supabase
+        .from("payment_requests" as any)
+        .update({ status: "pending", updated_at: new Date().toISOString() } as any)
+        .eq("id", paymentId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("পেমেন্ট আবার পেন্ডিং করা হয়েছে");
+      queryClient.invalidateQueries({ queryKey: ["all-payments"] });
+    },
+    onError: (err: any) => toast.error(err.message || "স্ট্যাটাস আপডেটে সমস্যা হয়েছে"),
+  });
+
   const openReview = (p: PaymentRequest) => {
     setSelectedPayment(p);
     setAdminNotes(p.admin_notes || "");
+    setEditPlan((p.plan as "basic" | "premium" | "enterprise") || "basic");
+    setEditAmount(Number(p.amount) || 0);
+    setEditStatus((p.status as "pending" | "approved" | "rejected") || "pending");
     setDialogOpen(true);
   };
 
