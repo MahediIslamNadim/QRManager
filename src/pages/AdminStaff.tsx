@@ -212,6 +212,36 @@ const AdminStaff = () => {
           </Dialog>
         </div>
 
+        {/* Edit Dialog */}
+        <Dialog open={editOpen} onOpenChange={setEditOpen}>
+          <DialogContent>
+            <DialogHeader><DialogTitle className="font-display">কর্মী তথ্য সম্পাদনা</DialogTitle></DialogHeader>
+            <div className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <Label>নাম</Label>
+                <Input value={editName} onChange={e => setEditName(e.target.value)} placeholder="কর্মীর নাম" />
+              </div>
+              <div className="space-y-2">
+                <Label>ইমেইল</Label>
+                <Input value={editingStaff?.email || ""} disabled className="opacity-60" />
+              </div>
+              <div className="space-y-2">
+                <Label>ভূমিকা</Label>
+                <Select value={editRole} onValueChange={(v) => setEditRole(v as "waiter" | "admin")}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="waiter">ওয়েটার</SelectItem>
+                    <SelectItem value="admin">অ্যাডমিন</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button className="w-full" variant="hero" onClick={() => editStaffMutation.mutate()} disabled={editStaffMutation.isPending || !editName}>
+                {editStaffMutation.isPending ? "আপডেট হচ্ছে..." : "আপডেট করুন"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         <div className="grid gap-4">
           {isLoading && <p className="text-center text-muted-foreground py-8">লোড হচ্ছে...</p>}
           {!isLoading && staff.length === 0 && (
@@ -238,6 +268,9 @@ const AdminStaff = () => {
                   <Badge variant={s.role === "admin" ? "default" : "secondary"}>
                     {s.role === "admin" ? "অ্যাডমিন" : "ওয়েটার"}
                   </Badge>
+                  <Button variant="ghost" size="icon" onClick={() => openEditDialog(s)} className="text-muted-foreground hover:text-primary">
+                    <Pencil className="w-4 h-4" />
+                  </Button>
                   <Button variant="ghost" size="icon" onClick={() => removeStaffMutation.mutate(s.id)} className="text-destructive hover:text-destructive">
                     <Trash2 className="w-4 h-4" />
                   </Button>
