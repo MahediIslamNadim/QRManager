@@ -75,12 +75,11 @@ const SuperAdminUsers = () => {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async () => {
-      if (!deleteUser) return;
+    mutationFn: async (userId: string) => {
       const { data, error } = await supabase.functions.invoke("manage-user", {
         body: {
           action: "delete",
-          user_id: deleteUser.id,
+          user_id: userId,
         },
       });
       if (error) throw error;
@@ -200,7 +199,7 @@ const SuperAdminUsers = () => {
       </Dialog>
 
       {/* Delete Confirmation */}
-      <AlertDialog open={!!deleteUser} onOpenChange={() => setDeleteUser(null)}>
+      <AlertDialog open={!!deleteUser} onOpenChange={(open) => !open && setDeleteUser(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>ব্যবহারকারী মুছে ফেলবেন?</AlertDialogTitle>
@@ -211,7 +210,13 @@ const SuperAdminUsers = () => {
           <AlertDialogFooter>
             <AlertDialogCancel>বাতিল</AlertDialogCancel>
             <AlertDialogAction 
-              onClick={() => deleteMutation.mutate()}
+              onClick={(e) => {
+                e.preventDefault();
+                if (deleteUser) {
+                  deleteMutation.mutate(deleteUser.id);
+                }
+              }}
+              disabled={deleteMutation.isPending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleteMutation.isPending ? "মুছছে..." : "মুছে ফেলুন"}
