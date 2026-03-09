@@ -51,7 +51,8 @@ const TrialExpired = () => {
 
       if (error) throw error;
       toast.success("১৪ দিনের ফ্রি ট্রায়াল সক্রিয় হয়েছে!");
-      setTrialActivated(true);
+      // Force full reload so useAuth re-fetches restaurant status
+      window.location.href = "/admin";
     } catch (err: any) {
       toast.error(err.message || "ট্রায়াল সক্রিয় করতে সমস্যা হয়েছে");
     } finally {
