@@ -110,12 +110,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     let mounted = true;
-    let initialLoadDone = false;
-
-    const loadUser = async (authUser: User) => {
-      setUser(authUser);
-      await fetchUserData(authUser.id);
-    };
 
     const clearUser = () => {
       setUser(null);
@@ -124,30 +118,36 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setTrialExpired(false);
     };
 
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!mounted) return;
-      if (session?.user) {
-        await loadUser(session.user);
-      }
-      initialLoadDone = true;
-      if (mounted) setLoading(false);
-    });
-
+    // Set up auth state listener FIRST (before getSession)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
         if (!mounted) return;
-        if (!initialLoadDone) return;
 
-        if (event === "SIGNED_IN" && session?.user) {
-          setLoading(true);
-          await loadUser(session.user);
-          if (mounted) setLoading(false);
-        } else if (event === "SIGNED_OUT") {
+        if (session?.user) {
+          setUser(session.user);
+          // Fire and forget - don't await in callback
+          fetchUserData(session.user.id).then(() => {
+            if (mounted) setLoading(false);
+          });
+        } else {
           clearUser();
           setLoading(false);
         }
       }
     );
+
+    // Then check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!mounted) return;
+      if (session?.user) {
+        setUser(session.user);
+        fetchUserData(session.user.id).then(() => {
+          if (mounted) setLoading(false);
+        });
+      } else {
+        if (mounted) setLoading(false);
+      }
+    });
 
     return () => {
       mounted = false;
