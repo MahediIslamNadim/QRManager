@@ -1,0 +1,1 @@
+ALTER TABLE public.restaurants DROP CONSTRAINT IF EXISTS restaurants_status_check;
