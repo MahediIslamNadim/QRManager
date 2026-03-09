@@ -35,6 +35,9 @@ const SuperAdminPayments = () => {
   const [search, setSearch] = useState("");
   const [selectedPayment, setSelectedPayment] = useState<PaymentRequest | null>(null);
   const [adminNotes, setAdminNotes] = useState("");
+  const [editPlan, setEditPlan] = useState<"basic" | "premium" | "enterprise">("basic");
+  const [editAmount, setEditAmount] = useState(0);
+  const [editStatus, setEditStatus] = useState<"pending" | "approved" | "rejected">("pending");
   const [dialogOpen, setDialogOpen] = useState(false);
 
   const { data: payments = [], isLoading } = useQuery({
