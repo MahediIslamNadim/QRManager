@@ -156,6 +156,7 @@ const WaiterDashboard = () => {
 
   const pendingCount = orders.filter((o: any) => o.status === "pending").length;
   const preparingCount = orders.filter((o: any) => o.status === "preparing").length;
+  const servedCount = orders.filter((o: any) => o.status === "served").length;
 
   const timeAgo = (date: string) => {
     const diff = Math.floor((Date.now() - new Date(date).getTime()) / 60000);
