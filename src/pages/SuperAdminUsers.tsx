@@ -75,12 +75,11 @@ const SuperAdminUsers = () => {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async () => {
-      if (!deleteUser) return;
+    mutationFn: async (userId: string) => {
       const { data, error } = await supabase.functions.invoke("manage-user", {
         body: {
           action: "delete",
-          user_id: deleteUser.id,
+          user_id: userId,
         },
       });
       if (error) throw error;
