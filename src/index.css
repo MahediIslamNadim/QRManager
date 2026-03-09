@@ -165,7 +165,7 @@
 
   .sidebar-nav-item.active {
     @apply bg-sidebar-primary text-sidebar-primary-foreground;
-    box-shadow: 0 4px 15px -3px hsl(340 55% 65% / 0.5);
+    box-shadow: 0 4px 15px -3px hsl(38 92% 55% / 0.6);
   }
 
   .colorful-badge {
