@@ -311,11 +311,19 @@ const AdminTables = () => {
                         const occupied = tableSeats.filter((s: any) => s.status === "occupied").length;
                         const available = tableSeats.filter((s: any) => s.status === "available").length;
                         return (
-                          <div className="flex items-center justify-center gap-1.5 text-xs mb-1" onClick={e => e.stopPropagation()}>
+                           <div className="flex items-center justify-center gap-1.5 text-xs mb-1" onClick={e => e.stopPropagation()}>
                             <Armchair className="w-3 h-3 text-muted-foreground" />
                             <span className="text-success font-medium">{available} ফাঁকা</span>
                             <span className="text-muted-foreground">•</span>
                             <span className="text-destructive font-medium">{occupied} ব্যস্ত</span>
+                          </div>
+                          <div className="flex flex-wrap items-center justify-center gap-1 mb-1" onClick={e => e.stopPropagation()}>
+                            {tableSeats.map((seat: any) => (
+                              <button key={seat.id} onClick={() => { setShowQR(seatUrl(table.id, seat.id)); setQrType("seat"); setQrLabel(`${table.name} — সিট ${seat.seat_number}`); }}
+                                className="text-[10px] px-2 py-0.5 rounded-full border bg-primary/10 text-primary border-primary/20 hover:bg-primary/20 transition-colors">
+                                🪑 সিট {seat.seat_number} QR
+                              </button>
+                            ))}
                           </div>
                         );
                       }
