@@ -178,7 +178,7 @@ const Login = () => {
             <UtensilsCrossed size={22} color="#0a0a0a" />
           </div>
           <div>
-            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontWeight: 700, fontSize: 20, color: "#FFFFFF" }}>Tasty QR Spot</div>
+            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontWeight: 700, fontSize: 20, color: "#FFFFFF" }}>QRManager</div>
             <div style={{ fontSize: 9, letterSpacing: "0.3em", color: "rgba(201,168,76,0.6)", textTransform: "uppercase", fontFamily: "monospace" }}>by NexCore Technologies</div>
           </div>
         </div>
@@ -209,7 +209,7 @@ const Login = () => {
         </div>
         <div style={{ position: "relative", zIndex: 1 }}>
           <p style={{ fontSize: 11, color: "rgba(255,255,255,0.2)", letterSpacing: "0.03em" }}>
-            © {new Date().getFullYear()} Tasty QR Spot · একটি <span style={{ color: "rgba(201,168,76,0.45)" }}>NexCore Technologies Ltd.</span> পণ্য
+            © {new Date().getFullYear()} QRManager · একটি <span style={{ color: "rgba(201,168,76,0.45)" }}>NexCore Technologies Ltd.</span> পণ্য
           </p>
         </div>
       </div>
@@ -224,7 +224,7 @@ const Login = () => {
               <UtensilsCrossed size={20} color="#0a0a0a" />
             </div>
             <div>
-              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontWeight: 700, fontSize: 18, color: "#FFFFFF" }}>Tasty QR Spot</div>
+              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontWeight: 700, fontSize: 18, color: "#FFFFFF" }}>QRManager</div>
               <div style={{ fontSize: 9, letterSpacing: "0.28em", color: "rgba(201,168,76,0.55)", textTransform: "uppercase", fontFamily: "monospace" }}>by NexCore Technologies</div>
             </div>
           </div>
@@ -449,7 +449,7 @@ const Login = () => {
           )}
 
           <p style={{ textAlign: "center", fontSize: 11, color: "rgba(255,255,255,0.18)", marginTop: 32, letterSpacing: "0.03em" }}>
-            © {new Date().getFullYear()} Tasty QR Spot · <span style={{ color: "rgba(201,168,76,0.4)" }}>NexCore Technologies Ltd.</span>
+            © {new Date().getFullYear()} QRManager · <span style={{ color: "rgba(201,168,76,0.4)" }}>NexCore Technologies Ltd.</span>
           </p>
         </div>
       </div>
