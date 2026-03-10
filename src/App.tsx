@@ -7,6 +7,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
+import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 import SuperAdminDashboard from "./pages/SuperAdminDashboard";
 import SuperAdminRestaurants from "./pages/SuperAdminRestaurants";
@@ -40,7 +41,8 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
-            
+            <Route path="/reset-password" element={<ResetPassword />} />
+
             {/* Super Admin */}
             <Route path="/super-admin" element={<ProtectedRoute allowedRoles={["super_admin"]}><SuperAdminDashboard /></ProtectedRoute>} />
             <Route path="/super-admin/restaurants" element={<ProtectedRoute allowedRoles={["super_admin"]}><SuperAdminRestaurants /></ProtectedRoute>} />
@@ -48,7 +50,7 @@ const App = () => (
             <Route path="/super-admin/analytics" element={<ProtectedRoute allowedRoles={["super_admin"]}><SuperAdminAnalytics /></ProtectedRoute>} />
             <Route path="/super-admin/payments" element={<ProtectedRoute allowedRoles={["super_admin"]}><SuperAdminPayments /></ProtectedRoute>} />
             <Route path="/super-admin/settings" element={<ProtectedRoute allowedRoles={["super_admin"]}><SuperAdminSettings /></ProtectedRoute>} />
-            
+
             {/* Admin */}
             <Route path="/admin" element={<ProtectedRoute allowedRoles={["admin", "super_admin"]}><AdminDashboard /></ProtectedRoute>} />
             <Route path="/admin/menu" element={<ProtectedRoute allowedRoles={["admin", "super_admin"]}><AdminMenu /></ProtectedRoute>} />
@@ -57,15 +59,15 @@ const App = () => (
             <Route path="/admin/staff" element={<ProtectedRoute allowedRoles={["admin", "super_admin"]}><AdminStaff /></ProtectedRoute>} />
             <Route path="/admin/analytics" element={<ProtectedRoute allowedRoles={["admin", "super_admin"]}><AdminAnalytics /></ProtectedRoute>} />
             <Route path="/admin/settings" element={<ProtectedRoute allowedRoles={["admin", "super_admin"]}><AdminSettings /></ProtectedRoute>} />
-            
+
             {/* Waiter */}
             <Route path="/waiter" element={<ProtectedRoute allowedRoles={["waiter", "admin", "super_admin"]}><WaiterDashboard /></ProtectedRoute>} />
             <Route path="/waiter/seats" element={<ProtectedRoute allowedRoles={["waiter", "admin", "super_admin"]}><WaiterSeats /></ProtectedRoute>} />
             <Route path="/waiter/notifications" element={<ProtectedRoute allowedRoles={["waiter", "admin", "super_admin"]}><WaiterNotifications /></ProtectedRoute>} />
-            
+
             {/* Trial Expired */}
             <Route path="/trial-expired" element={<TrialExpired />} />
-            
+
             {/* Customer */}
             <Route path="/menu/demo" element={<CustomerMenu />} />
             <Route path="/menu/:restaurantId/select-seat" element={<CustomerSeatSelect />} />
