@@ -161,7 +161,7 @@ export default function Index() {
               fontFamily:"'Cormorant Garamond', serif",
               fontSize:"clamp(52px, 9vw, 108px)",
               fontWeight:700, lineHeight:1.02,
-              color:"#FFFFFF", marginBottom:15,
+              color:"#FFFFFF", marginBottom:24,
               letterSpacing:"-0.02em",
             }}>
               স্মার্ট রেস্টুরেন্ট
