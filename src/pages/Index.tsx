@@ -63,7 +63,7 @@ const Index = () => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-white overflow-hidden">
+    <div className="min-h-screen bg-background overflow-hidden">
 
       {/* Floating emojis */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
@@ -78,7 +78,7 @@ const Index = () => {
 
       {/* NAVBAR */}
       <nav className={`sticky top-0 z-50 transition-all duration-500 ${
-        scrolled ? "bg-white/90 backdrop-blur-2xl border-b border-border/60 shadow-lg shadow-black/5"
+        scrolled ? "bg-card/80 backdrop-blur-2xl border-b border-border/60 shadow-lg shadow-black/5"
                  : "bg-transparent border-b border-transparent"}`}>
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
