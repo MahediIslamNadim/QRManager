@@ -22,6 +22,8 @@ const AdminTables = () => {
   const [editingTable, setEditingTable] = useState<any>(null);
   const [form, setForm] = useState({ name: "", seats: "4" });
   const [showQR, setShowQR] = useState<string | null>(null);
+  const [qrType, setQrType] = useState<"table" | "seat" | null>(null);
+  const [qrLabel, setQrLabel] = useState("");
   const [selectedTable, setSelectedTable] = useState<any>(null);
   const [seatTable, setSeatTable] = useState<any>(null);
 
