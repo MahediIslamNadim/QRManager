@@ -327,6 +327,7 @@ const Index = () => {
             সব প্ল্যানে ৭ দিনের ফ্রি ট্রায়াল অন্তর্ভুক্ত। কোনো ক্রেডিট কার্ড লাগবে না। 🎉
           </p>
         </div>
+      </section>
 
       {/* CTA Section */}
       <section className="py-20 relative z-10">
