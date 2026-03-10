@@ -345,7 +345,7 @@ const AdminTables = () => {
                       <option value="reserved">রিজার্ভড</option>
                     </select>
                     <div className="flex gap-2 justify-center flex-wrap" onClick={e => e.stopPropagation()}>
-                      <Button variant="outline" size="sm" onClick={() => setShowQR(menuUrl(table.id))}><QrCode className="w-3 h-3" /> QR</Button>
+                      <Button variant="outline" size="sm" onClick={() => { setShowQR(menuUrl(table.id)); setQrType("table"); setQrLabel(table.name); }}><QrCode className="w-3 h-3" /> টেবিল QR</Button>
                       <Button variant="outline" size="sm" onClick={() => setSeatTable(table)}><Armchair className="w-3 h-3" /> সিট</Button>
                       <Button variant="ghost" size="sm" onClick={() => { setForm({ name: table.name, seats: String(table.seats) }); setEditingTable(table); setShowForm(true); }}><Edit className="w-3 h-3" /></Button>
                       <Button variant="ghost" size="sm" className="text-destructive" onClick={() => deleteMutation.mutate(table.id)}><Trash2 className="w-3 h-3" /></Button>

@@ -204,6 +204,10 @@ const CustomerMenu = () => {
       const { error: itemsErr } = await supabase.from("order_items").insert(items);
       if (itemsErr) throw itemsErr;
 
+      if (seatId) {
+        await supabase.from("table_seats").update({ status: "occupied" }).eq("id", seatId);
+      }
+
       toast.success("অর্ডার সফলভাবে পাঠানো হয়েছে!");
       setCart([]);
       setShowCart(false);
