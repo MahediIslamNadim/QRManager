@@ -169,9 +169,9 @@ export default function Index() {
             <h1 style={{
               fontFamily:"'Cormorant Garamond', serif",
               fontSize:"clamp(52px, 9vw, 108px)",
-              fontWeight:700, lineHeight:1.02,
+              fontWeight:700, lineHeight:1.3,
               marginBottom:32, letterSpacing:"-0.02em",
-              paddingTop:"8px", paddingBottom:"8px",
+              padding:"12px 4px",
               ...goldText,
             }}>
               অর্ডারিং সিস্টেম
