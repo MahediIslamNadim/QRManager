@@ -194,10 +194,20 @@ const AdminTables = () => {
           </DialogContent>
         </Dialog>
 
-        <Dialog open={!!showQR} onOpenChange={() => setShowQR(null)}>
+        <Dialog open={!!showQR} onOpenChange={() => { setShowQR(null); setQrType(null); setQrLabel(""); }}>
           <DialogContent>
-            <DialogHeader><DialogTitle className="font-display">QR কোড লিংক</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle className="font-display">QR কোড লিংক — {qrLabel}</DialogTitle></DialogHeader>
             <div className="space-y-4">
+              {qrType === "table" && (
+                <div className="px-3 py-2 rounded-lg bg-success/10 border border-success/30 text-success text-sm font-medium">
+                  👥 Group Customer — Seat Select করতে হবে
+                </div>
+              )}
+              {qrType === "seat" && (
+                <div className="px-3 py-2 rounded-lg bg-info/10 border border-info/30 text-info text-sm font-medium">
+                  🪑 Single Customer — সরাসরি মেনুতে যাবে
+                </div>
+              )}
               <p className="text-sm text-muted-foreground">এই লিংকটি QR কোড হিসেবে প্রিন্ট করুন:</p>
               <code className="block p-3 bg-secondary rounded-lg text-xs break-all">{showQR}</code>
               <Button variant="hero" className="w-full" onClick={() => { navigator.clipboard.writeText(showQR!); toast.success("কপি করা হয়েছে!"); }}>লিংক কপি করুন</Button>
