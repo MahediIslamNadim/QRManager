@@ -2,8 +2,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { ShoppingCart, Clock, CheckCircle, Plus, Minus, Edit, X, Volume2, VolumeX, Users, UserPlus, UserMinus } from "lucide-react";
+import { ShoppingCart, Clock, CheckCircle, Plus, Minus, Edit, X, Volume2, VolumeX, Users, UserPlus, UserMinus, Banknote, Smartphone } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -11,11 +10,13 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const WaiterDashboard = () => {
-  const { restaurantId } = useAuth();
+  const { restaurantId, user } = useAuth();
   const queryClient = useQueryClient();
   const [editOrder, setEditOrder] = useState<any>(null);
   const [editItems, setEditItems] = useState<any[]>([]);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [paymentOrder, setPaymentOrder] = useState<any>(null);
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "bkash">("cash");
   const prevOrderIdsRef = useRef<Set<string>>(new Set());
   const isFirstLoadRef = useRef(true);
 
@@ -113,6 +114,28 @@ const WaiterDashboard = () => {
     },
   });
 
+  // ✅ Payment mutation
+  const paymentMutation = useMutation({
+    mutationFn: async ({ orderId, method }: { orderId: string; method: string }) => {
+      const staffName = user?.user_metadata?.full_name || user?.email || "Unknown";
+      const { error } = await supabase.from("orders").update({
+        status: "completed",
+        payment_status: "paid",
+        payment_method: method,
+        paid_to_staff_id: user?.id,
+        paid_to_staff_name: staffName,
+        paid_at: new Date().toISOString(),
+      }).eq("id", orderId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["waiter-orders"] });
+      toast.success("✅ পেমেন্ট সম্পন্ন হয়েছে!");
+      setPaymentOrder(null);
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
   const openEditOrder = (order: any) => {
     setEditOrder(order);
     setEditItems((order.order_items || []).map((i: any) => ({ ...i })));
@@ -133,16 +156,12 @@ const WaiterDashboard = () => {
       if (!editOrder) return;
       const toDelete = editItems.filter(i => i.quantity === 0);
       const toUpdate = editItems.filter(i => i.quantity > 0);
-
-      // Delete removed items
       for (const item of toDelete) {
         await supabase.from("order_items").delete().eq("id", item.id);
       }
-      // Update quantities
       for (const item of toUpdate) {
         await supabase.from("order_items").update({ quantity: item.quantity }).eq("id", item.id);
       }
-      // Recalculate total
       const newTotal = toUpdate.reduce((s, i) => s + i.price * i.quantity, 0);
       await supabase.from("orders").update({ total: newTotal }).eq("id", editOrder.id);
     },
@@ -164,6 +183,8 @@ const WaiterDashboard = () => {
     if (diff < 60) return `${diff} মিনিট আগে`;
     return `${Math.floor(diff / 60)} ঘন্টা আগে`;
   };
+
+  const staffName = user?.user_metadata?.full_name || user?.email || "আপনি";
 
   return (
     <DashboardLayout role="waiter" title="ওয়েটার ড্যাশবোর্ড">
@@ -198,7 +219,7 @@ const WaiterDashboard = () => {
           </div>
         </div>
 
-        {/* Table Customer Overview */}
+        {/* Table Overview */}
         <div>
           <h2 className="text-lg font-display font-semibold text-foreground mb-3 flex items-center gap-2">
             <Users className="w-5 h-5 text-primary" /> টেবিল ওভারভিউ
@@ -207,10 +228,8 @@ const WaiterDashboard = () => {
             {tables.map((table: any) => {
               const hasCustomers = (table.current_customers || 0) > 0;
               return (
-                <div
-                  key={table.id}
-                  className={`rounded-xl border p-3 text-center transition-all ${hasCustomers ? "border-primary/40 bg-primary/5" : "border-border/40 bg-secondary/30"}`}
-                >
+                <div key={table.id}
+                  className={`rounded-xl border p-3 text-center transition-all ${hasCustomers ? "border-primary/40 bg-primary/5" : "border-border/40 bg-secondary/30"}`}>
                   <p className="font-display font-bold text-foreground text-sm">{table.name}</p>
                   <p className={`text-lg font-bold ${hasCustomers ? "text-primary" : "text-muted-foreground"}`}>
                     👤 {table.current_customers || 0}
@@ -220,21 +239,19 @@ const WaiterDashboard = () => {
                     <button
                       onClick={() => {
                         const nc = Math.max(0, (table.current_customers || 0) - 1);
-                        supabase.from("restaurant_tables").update({ current_customers: nc }).eq("id", table.id).then(() => queryClient.invalidateQueries({ queryKey: ["waiter-tables", restaurantId] }));
+                        supabase.from("restaurant_tables").update({ current_customers: nc }).eq("id", table.id)
+                          .then(() => queryClient.invalidateQueries({ queryKey: ["waiter-tables", restaurantId] }));
                       }}
                       className="w-6 h-6 rounded-md bg-card border border-border flex items-center justify-center hover:bg-accent active:scale-90 transition-all"
-                    >
-                      <UserMinus className="w-3 h-3 text-destructive" />
-                    </button>
+                    ><UserMinus className="w-3 h-3 text-destructive" /></button>
                     <button
                       onClick={() => {
                         const nc = Math.min(table.seats, (table.current_customers || 0) + 1);
-                        supabase.from("restaurant_tables").update({ current_customers: nc }).eq("id", table.id).then(() => queryClient.invalidateQueries({ queryKey: ["waiter-tables", restaurantId] }));
+                        supabase.from("restaurant_tables").update({ current_customers: nc }).eq("id", table.id)
+                          .then(() => queryClient.invalidateQueries({ queryKey: ["waiter-tables", restaurantId] }));
                       }}
                       className="w-6 h-6 rounded-md bg-primary text-primary-foreground flex items-center justify-center active:scale-90 transition-all"
-                    >
-                      <UserPlus className="w-3 h-3" />
-                    </button>
+                    ><UserPlus className="w-3 h-3" /></button>
                   </div>
                 </div>
               );
@@ -242,6 +259,7 @@ const WaiterDashboard = () => {
           </div>
         </div>
 
+        {/* Active Orders */}
         <div>
           <h2 className="text-lg font-display font-semibold text-foreground mb-4">অ্যাক্টিভ অর্ডার</h2>
           {orders.length === 0 ? (
@@ -252,13 +270,19 @@ const WaiterDashboard = () => {
                 <Card key={order.id} className="border-l-4 border-l-primary">
                   <CardContent className="p-5">
                     <div className="flex items-start justify-between">
-                      <div>
+                      <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-2 flex-wrap">
                           <h3 className="font-display font-semibold text-foreground">#{order.id.slice(0, 6)}</h3>
                           <span className="text-sm font-body text-muted-foreground">• {order.restaurant_tables?.name || "N/A"}</span>
                           {order.table_seats?.seat_number && (
                             <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
                               সিট {order.table_seats.seat_number}
+                            </span>
+                          )}
+                          {/* ✅ Payment badge */}
+                          {order.payment_status === "paid" && (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-success/10 text-success font-medium flex items-center gap-1">
+                              ✅ পেইড • {order.payment_method === "bkash" ? "bKash" : "Cash"}
                             </span>
                           )}
                         </div>
@@ -269,11 +293,20 @@ const WaiterDashboard = () => {
                             </span>
                           ))}
                         </div>
-                        <p className="text-xs text-muted-foreground flex items-center gap-1">
-                          <Clock className="w-3 h-3" /> {timeAgo(order.created_at)}
-                        </p>
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <p className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Clock className="w-3 h-3" /> {timeAgo(order.created_at)}
+                          </p>
+                          <p className="text-sm font-bold text-foreground">৳{order.total || 0}</p>
+                          {/* ✅ Paid to staff name — ছোট করে */}
+                          {order.paid_to_staff_name && (
+                            <p className="text-[10px] text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">
+                              💰 {order.paid_to_staff_name}
+                            </p>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex gap-2 flex-shrink-0">
+                      <div className="flex gap-2 flex-shrink-0 ml-3">
                         <Button size="sm" variant="outline" onClick={() => openEditOrder(order)}>
                           <Edit className="w-3.5 h-3.5" />
                         </Button>
@@ -287,8 +320,18 @@ const WaiterDashboard = () => {
                             সার্ভ করুন
                           </Button>
                         )}
-                        {order.status === "served" && (
-                          <Button size="sm" variant="hero" className="bg-success hover:bg-success/90" onClick={() => updateStatus.mutate({ id: order.id, status: "completed" })}>
+                        {/* ✅ Bill button — served হলে দেখাবে */}
+                        {order.status === "served" && order.payment_status !== "paid" && (
+                          <Button size="sm" variant="hero"
+                            className="bg-success hover:bg-success/90"
+                            onClick={() => { setPaymentOrder(order); setPaymentMethod("cash"); }}>
+                            <Banknote className="w-3.5 h-3.5" /> বিল নিন
+                          </Button>
+                        )}
+                        {order.status === "served" && order.payment_status === "paid" && (
+                          <Button size="sm" variant="hero"
+                            className="bg-success hover:bg-success/90"
+                            onClick={() => updateStatus.mutate({ id: order.id, status: "completed" })}>
                             <CheckCircle className="w-3.5 h-3.5" /> কমপ্লিট
                           </Button>
                         )}
@@ -301,6 +344,72 @@ const WaiterDashboard = () => {
           )}
         </div>
       </div>
+
+      {/* ✅ Payment Dialog */}
+      <Dialog open={!!paymentOrder} onOpenChange={() => setPaymentOrder(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-display">💰 বিল পরিশোধ</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* Order summary */}
+            <div className="bg-secondary/50 rounded-xl p-4 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">অর্ডার</span>
+                <span className="font-medium text-foreground">#{paymentOrder?.id?.slice(0, 6)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">টেবিল</span>
+                <span className="font-medium text-foreground">{paymentOrder?.restaurant_tables?.name || "N/A"}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">আইটেম</span>
+                <span className="font-medium text-foreground">
+                  {paymentOrder?.order_items?.map((i: any) => `${i.name} x${i.quantity}`).join(", ")}
+                </span>
+              </div>
+              <div className="border-t border-border pt-2 flex justify-between">
+                <span className="font-bold text-foreground">মোট</span>
+                <span className="font-bold text-xl text-primary">৳{paymentOrder?.total || 0}</span>
+              </div>
+            </div>
+
+            {/* Payment method */}
+            <div>
+              <p className="text-sm font-medium text-foreground mb-2">পেমেন্ট পদ্ধতি:</p>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => setPaymentMethod("cash")}
+                  className={`p-3 rounded-xl border-2 flex flex-col items-center gap-1 transition-all ${paymentMethod === "cash" ? "border-primary bg-primary/10" : "border-border bg-secondary/30"}`}>
+                  <Banknote className={`w-6 h-6 ${paymentMethod === "cash" ? "text-primary" : "text-muted-foreground"}`} />
+                  <span className={`text-sm font-medium ${paymentMethod === "cash" ? "text-primary" : "text-muted-foreground"}`}>ক্যাশ</span>
+                </button>
+                <button
+                  onClick={() => setPaymentMethod("bkash")}
+                  className={`p-3 rounded-xl border-2 flex flex-col items-center gap-1 transition-all ${paymentMethod === "bkash" ? "border-pink-500 bg-pink-500/10" : "border-border bg-secondary/30"}`}>
+                  <Smartphone className={`w-6 h-6 ${paymentMethod === "bkash" ? "text-pink-500" : "text-muted-foreground"}`} />
+                  <span className={`text-sm font-medium ${paymentMethod === "bkash" ? "text-pink-500" : "text-muted-foreground"}`}>bKash</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Staff info */}
+            <div className="bg-primary/5 border border-primary/20 rounded-xl p-3">
+              <p className="text-xs text-muted-foreground">পেমেন্ট গ্রহণকারী:</p>
+              <p className="text-sm font-bold text-foreground">👤 {staffName}</p>
+            </div>
+
+            {/* Confirm button */}
+            <Button
+              variant="hero"
+              className="w-full h-12 text-base"
+              onClick={() => paymentMutation.mutate({ orderId: paymentOrder.id, method: paymentMethod })}
+              disabled={paymentMutation.isPending}>
+              {paymentMutation.isPending ? "প্রসেস হচ্ছে..." : `✅ ${paymentMethod === "bkash" ? "bKash" : "ক্যাশ"} পেমেন্ট কনফার্ম করুন`}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Order Dialog */}
       <Dialog open={!!editOrder} onOpenChange={() => setEditOrder(null)}>
