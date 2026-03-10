@@ -1,21 +1,65 @@
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
-import { UtensilsCrossed, QrCode, ShoppingCart, BarChart3, ArrowRight, Shield, Zap, Globe } from "lucide-react";
+import { UtensilsCrossed, ArrowRight, Smartphone, ChefHat, Zap } from "lucide-react";
+import { useEffect, useState } from "react";
+
+const floatingEmojis = ["🍛", "🍕", "🍜", "🥘", "🍱", "🥗", "🍔", "🍣", "🧁", "🍝"];
+
+interface FloatingEmoji {
+  id: number;
+  emoji: string;
+  left: number;
+  delay: number;
+  duration: number;
+  size: number;
+}
 
 const Index = () => {
+  const [emojis, setEmojis] = useState<FloatingEmoji[]>([]);
+
+  useEffect(() => {
+    const generated: FloatingEmoji[] = Array.from({ length: 18 }, (_, i) => ({
+      id: i,
+      emoji: floatingEmojis[i % floatingEmojis.length],
+      left: Math.random() * 100,
+      delay: Math.random() * 8,
+      duration: 12 + Math.random() * 10,
+      size: 20 + Math.random() * 24,
+    }));
+    setEmojis(generated);
+  }, []);
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background overflow-hidden">
+      {/* Floating food emojis background */}
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+        {emojis.map((e) => (
+          <span
+            key={e.id}
+            className="absolute opacity-[0.12] select-none"
+            style={{
+              left: `${e.left}%`,
+              bottom: "-60px",
+              fontSize: `${e.size}px`,
+              animation: `floatUp ${e.duration}s ${e.delay}s linear infinite`,
+            }}
+          >
+            {e.emoji}
+          </span>
+        ))}
+      </div>
+
       {/* Navbar */}
-      <nav className="border-b border-border bg-card/80 backdrop-blur-xl sticky top-0 z-20">
+      <nav className="border-b border-border/50 bg-card/60 backdrop-blur-2xl sticky top-0 z-30">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg gradient-primary flex items-center justify-center">
-              <UtensilsCrossed className="w-5 h-5 text-primary-foreground" />
+            <div className="w-10 h-10 rounded-xl gradient-sunset flex items-center justify-center shadow-lg shadow-primary/30">
+              <UtensilsCrossed className="w-5 h-5 text-white" />
             </div>
-            <span className="font-display font-bold text-foreground text-xl">Restaurant QR</span>
+            <span className="font-display font-bold text-foreground text-xl tracking-tight">Tasty QR Spot</span>
           </div>
           <div className="flex items-center gap-3">
-            <Button variant="ghost" asChild>
+            <Button variant="ghost" asChild className="hidden sm:inline-flex">
               <Link to="/menu/demo">ডেমো মেনু</Link>
             </Button>
             <Button variant="hero" asChild>
@@ -25,80 +69,224 @@ const Index = () => {
         </div>
       </nav>
 
-      {/* Hero */}
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0">
-          <div className="absolute top-20 left-1/4 w-96 h-96 rounded-full bg-primary/8 blur-3xl" />
-          <div className="absolute bottom-0 right-1/4 w-80 h-80 rounded-full bg-rose/6 blur-3xl" />
-          <div className="absolute top-1/2 right-10 w-60 h-60 rounded-full bg-info/6 blur-3xl" />
+      {/* Hero Section */}
+      <section className="relative min-h-[85vh] flex items-center justify-center">
+        {/* Warm gradient overlays */}
+        <div className="absolute inset-0 z-0">
+          <div className="absolute top-0 left-0 right-0 h-full bg-gradient-to-b from-primary/8 via-transparent to-accent/5" />
+          <div className="absolute top-16 left-[10%] w-[500px] h-[500px] rounded-full bg-primary/10 blur-[120px]" />
+          <div className="absolute bottom-10 right-[10%] w-[400px] h-[400px] rounded-full bg-accent/8 blur-[100px]" />
+          <div className="absolute top-1/3 right-1/3 w-[300px] h-[300px] rounded-full bg-warning/6 blur-[80px]" />
+          {/* Dot pattern */}
+          <div
+            className="absolute inset-0 opacity-[0.03]"
+            style={{
+              backgroundImage: "radial-gradient(circle, hsl(var(--foreground)) 1px, transparent 1px)",
+              backgroundSize: "32px 32px",
+            }}
+          />
         </div>
-        <div className="max-w-6xl mx-auto px-6 py-24 md:py-32 relative z-10">
-          <div className="max-w-3xl mx-auto text-center animate-fade-up">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent text-accent-foreground text-sm font-medium mb-8">
-              <Zap className="w-4 h-4" />
-              আধুনিক রেস্টুরেন্ট ম্যানেজমেন্ট
+
+        <div className="max-w-5xl mx-auto px-6 py-20 relative z-10 text-center">
+          {/* Glowing logo */}
+          <div className="animate-fade-up" style={{ animationDelay: "0s" }}>
+            <div className="relative inline-flex mb-8">
+              <div className="w-24 h-24 rounded-3xl gradient-sunset flex items-center justify-center shadow-2xl relative z-10"
+                style={{ boxShadow: "0 0 60px hsl(38 92% 50% / 0.4), 0 0 120px hsl(345 65% 35% / 0.2)" }}>
+                <UtensilsCrossed className="w-12 h-12 text-white" />
+              </div>
+              <div className="absolute inset-0 rounded-3xl gradient-sunset opacity-40 blur-2xl animate-pulse" />
             </div>
-            <h1 className="text-4xl md:text-6xl font-display font-bold text-foreground leading-tight mb-6">
-              QR কোড দিয়ে{" "}
-              <span className="text-gradient">রেস্টুরেন্ট</span>{" "}
-              অর্ডারিং সিস্টেম
+          </div>
+
+          {/* Badge */}
+          <div className="animate-fade-up" style={{ animationDelay: "0.1s", opacity: 0, animationFillMode: "forwards" }}>
+            <div className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-accent/10 border border-accent/20 text-accent-foreground text-sm font-medium mb-6">
+              <span className="w-2 h-2 rounded-full bg-accent animate-pulse" />
+              বাংলাদেশের #১ রেস্টুরেন্ট সলিউশন
+            </div>
+          </div>
+
+          {/* Headline */}
+          <div className="animate-fade-up" style={{ animationDelay: "0.2s", opacity: 0, animationFillMode: "forwards" }}>
+            <h1 className="text-4xl sm:text-5xl md:text-7xl font-display font-bold text-foreground leading-[1.1] mb-6">
+              স্মার্ট রেস্টুরেন্ট{" "}
+              <span className="text-gradient-sunset">অর্ডারিং</span>{" "}
+              সিস্টেম
             </h1>
-            <p className="text-lg text-muted-foreground mb-10 max-w-xl mx-auto font-body">
-              কাস্টমাররা QR কোড স্ক্যান করে মেনু দেখবে এবং অর্ডার দেবে। সম্পূর্ণ ডিজিটাল, দ্রুত এবং সুবিধাজনক।
+          </div>
+
+          {/* Subheadline */}
+          <div className="animate-fade-up" style={{ animationDelay: "0.35s", opacity: 0, animationFillMode: "forwards" }}>
+            <p className="text-lg md:text-xl text-muted-foreground mb-10 max-w-2xl mx-auto font-body leading-relaxed">
+              QR কোড স্ক্যান করুন, মেনু দেখুন, অর্ডার দিন — <span className="text-foreground font-semibold">সহজেই!</span>
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button variant="hero" size="lg" asChild className="text-base px-8">
-                <Link to="/login">
-                  শুরু করুন <ArrowRight className="w-4 h-4" />
-                </Link>
-              </Button>
-              <Button variant="outline" size="lg" asChild className="text-base px-8">
-                <Link to="/menu/demo">ডেমো দেখুন</Link>
-              </Button>
+          </div>
+
+          {/* CTA Buttons */}
+          <div className="animate-fade-up flex flex-col sm:flex-row gap-4 justify-center" style={{ animationDelay: "0.5s", opacity: 0, animationFillMode: "forwards" }}>
+            <Button variant="hero" size="lg" asChild className="text-base px-10 h-14 text-lg rounded-2xl shadow-xl shadow-primary/30 hover:shadow-2xl hover:shadow-primary/40 transition-all duration-300 hover:scale-105">
+              <Link to="/login">
+                লগইন করুন <ArrowRight className="w-5 h-5" />
+              </Link>
+            </Button>
+            <Button variant="outline" size="lg" asChild className="text-base px-10 h-14 text-lg rounded-2xl border-2 hover:bg-accent/10 hover:border-accent/40 transition-all duration-300 hover:scale-105">
+              <Link to="/menu/demo">
+                ডেমো দেখুন
+              </Link>
+            </Button>
+          </div>
+
+          {/* Scroll hint */}
+          <div className="mt-16 animate-fade-up" style={{ animationDelay: "0.7s", opacity: 0, animationFillMode: "forwards" }}>
+            <div className="w-6 h-10 rounded-full border-2 border-muted-foreground/30 mx-auto flex items-start justify-center p-1.5">
+              <div className="w-1.5 h-3 rounded-full bg-muted-foreground/40 animate-bounce" />
             </div>
           </div>
         </div>
       </section>
 
-      {/* Features */}
-      <section className="py-20 bg-secondary/30">
-        <div className="max-w-6xl mx-auto px-6">
-          <h2 className="text-3xl font-display font-bold text-foreground text-center mb-12">
-            কেন <span className="text-gradient">Restaurant QR</span>?
-          </h2>
+      {/* Features Section */}
+      <section className="py-24 relative z-10">
+        <div className="max-w-5xl mx-auto px-6">
+          <div className="text-center mb-16 animate-fade-up">
+            <h2 className="text-3xl md:text-4xl font-display font-bold text-foreground mb-4">
+              কিভাবে <span className="text-gradient">কাজ করে</span>?
+            </h2>
+            <p className="text-muted-foreground max-w-lg mx-auto">তিনটি সহজ ধাপে আপনার রেস্টুরেন্ট ডিজিটাল হয়ে যাক</p>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
-              { icon: QrCode, title: "QR কোড অর্ডারিং", desc: "প্রতিটি টেবিলে QR কোড। কাস্টমার স্ক্যান করে সরাসরি অর্ডার দেয়।", color: "bg-primary/10 text-primary" },
-              { icon: ShoppingCart, title: "রিয়েল-টাইম অর্ডার", desc: "অর্ডার তাৎক্ষণিকভাবে রান্নাঘরে যায়। ওয়েটার রিয়েল-টাইমে আপডেট পায়।", color: "bg-info/10 text-info" },
-              { icon: BarChart3, title: "বিশ্লেষণ ড্যাশবোর্ড", desc: "বিক্রয়, জনপ্রিয় আইটেম, এবং কাস্টমার ইনসাইটস এক জায়গায়।", color: "bg-success/10 text-success" },
-              { icon: Shield, title: "নিরাপদ ও নির্ভরযোগ্য", desc: "ডাটা এনক্রিপশন এবং নিরাপদ পেমেন্ট প্রসেসিং।", color: "bg-rose/10 text-rose" },
-              { icon: Zap, title: "দ্রুত সেটআপ", desc: "কয়েক মিনিটেই আপনার রেস্টুরেন্ট সেটআপ করুন। কোনো টেকনিক্যাল জ্ঞান লাগবে না।", color: "bg-amber/10 text-amber" },
-              { icon: Globe, title: "মাল্টি-রেস্টুরেন্ট", desc: "একাধিক রেস্টুরেন্ট ম্যানেজ করুন একটি প্ল্যাটফর্ম থেকে।", color: "bg-accent text-accent-foreground" },
+              {
+                icon: Smartphone,
+                emoji: "📱",
+                title: "QR স্ক্যান করুন",
+                desc: "টেবিলের QR কোড স্ক্যান করে সাথে সাথে মেনু দেখুন। অ্যাপ ডাউনলোডের দরকার নেই!",
+                color: "bg-primary/10 text-primary border-primary/20",
+                shadowColor: "shadow-primary/20",
+                step: "০১",
+              },
+              {
+                icon: ChefHat,
+                emoji: "🍽️",
+                title: "অর্ডার দিন",
+                desc: "পছন্দের খাবার বেছে নিন এবং এক ক্লিকে অর্ডার করুন। প্রতিটি সিটের জন্য আলাদা অর্ডার!",
+                color: "bg-accent/10 text-accent border-accent/20",
+                shadowColor: "shadow-accent/20",
+                step: "০২",
+              },
+              {
+                icon: Zap,
+                emoji: "⚡",
+                title: "রিয়েলটাইম আপডেট",
+                desc: "রান্নাঘর সাথে সাথে অর্ডার পায়। আপনি রিয়েলটাইমে স্ট্যাটাস দেখতে পারেন!",
+                color: "bg-success/10 text-success border-success/20",
+                shadowColor: "shadow-success/20",
+                step: "০৩",
+              },
             ].map((feature, i) => (
-              <div key={i} className="stat-card text-center">
-                <div className={`w-14 h-14 rounded-2xl ${feature.color} flex items-center justify-center mx-auto mb-5`}>
-                  <feature.icon className="w-7 h-7" />
+              <div
+                key={i}
+                className="animate-fade-up group relative bg-card rounded-2xl border border-border p-8 text-center transition-all duration-500 hover:shadow-2xl hover:-translate-y-2"
+                style={{ animationDelay: `${0.15 * i + 0.2}s`, opacity: 0, animationFillMode: "forwards" }}
+              >
+                {/* Step number */}
+                <div className="absolute -top-4 -right-2 w-10 h-10 rounded-full gradient-sunset text-white text-sm font-bold flex items-center justify-center shadow-lg shadow-primary/30 font-display">
+                  {feature.step}
                 </div>
-                <h3 className="font-display font-semibold text-foreground text-lg mb-3">{feature.title}</h3>
-                <p className="text-muted-foreground text-sm font-body">{feature.desc}</p>
+
+                <div className={`w-20 h-20 rounded-2xl ${feature.color} border flex items-center justify-center mx-auto mb-6 transition-transform duration-300 group-hover:scale-110`}>
+                  <span className="text-4xl">{feature.emoji}</span>
+                </div>
+                <h3 className="font-display font-bold text-foreground text-xl mb-3">{feature.title}</h3>
+                <p className="text-muted-foreground text-sm font-body leading-relaxed">{feature.desc}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
+      {/* Stats Section */}
+      <section className="py-20 relative z-10">
+        <div className="max-w-5xl mx-auto px-6">
+          <div className="rounded-3xl gradient-warm p-12 md:p-16 relative overflow-hidden">
+            {/* Decorative elements */}
+            <div className="absolute top-0 right-0 w-64 h-64 rounded-full bg-primary/10 blur-[80px]" />
+            <div className="absolute bottom-0 left-0 w-48 h-48 rounded-full bg-accent/15 blur-[60px]" />
+
+            <div className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-10 text-center">
+              {[
+                { value: "৫০০+", label: "রেস্টুরেন্ট", emoji: "🏪" },
+                { value: "১০,০০০+", label: "সফল অর্ডার", emoji: "📦" },
+                { value: "৯৮%", label: "সন্তুষ্ট গ্রাহক", emoji: "⭐" },
+              ].map((stat, i) => (
+                <div
+                  key={i}
+                  className="animate-fade-up"
+                  style={{ animationDelay: `${0.15 * i}s`, opacity: 0, animationFillMode: "forwards" }}
+                >
+                  <span className="text-3xl mb-2 block">{stat.emoji}</span>
+                  <div className="text-4xl md:text-5xl font-display font-bold text-white mb-2">{stat.value}</div>
+                  <div className="text-white/60 text-sm font-body">{stat.label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="py-20 relative z-10">
+        <div className="max-w-3xl mx-auto px-6 text-center">
+          <div className="animate-fade-up">
+            <h2 className="text-3xl md:text-4xl font-display font-bold text-foreground mb-4">
+              আজই শুরু করুন — <span className="text-gradient-sunset">বিনামূল্যে!</span>
+            </h2>
+            <p className="text-muted-foreground mb-8 max-w-lg mx-auto">
+              আপনার রেস্টুরেন্টকে ডিজিটাল করুন। ফ্রি ট্রায়ালে সব ফিচার ব্যবহার করুন।
+            </p>
+            <Button variant="hero" size="lg" asChild className="text-lg px-12 h-14 rounded-2xl shadow-xl shadow-primary/30 hover:shadow-2xl hover:shadow-primary/40 transition-all duration-300 hover:scale-105">
+              <Link to="/login">
+                ফ্রি ট্রায়াল শুরু করুন <ArrowRight className="w-5 h-5" />
+              </Link>
+            </Button>
+          </div>
+        </div>
+      </section>
+
       {/* Footer */}
-      <footer className="border-t border-border py-12">
+      <footer className="border-t border-border/50 py-12 relative z-10 bg-card/30 backdrop-blur-sm">
         <div className="max-w-6xl mx-auto px-6 text-center">
           <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="w-8 h-8 rounded-lg gradient-primary flex items-center justify-center">
-              <UtensilsCrossed className="w-4 h-4 text-primary-foreground" />
+            <div className="w-9 h-9 rounded-xl gradient-sunset flex items-center justify-center shadow-md">
+              <UtensilsCrossed className="w-4 h-4 text-white" />
             </div>
-            <span className="font-display font-bold text-foreground">Restaurant QR</span>
+            <span className="font-display font-bold text-foreground text-lg">Tasty QR Spot</span>
           </div>
-          <p className="text-sm text-muted-foreground">© 2026 Restaurant QR SaaS. সর্বস্বত্ব সংরক্ষিত।</p>
+          <p className="text-sm text-muted-foreground">Tasty QR Spot © 2025 — সকল অধিকার সংরক্ষিত</p>
         </div>
       </footer>
+
+      {/* Global animation keyframes */}
+      <style>{`
+        @keyframes floatUp {
+          0% {
+            transform: translateY(0) rotate(0deg);
+            opacity: 0;
+          }
+          10% {
+            opacity: 0.12;
+          }
+          90% {
+            opacity: 0.12;
+          }
+          100% {
+            transform: translateY(-110vh) rotate(360deg);
+            opacity: 0;
+          }
+        }
+      `}</style>
     </div>
   );
 };
