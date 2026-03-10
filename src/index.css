@@ -18,10 +18,10 @@
     --primary: 38 92% 50%;
     --primary-foreground: 20 30% 10%;
 
-    --secondary: 35 25% 92%;
+    --secondary: 0 0% 96%;
     --secondary-foreground: 20 40% 25%;
 
-    --muted: 35 15% 94%;
+    --muted: 0 0% 95%;
     --muted-foreground: 20 12% 48%;
 
     --accent: 345 65% 35%;
@@ -45,8 +45,8 @@
     --amber: 38 92% 50%;
     --amber-foreground: 20 30% 12%;
 
-    --border: 35 20% 88%;
-    --input: 35 20% 85%;
+    --border: 0 0% 90%;
+    --input: 0 0% 88%;
     --ring: 38 92% 50%;
 
     --radius: 0.75rem;
@@ -65,7 +65,7 @@
 
     --gradient-primary: linear-gradient(135deg, hsl(38 92% 50%), hsl(28 85% 55%));
     --gradient-warm: linear-gradient(135deg, hsl(20 35% 12%), hsl(345 50% 20%));
-    --gradient-card: linear-gradient(145deg, hsl(0 0% 100%), hsl(35 30% 97%));
+    --gradient-card: linear-gradient(145deg, hsl(0 0% 100%), hsl(0 0% 97%));
     --gradient-accent: linear-gradient(135deg, hsl(345 65% 35%), hsl(355 55% 45%));
     --gradient-sunset: linear-gradient(135deg, hsl(38 92% 50%), hsl(345 65% 35%), hsl(20 35% 18%));
 
