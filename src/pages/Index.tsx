@@ -78,7 +78,7 @@ export default function Index() {
               <UtensilsCrossed size={22} color="#0a0a0a" />
             </div>
             <div>
-              <div style={{ fontFamily:"'Cormorant Garamond', serif", fontWeight:700, fontSize:20, color:"#FFFFFF", letterSpacing:"0.02em" }}>Tasty QR Spot</div>
+              <div style={{ fontFamily:"'Cormorant Garamond', serif", fontWeight:700, fontSize:20, color:"#FFFFFF", letterSpacing:"0.02em" }}> QRManager</div>
               <div style={{ fontSize:9, letterSpacing:"0.3em", color:"rgba(201,168,76,0.7)", textTransform:"uppercase", fontFamily:"monospace" }}>by NexCore Technologies</div>
             </div>
           </div>
@@ -456,7 +456,7 @@ export default function Index() {
               <UtensilsCrossed size={17} color="#0a0a0a" />
             </div>
             <div style={{ textAlign:"left" }}>
-              <div style={{ fontFamily:"'Cormorant Garamond', serif", fontWeight:700, fontSize:18, color:"#f5d780" }}>Tasty QR Spot</div>
+              <div style={{ fontFamily:"'Cormorant Garamond', serif", fontWeight:700, fontSize:18, color:"#f5d780" }}> QRManager</div>
               <div style={{ fontSize:9, letterSpacing:"0.25em", color:"rgba(201,168,76,0.55)", textTransform:"uppercase", fontFamily:"monospace" }}>by NexCore Technologies</div>
             </div>
           </div>
@@ -468,7 +468,7 @@ export default function Index() {
             ))}
           </div>
           <p style={{ fontSize:13, color:"rgba(255,255,255,0.35)", fontFamily:"'DM Sans', sans-serif" }}>
-            © 2025 Tasty QR Spot — একটি{" "}
+            © 2025  QRManager — একটি{" "}
             <a href="https://nexcoreltd.com" target="_blank" rel="noopener noreferrer" style={{ color:"rgba(201,168,76,0.65)", textDecoration:"none" }}>NexCore Technologies Ltd.</a>{" "}
             পণ্য · সকল অধিকার সংরক্ষিত
           </p>
