@@ -56,7 +56,7 @@ const CustomerSeatSelect = () => {
         .gt("expires_at", new Date().toISOString())
         .order("created_at", { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
       if (existingSession) {
         setValidToken((existingSession as any).token);
