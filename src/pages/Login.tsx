@@ -5,16 +5,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import {
   Eye, EyeOff, UtensilsCrossed, ArrowRight,
-  QrCode, Zap, ShieldCheck, ChevronDown, KeyRound, ArrowLeft
+  QrCode, Zap, ShieldCheck, KeyRound, ArrowLeft
 } from "lucide-react";
 
-const PLANS = [
-  { id: "basic", label: "বেসিক", price: "৩৯৯", trial: true, desc: "৭ দিন ফ্রি ট্রায়াল", features: ["৫০টি মেনু আইটেম", "৫টি টেবিল", "৩ জন স্টাফ"] },
-  { id: "premium", label: "প্রিমিয়াম", price: "৬৯৯", trial: false, desc: "পেমেন্ট প্রয়োজন", features: ["২০০টি মেনু আইটেম", "২০টি টেবিল", "১৫ জন স্টাফ"] },
-  { id: "enterprise", label: "এন্টারপ্রাইজ", price: "১,১৯৯", trial: false, desc: "পেমেন্ট প্রয়োজন", features: ["আনলিমিটেড সব", "মাল্টি-ব্রাঞ্চ", "ডেডিকেটেড সাপোর্ট"] },
-];
-
-// mode: "login" | "signup" | "forgot" | "forgot_sent"
 type Mode = "login" | "signup" | "forgot" | "forgot_sent";
 
 const Login = () => {
@@ -28,10 +21,8 @@ const Login = () => {
   const [restaurantName, setRestaurantName] = useState("");
   const [restaurantAddress, setRestaurantAddress] = useState("");
   const [restaurantPhone, setRestaurantPhone] = useState("");
-  const [selectedPlan, setSelectedPlan] = useState("basic");
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [planOpen, setPlanOpen] = useState(false);
 
   useEffect(() => {
     if (!loading && user && role) {
@@ -41,7 +32,6 @@ const Login = () => {
     }
   }, [user, role, loading, navigate]);
 
-  // ✅ Forgot password handler
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) { toast.error("ইমেইল দিন"); return; }
@@ -72,10 +62,9 @@ const Login = () => {
         });
         if (error) throw error;
         if (data.user) {
-          const isBasicPlan = selectedPlan === "basic";
+          // Always basic plan with 7-day trial
           const trialEndsAt = new Date();
-          if (isBasicPlan) trialEndsAt.setDate(trialEndsAt.getDate() + 7);
-          else trialEndsAt.setDate(trialEndsAt.getDate() - 1);
+          trialEndsAt.setDate(trialEndsAt.getDate() + 7);
 
           const { data: restaurant, error: restError } = await supabase
             .from("restaurants")
@@ -83,7 +72,7 @@ const Login = () => {
               name: restaurantName.trim(),
               address: restaurantAddress.trim() || null,
               phone: restaurantPhone.trim() || null,
-              plan: selectedPlan,
+              plan: "basic",
               owner_id: data.user.id,
               status: "active",
               trial_ends_at: trialEndsAt.toISOString(),
@@ -114,8 +103,7 @@ const Login = () => {
             ]);
           }
 
-          if (isBasicPlan) toast.success("অ্যাকাউন্ট তৈরি হয়েছে! ৭ দিনের ফ্রি ট্রায়াল শুরু হয়েছে।");
-          else toast.info("অ্যাকাউন্ট তৈরি হয়েছে! প্যাকেজ সক্রিয় করতে পেমেন্ট করুন।");
+          toast.success("অ্যাকাউন্ট তৈরি হয়েছে! ৭ দিনের ফ্রি ট্রায়াল শুরু হয়েছে।");
         }
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
@@ -131,8 +119,6 @@ const Login = () => {
 
   const gold = "linear-gradient(135deg, #f5d780, #c9a84c, #e8c04a)";
   const goldText: React.CSSProperties = { background: gold, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" };
-
-  const currentPlan = PLANS.find(p => p.id === selectedPlan)!;
 
   const inputStyle: React.CSSProperties = {
     width: "100%", height: 48,
@@ -229,7 +215,7 @@ const Login = () => {
             </div>
           </div>
 
-          {/* ✅ FORGOT PASSWORD — Email sent screen */}
+          {/* FORGOT PASSWORD — Email sent screen */}
           {mode === "forgot_sent" ? (
             <div style={{ textAlign: "center" }}>
               <div style={{ width: 72, height: 72, borderRadius: 20, background: "rgba(201,168,76,0.12)", border: "1px solid rgba(201,168,76,0.3)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px" }}>
@@ -246,7 +232,6 @@ const Login = () => {
               </button>
             </div>
 
-          /* ✅ FORGOT PASSWORD — Email input screen */
           ) : mode === "forgot" ? (
             <div>
               <button onClick={() => setMode("login")}
@@ -299,7 +284,6 @@ const Login = () => {
               </form>
             </div>
 
-          /* ── LOGIN / SIGNUP FORM ── */
           ) : (
             <>
               <div style={{ marginBottom: 32 }}>
@@ -307,7 +291,7 @@ const Login = () => {
                   {mode === "signup" ? "শুরু করুন" : "স্বাগতম 👋"}
                 </h2>
                 <p style={{ fontSize: 14, color: "rgba(255,255,255,0.45)" }}>
-                  {mode === "signup" ? "নতুন অ্যাকাউন্ট তৈরি করুন • ৭ দিন ফ্রি ট্রায়াল" : "আপনার ড্যাশবোর্ডে লগইন করুন"}
+                  {mode === "signup" ? "নতুন অ্যাকাউন্ট তৈরি করুন • ৭ দিন ফ্রি ট্রায়াল (Basic)" : "আপনার ড্যাশবোর্ডে লগইন করুন"}
                 </p>
               </div>
 
@@ -341,42 +325,10 @@ const Login = () => {
                             onBlur={e => { e.target.style.borderColor = "rgba(201,168,76,0.2)"; e.target.style.backgroundColor = "rgba(255,255,255,0.04)"; }} />
                         </div>
                       </div>
-                      {/* Plan selector */}
-                      <div>
-                        <label style={labelStyle}>প্যাকেজ নির্বাচন</label>
-                        <div style={{ position: "relative" }}>
-                          <button type="button" onClick={() => setPlanOpen(!planOpen)}
-                            style={{ ...inputStyle, display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", height: 52, border: planOpen ? "1px solid rgba(201,168,76,0.6)" : "1px solid rgba(201,168,76,0.2)" }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                              <span style={{ fontWeight: 600, color: "#FFFFFF" }}>{currentPlan.label}</span>
-                              <span style={{ color: "#f5d780", fontWeight: 700 }}>৳{currentPlan.price}/মাস</span>
-                              {currentPlan.trial && <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 20, background: "rgba(201,168,76,0.15)", color: "#f5d780", fontWeight: 600 }}>৭ দিন ফ্রি</span>}
-                            </div>
-                            <ChevronDown size={16} color="rgba(255,255,255,0.4)" style={{ transform: planOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }} />
-                          </button>
-                          {planOpen && (
-                            <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, zIndex: 50, background: "#141414", border: "1px solid rgba(201,168,76,0.25)", borderRadius: 14, overflow: "hidden", boxShadow: "0 16px 48px rgba(0,0,0,0.6)" }}>
-                              {PLANS.map((plan, i) => (
-                                <button key={plan.id} type="button" onClick={() => { setSelectedPlan(plan.id); setPlanOpen(false); }}
-                                  style={{ width: "100%", padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", background: selectedPlan === plan.id ? "rgba(201,168,76,0.1)" : "transparent", border: "none", borderTop: i > 0 ? "1px solid rgba(255,255,255,0.05)" : "none", cursor: "pointer", transition: "background 0.15s" }}
-                                  onMouseEnter={e => { if (selectedPlan !== plan.id) e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}
-                                  onMouseLeave={e => { if (selectedPlan !== plan.id) e.currentTarget.style.background = "transparent"; }}>
-                                  <div style={{ textAlign: "left" }}>
-                                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
-                                      <span style={{ fontSize: 14, fontWeight: 600, color: "#FFFFFF" }}>{plan.label}</span>
-                                      <span style={{ fontSize: 14, fontWeight: 700, color: "#f5d780" }}>৳{plan.price}/মাস</span>
-                                    </div>
-                                    <div style={{ fontSize: 11, color: plan.trial ? "#86efac" : "rgba(255,255,255,0.35)" }}>{plan.trial ? "✦ " : "⚠ "}{plan.desc}</div>
-                                  </div>
-                                  {selectedPlan === plan.id && <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#f5d780", flexShrink: 0 }} />}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                        <p style={{ fontSize: 12, marginTop: 8, color: currentPlan.trial ? "#86efac" : "rgba(255,165,0,0.8)", fontWeight: 500 }}>
-                          {currentPlan.trial ? "✦ Basic প্যাকেজে ৭ দিনের ফ্রি ট্রায়াল — কোনো ক্রেডিট কার্ড লাগবে না" : "⚠ এই প্যাকেজে ট্রায়াল নেই — সাইন আপের পর পেমেন্ট করে সক্রিয় করুন"}
-                        </p>
+                      {/* Auto-assigned plan info */}
+                      <div style={{ padding: "12px 16px", borderRadius: 12, background: "rgba(201,168,76,0.08)", border: "1px solid rgba(201,168,76,0.2)" }}>
+                        <p style={{ fontSize: 13, color: "#f5d780", fontWeight: 600, marginBottom: 4 }}>✦ Basic প্ল্যান — ৭ দিন ফ্রি ট্রায়াল</p>
+                        <p style={{ fontSize: 11, color: "rgba(255,255,255,0.45)" }}>কোনো ক্রেডিট কার্ড লাগবে না। ট্রায়াল শেষে প্ল্যান কিনতে পারবেন।</p>
                       </div>
                     </>
                   )}
@@ -393,7 +345,6 @@ const Login = () => {
                   <div>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                       <label style={{ ...labelStyle, marginBottom: 0 }}>পাসওয়ার্ড</label>
-                      {/* ✅ Forgot password link */}
                       {mode === "login" && (
                         <button type="button" onClick={() => setMode("forgot")}
                           style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "rgba(201,168,76,0.7)", fontFamily: "'DM Sans', sans-serif", transition: "color 0.2s", padding: 0 }}
