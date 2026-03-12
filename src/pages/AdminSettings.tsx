@@ -16,22 +16,22 @@ const plans = [
     id: "basic",
     name: "বেসিক",
     monthlyPrice: 499,
-    yearlyPrice: 4999,
+    yearlyPrice: 4990,
     features: ["৫০ টি মেনু আইটেম", "৫ টি টেবিল", "QR কোড মেনু", "বেসিক রিপোর্ট"],
   },
   {
     id: "premium",
     name: "প্রিমিয়াম",
-    monthlyPrice: 999,
-    yearlyPrice: 9999,
+    monthlyPrice: 799,
+    yearlyPrice: 7990,
     popular: true,
-    features: ["আনলিমিটেড মেনু আইটেম", "২০ টি টেবিল", "রিয়েলটাইম অর্ডার", "অ্যাডভান্সড অ্যানালিটিক্স", "ওয়েটার ম্যানেজমেন্ট"],
+    features: ["২০০ টি মেনু আইটেম", "২০ টি টেবিল", "রিয়েলটাইম অর্ডার", "অ্যাডভান্সড অ্যানালিটিক্স", "ওয়েটার ম্যানেজমেন্ট"],
   },
   {
     id: "enterprise",
     name: "এন্টারপ্রাইজ",
-    monthlyPrice: 1999,
-    yearlyPrice: 19999,
+    monthlyPrice: 1299,
+    yearlyPrice: 12990,
     features: ["সব প্রিমিয়াম ফিচার", "আনলিমিটেড টেবিল", "মাল্টি-ব্রাঞ্চ সাপোর্ট", "ডেডিকেটেড সাপোর্ট", "কাস্টম ব্র্যান্ডিং"],
   },
 ];
@@ -50,7 +50,6 @@ const AdminSettings = () => {
   const [currentPlan, setCurrentPlan] = useState("basic");
   const [restSaving, setRestSaving] = useState(false);
 
-  // Payment dialog
   const [payDialog, setPayDialog] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState("");
   const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
@@ -189,7 +188,6 @@ const AdminSettings = () => {
 
           <TabsContent value="plan">
             <div className="space-y-6">
-              {/* Billing toggle */}
               <div className="flex items-center justify-center gap-3">
                 <button
                   onClick={() => setBillingCycle("monthly")}
@@ -251,7 +249,6 @@ const AdminSettings = () => {
         </Tabs>
       </div>
 
-      {/* Payment Dialog */}
       <Dialog open={payDialog} onOpenChange={setPayDialog}>
         <DialogContent>
           <DialogHeader><DialogTitle className="font-display">পেমেন্ট করুন</DialogTitle></DialogHeader>

@@ -21,7 +21,7 @@ const AdminDashboard = () => {
       const today = new Date().toISOString().split("T")[0];
 
       const [ordersRes, tablesRes] = await Promise.all([
-        supabase.from("orders").select("id, total, status, created_at, payment_status").eq("restaurant_id", restaurantId),
+        supabase.from("orders").select("id, total, status, created_at").eq("restaurant_id", restaurantId),
         supabase.from("restaurant_tables").select("id, status").eq("restaurant_id", restaurantId),
       ]);
 

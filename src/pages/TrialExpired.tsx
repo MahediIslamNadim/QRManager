@@ -11,9 +11,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 const paidPlans = [
-  { id: "basic", name: "Basic", price: 500, priceText: "৫০০ টাকা/মাস", features: ["মেনু ম্যানেজমেন্ট", "QR কোড", "অর্ডার ম্যানেজমেন্ট"] },
-  { id: "premium", name: "Premium", price: 1000, priceText: "১,০০০ টাকা/মাস", features: ["সব Basic ফিচার", "এনালিটিক্স", "স্টাফ ম্যানেজমেন্ট", "প্রায়োরিটি সাপোর্ট"], popular: true },
-  { id: "enterprise", name: "Enterprise", price: 2500, priceText: "২,৫০০ টাকা/মাস", features: ["সব Premium ফিচার", "মাল্টি-ব্রাঞ্চ", "কাস্টম ব্র্যান্ডিং", "ডেডিকেটেড সাপোর্ট"] },
+  { id: "basic", name: "Basic", price: 499, priceText: "৳৪৯৯/মাস", features: ["মেনু ম্যানেজমেন্ট", "QR কোড", "অর্ডার ম্যানেজমেন্ট"] },
+  { id: "premium", name: "Premium", price: 799, priceText: "৳৭৯৯/মাস", features: ["সব Basic ফিচার", "এনালিটিক্স", "স্টাফ ম্যানেজমেন্ট", "প্রায়োরিটি সাপোর্ট"], popular: true },
+  { id: "enterprise", name: "Enterprise", price: 1299, priceText: "৳১,২৯৯/মাস", features: ["সব Premium ফিচার", "মাল্টি-ব্রাঞ্চ", "কাস্টম ব্র্যান্ডিং", "ডেডিকেটেড সাপোর্ট"] },
 ];
 
 const BKASH_NUMBER = "01786130439";
@@ -51,7 +51,6 @@ const TrialExpired = () => {
 
       if (error) throw error;
       toast.success("১৪ দিনের ফ্রি ট্রায়াল সক্রিয় হয়েছে!");
-      // Force full reload so useAuth re-fetches restaurant status
       window.location.href = "/admin";
     } catch (err: any) {
       toast.error(err.message || "ট্রায়াল সক্রিয় করতে সমস্যা হয়েছে");

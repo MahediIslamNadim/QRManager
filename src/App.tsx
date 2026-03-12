@@ -22,12 +22,14 @@ import AdminOrders from "./pages/AdminOrders";
 import AdminStaff from "./pages/AdminStaff";
 import AdminAnalytics from "./pages/AdminAnalytics";
 import AdminSettings from "./pages/AdminSettings";
+import AdminSetup from "./pages/AdminSetup";
 import WaiterDashboard from "./pages/WaiterDashboard";
 import WaiterSeats from "./pages/WaiterSeats";
 import WaiterNotifications from "./pages/WaiterNotifications";
 import CustomerMenu from "./pages/CustomerMenu";
 import CustomerSeatSelect from "./pages/CustomerSeatSelect";
 import TrialExpired from "./pages/TrialExpired";
+import ShortCodeRedirect from "./pages/ShortCodeRedirect";
 
 const queryClient = new QueryClient();
 
@@ -42,6 +44,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/admin-setup" element={<AdminSetup />} />
 
             {/* Super Admin */}
             <Route path="/super-admin" element={<ProtectedRoute allowedRoles={["super_admin"]}><SuperAdminDashboard /></ProtectedRoute>} />
@@ -67,6 +70,9 @@ const App = () => (
 
             {/* Trial Expired */}
             <Route path="/trial-expired" element={<TrialExpired />} />
+
+            {/* QR Short URL */}
+            <Route path="/r/:shortCode" element={<ShortCodeRedirect />} />
 
             {/* Customer */}
             <Route path="/menu/demo" element={<CustomerMenu />} />
