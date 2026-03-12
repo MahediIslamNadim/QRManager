@@ -230,17 +230,7 @@ const CustomerMenu = () => {
         if (seatData) setSeatNumber(seatData.seat_number);
       }
 
-      if (tableId && !seatId) {
-        const { data: seatsData } = await supabase
-          .from("table_seats")
-          .select("id")
-          .eq("table_id", tableId)
-          .limit(1);
-        if (seatsData && seatsData.length > 0) {
-          navigate(`/menu/${restaurantId}/select-seat?table=${tableId}`, { replace: true });
-          return;
-        }
-      }
+      // seat redirect handled after token is ready
 
       setLoading(false);
     };
@@ -248,6 +238,21 @@ const CustomerMenu = () => {
     fetchData();
     initToken();
   }, [restaurantId, tableId, seatId, isDemo, initToken]);
+
+  // ✅ Redirect to seat select AFTER token is ready — pass token in URL
+  useEffect(() => {
+    if (!isDemo && tableId && !seatId && !tokenChecking && tokenValid && restaurantId) {
+      const checkSeats = async () => {
+        const { data: seatsData } = await supabase
+          .from("table_seats").select("id").eq("table_id", tableId).limit(1);
+        if (seatsData && seatsData.length > 0) {
+          const tokenQuery = sessionToken ? `&token=${sessionToken}` : "";
+          navigate(`/menu/${restaurantId}/select-seat?table=${tableId}${tokenQuery}`, { replace: true });
+        }
+      };
+      checkSeats();
+    }
+  }, [isDemo, tableId, seatId, tokenChecking, tokenValid, restaurantId, sessionToken, navigate]);
 
   // Auto-invalidate when token expires
   useEffect(() => {
