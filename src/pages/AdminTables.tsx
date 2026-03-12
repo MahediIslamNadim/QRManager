@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { QrCode, Plus, Edit, Users, Trash2, ShoppingCart, UserPlus, UserMinus, Armchair } from "lucide-react";
+import { QrCode, Plus, Edit, Users, Trash2, ShoppingCart, UserPlus, UserMinus, Armchair, LockOpen, Lock } from "lucide-react";
 import SeatManagement from "@/components/SeatManagement";
 import { useAuth } from "@/hooks/useAuth";
 import { getPlanLimits, formatLimit } from "@/lib/planLimits";
@@ -41,7 +41,21 @@ const AdminTables = () => {
     enabled: !!restaurantId,
   });
 
-  // Fetch seats for all tables
+  // ✅ Fetch restaurant short_code for QR URLs
+  const { data: restaurant } = useQuery({
+    queryKey: ["restaurant-short", restaurantId],
+    queryFn: async () => {
+      if (!restaurantId) return null;
+      const { data } = await supabase
+        .from("restaurants")
+        .select("id, short_code")
+        .eq("id", restaurantId)
+        .single();
+      return data;
+    },
+    enabled: !!restaurantId,
+  });
+
   const { data: allSeats = [] } = useQuery({
     queryKey: ["all-seats", restaurantId],
     queryFn: async () => {
@@ -55,7 +69,6 @@ const AdminTables = () => {
     enabled: !!restaurantId,
   });
 
-  // Fetch active orders per table
   const { data: tableOrders = {} } = useQuery({
     queryKey: ["table-orders", restaurantId],
     queryFn: async () => {
@@ -78,7 +91,6 @@ const AdminTables = () => {
     enabled: !!restaurantId,
   });
 
-  // Realtime subscriptions
   useEffect(() => {
     if (!restaurantId) return;
     const channel = supabase
@@ -141,8 +153,36 @@ const AdminTables = () => {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["tables"] }),
   });
 
-  const menuUrl = (tableId: string) => `${window.location.origin}/menu/${restaurantId}?table=${tableId}`;
-  const seatUrl = (tableId: string, seatId: string) => `${window.location.origin}/menu/${restaurantId}?table=${tableId}&seat=${seatId}`;
+  // ✅ Toggle table open/close
+  const toggleOpen = useMutation({
+    mutationFn: async ({ id, is_open }: { id: string; is_open: boolean }) => {
+      const { error } = await supabase
+        .from("restaurant_tables")
+        .update({ is_open } as any)
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["tables", restaurantId] });
+      toast.success(vars.is_open ? "টেবিল খোলা হয়েছে ✅" : "টেবিল বন্ধ করা হয়েছে 🔒");
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  // ✅ QR URLs — use short_code if available, fallback to restaurantId
+  const baseMenuUrl = (tableId: string) => {
+    const base = restaurant?.short_code
+      ? `${window.location.origin}/r/${restaurant.short_code}`
+      : `${window.location.origin}/menu/${restaurantId}`;
+    return `${base}?table=${tableId}`;
+  };
+
+  const seatUrl = (tableId: string, seatId: string) => {
+    const base = restaurant?.short_code
+      ? `${window.location.origin}/r/${restaurant.short_code}`
+      : `${window.location.origin}/menu/${restaurantId}`;
+    return `${base}?table=${tableId}&seat=${seatId}`;
+  };
 
   const getTableColor = (table: any) => {
     const orders = tableOrders[table.id];
@@ -167,6 +207,9 @@ const AdminTables = () => {
             <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-destructive" /><span className="text-sm text-muted-foreground">নতুন অর্ডার</span></div>
             <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-warning" /><span className="text-sm text-muted-foreground">প্রস্তুত হচ্ছে</span></div>
             <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-primary" /><span className="text-sm text-muted-foreground">সার্ভ/ব্যস্ত</span></div>
+            {/* ✅ Open/Close legend */}
+            <div className="flex items-center gap-2"><LockOpen className="w-3.5 h-3.5 text-success" /><span className="text-sm text-muted-foreground">অর্ডার খোলা</span></div>
+            <div className="flex items-center gap-2"><Lock className="w-3.5 h-3.5 text-destructive" /><span className="text-sm text-muted-foreground">অর্ডার বন্ধ</span></div>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs text-muted-foreground bg-secondary px-3 py-1.5 rounded-full">
@@ -177,12 +220,14 @@ const AdminTables = () => {
             </Button>
           </div>
         </div>
+
         {isAtTableLimit && (
           <div className="bg-warning/10 border border-warning/30 rounded-xl p-3 text-sm text-warning flex items-center gap-2">
             ⚠️ আপনার {limits.label} প্ল্যানের টেবিল লিমিট ({formatLimit(limits.maxTables)}) পূর্ণ হয়েছে। আরো যোগ করতে প্ল্যান আপগ্রেড করুন।
           </div>
         )}
 
+        {/* Add/Edit Table Dialog */}
         <Dialog open={showForm} onOpenChange={setShowForm}>
           <DialogContent>
             <DialogHeader><DialogTitle className="font-display">{editingTable ? "টেবিল সম্পাদনা" : "নতুন টেবিল"}</DialogTitle></DialogHeader>
@@ -194,6 +239,7 @@ const AdminTables = () => {
           </DialogContent>
         </Dialog>
 
+        {/* QR Dialog */}
         <Dialog open={!!showQR} onOpenChange={() => { setShowQR(null); setQrType(null); setQrLabel(""); }}>
           <DialogContent>
             <DialogHeader><DialogTitle className="font-display">QR কোড লিংক — {qrLabel}</DialogTitle></DialogHeader>
@@ -206,6 +252,12 @@ const AdminTables = () => {
               {qrType === "seat" && (
                 <div className="px-3 py-2 rounded-lg bg-info/10 border border-info/30 text-info text-sm font-medium">
                   🪑 Single Customer — সরাসরি মেনুতে যাবে
+                </div>
+              )}
+              {/* ✅ Short URL info */}
+              {restaurant?.short_code && (
+                <div className="px-3 py-2 rounded-lg bg-primary/10 border border-primary/20 text-primary text-xs font-medium">
+                  🔒 Short URL ব্যবহার হচ্ছে — real ID লুকানো আছে
                 </div>
               )}
               <p className="text-sm text-muted-foreground">এই লিংকটি QR কোড হিসেবে প্রিন্ট করুন:</p>
@@ -259,17 +311,28 @@ const AdminTables = () => {
               const orders = tableOrders[table.id] || [];
               const orderCount = orders.length;
               const totalAmount = orders.reduce((s: number, o: any) => s + Number(o.total || 0), 0);
+              // ✅ is_open — treat undefined as true (backward compat)
+              const isOpen = (table as any).is_open !== false;
+
               return (
                 <Card
                   key={table.id}
-                  className={`relative overflow-hidden transition-all duration-300 hover:shadow-lg cursor-pointer ${color.border}`}
+                  className={`relative overflow-hidden transition-all duration-300 hover:shadow-lg cursor-pointer ${color.border} ${!isOpen ? "opacity-75" : ""}`}
                   onClick={() => orderCount > 0 && setSelectedTable(table)}
                 >
                   <div className={`absolute top-0 left-0 right-0 h-1.5 ${color.bar}`} />
-                  {/* Pulsing dot for new orders */}
                   {orders.some((o: any) => o.status === "pending") && (
                     <div className="absolute top-3 right-3 w-3 h-3 rounded-full bg-destructive animate-ping" />
                   )}
+
+                  {/* ✅ Closed badge */}
+                  {!isOpen && (
+                    <div className="absolute top-3 left-3 flex items-center gap-1 px-2 py-0.5 rounded-full bg-destructive/15 border border-destructive/30 z-10">
+                      <Lock className="w-2.5 h-2.5 text-destructive" />
+                      <span className="text-[10px] font-bold text-destructive">বন্ধ</span>
+                    </div>
+                  )}
+
                   <CardContent className="p-6 text-center">
                     <div className={`w-16 h-16 rounded-2xl mx-auto mb-3 flex items-center justify-center ${color.bg}`}>
                       <span className="text-2xl font-display font-bold text-foreground">{table.name}</span>
@@ -282,6 +345,7 @@ const AdminTables = () => {
                       <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" />{table.seats} সিট</span>
                       <span className="flex items-center gap-1 font-semibold text-foreground">👤 {table.current_customers || 0} জন</span>
                     </div>
+
                     {/* Customer count controls */}
                     <div className="flex items-center justify-center gap-2 mb-2" onClick={e => e.stopPropagation()}>
                       <button
@@ -304,6 +368,7 @@ const AdminTables = () => {
                         <UserPlus className="w-3.5 h-3.5" />
                       </button>
                     </div>
+
                     {/* Seat info */}
                     {(() => {
                       const tableSeats = allSeats.filter((s: any) => s.table_id === table.id);
@@ -331,26 +396,52 @@ const AdminTables = () => {
                       }
                       return null;
                     })()}
+
                     {orderCount > 0 && (
                       <div className="flex items-center justify-center gap-1 text-xs text-primary font-medium mb-2">
                         <ShoppingCart className="w-3 h-3" /> {orderCount} অর্ডার • ৳{totalAmount}
                       </div>
                     )}
+
                     <select
                       value={table.status}
                       onChange={e => { e.stopPropagation(); toggleStatus.mutate({ id: table.id, status: e.target.value }); }}
                       onClick={e => e.stopPropagation()}
-                      className="w-full mb-3 h-8 rounded border border-border bg-background text-xs px-2"
+                      className="w-full mb-2 h-8 rounded border border-border bg-background text-xs px-2"
                     >
                       <option value="available">ফাঁকা</option>
                       <option value="occupied">ব্যস্ত</option>
                       <option value="reserved">রিজার্ভড</option>
                     </select>
+
+                    {/* ✅ Open/Close toggle button */}
+                    <button
+                      onClick={e => { e.stopPropagation(); toggleOpen.mutate({ id: table.id, is_open: !isOpen }); }}
+                      className={`w-full mb-3 h-8 rounded text-xs font-semibold flex items-center justify-center gap-1.5 transition-all border ${
+                        isOpen
+                          ? "bg-success/10 text-success border-success/30 hover:bg-success/20"
+                          : "bg-destructive/10 text-destructive border-destructive/30 hover:bg-destructive/20"
+                      }`}
+                    >
+                      {isOpen
+                        ? <><LockOpen className="w-3 h-3" /> অর্ডার খোলা — বন্ধ করুন</>
+                        : <><Lock className="w-3 h-3" /> অর্ডার বন্ধ — খুলুন</>
+                      }
+                    </button>
+
                     <div className="flex gap-2 justify-center flex-wrap" onClick={e => e.stopPropagation()}>
-                      <Button variant="outline" size="sm" onClick={() => { setShowQR(menuUrl(table.id)); setQrType("table"); setQrLabel(table.name); }}><QrCode className="w-3 h-3" /> টেবিল QR</Button>
-                      <Button variant="outline" size="sm" onClick={() => setSeatTable(table)}><Armchair className="w-3 h-3" /> সিট</Button>
-                      <Button variant="ghost" size="sm" onClick={() => { setForm({ name: table.name, seats: String(table.seats) }); setEditingTable(table); setShowForm(true); }}><Edit className="w-3 h-3" /></Button>
-                      <Button variant="ghost" size="sm" className="text-destructive" onClick={() => deleteMutation.mutate(table.id)}><Trash2 className="w-3 h-3" /></Button>
+                      <Button variant="outline" size="sm" onClick={() => { setShowQR(baseMenuUrl(table.id)); setQrType("table"); setQrLabel(table.name); }}>
+                        <QrCode className="w-3 h-3" /> টেবিল QR
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => setSeatTable(table)}>
+                        <Armchair className="w-3 h-3" /> সিট
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => { setForm({ name: table.name, seats: String(table.seats) }); setEditingTable(table); setShowForm(true); }}>
+                        <Edit className="w-3 h-3" />
+                      </Button>
+                      <Button variant="ghost" size="sm" className="text-destructive" onClick={() => deleteMutation.mutate(table.id)}>
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
@@ -358,7 +449,7 @@ const AdminTables = () => {
             })}
           </div>
         )}
-        {/* Seat Management */}
+
         {seatTable && restaurantId && (
           <SeatManagement
             table={seatTable}
