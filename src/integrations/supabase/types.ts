@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_invites: {
+        Row: {
+          accepted_at: string | null
+          created_at: string
+          email: string
+          id: string
+          invited_by: string
+          restaurant_name: string | null
+          status: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          created_at?: string
+          email: string
+          id?: string
+          invited_by: string
+          restaurant_name?: string | null
+          status?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          created_at?: string
+          email?: string
+          id?: string
+          invited_by?: string
+          restaurant_name?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
       menu_items: {
         Row: {
           available: boolean
@@ -144,6 +174,11 @@ export type Database = {
           created_at: string
           id: string
           notes: string | null
+          paid_at: string | null
+          paid_to_staff_id: string | null
+          paid_to_staff_name: string | null
+          payment_method: string | null
+          payment_status: string | null
           restaurant_id: string
           seat_id: string | null
           status: string
@@ -155,6 +190,11 @@ export type Database = {
           created_at?: string
           id?: string
           notes?: string | null
+          paid_at?: string | null
+          paid_to_staff_id?: string | null
+          paid_to_staff_name?: string | null
+          payment_method?: string | null
+          payment_status?: string | null
           restaurant_id: string
           seat_id?: string | null
           status?: string
@@ -166,6 +206,11 @@ export type Database = {
           created_at?: string
           id?: string
           notes?: string | null
+          paid_at?: string | null
+          paid_to_staff_id?: string | null
+          paid_to_staff_name?: string | null
+          payment_method?: string | null
+          payment_status?: string | null
           restaurant_id?: string
           seat_id?: string | null
           status?: string
@@ -285,6 +330,7 @@ export type Database = {
           created_at: string
           current_customers: number
           id: string
+          is_open: boolean | null
           name: string
           qr_code: string | null
           restaurant_id: string
@@ -295,6 +341,7 @@ export type Database = {
           created_at?: string
           current_customers?: number
           id?: string
+          is_open?: boolean | null
           name: string
           qr_code?: string | null
           restaurant_id: string
@@ -305,6 +352,7 @@ export type Database = {
           created_at?: string
           current_customers?: number
           id?: string
+          is_open?: boolean | null
           name?: string
           qr_code?: string | null
           restaurant_id?: string
@@ -330,6 +378,7 @@ export type Database = {
           owner_id: string | null
           phone: string | null
           plan: string
+          short_code: string | null
           status: string
           trial_ends_at: string | null
           updated_at: string
@@ -342,6 +391,7 @@ export type Database = {
           owner_id?: string | null
           phone?: string | null
           plan?: string
+          short_code?: string | null
           status?: string
           trial_ends_at?: string | null
           updated_at?: string
@@ -354,6 +404,7 @@ export type Database = {
           owner_id?: string | null
           phone?: string | null
           plan?: string
+          short_code?: string | null
           status?: string
           trial_ends_at?: string | null
           updated_at?: string
@@ -463,6 +514,48 @@ export type Database = {
           },
         ]
       }
+      table_sessions: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          restaurant_id: string
+          table_id: string
+          token: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          restaurant_id: string
+          table_id: string
+          token?: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          restaurant_id?: string
+          table_id?: string
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "table_sessions_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "table_sessions_table_id_fkey"
+            columns: ["table_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_tables"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           id: string
@@ -494,6 +587,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      validate_table_token: { Args: { _token: string }; Returns: boolean }
     }
     Enums: {
       app_role: "super_admin" | "admin" | "waiter"

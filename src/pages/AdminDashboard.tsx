@@ -21,7 +21,7 @@ const AdminDashboard = () => {
       const today = new Date().toISOString().split("T")[0];
 
       const [ordersRes, tablesRes] = await Promise.all([
-        supabase.from("orders").select("id, total, status, created_at, payment_status").eq("restaurant_id", restaurantId),
+        supabase.from("orders").select("id, total, status, created_at").eq("restaurant_id", restaurantId),
         supabase.from("restaurant_tables").select("id, status").eq("restaurant_id", restaurantId),
       ]);
 
@@ -29,7 +29,6 @@ const AdminDashboard = () => {
       const tables = tablesRes.data || [];
       const todayOrders = orders.filter(o => o.created_at?.startsWith(today));
       const todayRevenue = todayOrders
-        .filter(o => o.payment_status === "paid")
         .reduce((sum, o) => sum + Number(o.total || 0), 0);
       const activeTables = tables.filter(t => t.status === "occupied").length;
 

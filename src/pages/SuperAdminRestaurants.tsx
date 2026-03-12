@@ -232,9 +232,9 @@ const SuperAdminRestaurants = () => {
                 <Select value={formPlan} onValueChange={setFormPlan}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="basic">Basic — ৫০০ টাকা/মাস</SelectItem>
-                    <SelectItem value="premium">Premium — ১,০০০ টাকা/মাস</SelectItem>
-                    <SelectItem value="enterprise">Enterprise — ২,৫০০ টাকা/মাস</SelectItem>
+                    <SelectItem value="basic">Basic — ৳৪৯৯/মাস</SelectItem>
+                    <SelectItem value="premium">Premium — ৳৭৯৯/মাস</SelectItem>
+                    <SelectItem value="enterprise">Enterprise — ৳১,২৯৯/মাস</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
