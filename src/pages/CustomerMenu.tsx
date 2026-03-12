@@ -98,6 +98,7 @@ const CustomerMenu = () => {
       return;
     }
     setTokenChecking(true);
+    console.log("[initToken] start", { tableId, restaurantId, tokenParam });
 
     // Check table open status
     const { data: tableData } = await supabase
@@ -106,11 +107,14 @@ const CustomerMenu = () => {
       .eq("id", tableId)
       .single();
 
+    console.log("[initToken] tableData", tableData);
+
     if (tableData) {
       setTableName(tableData.name);
       const isOpen = (tableData as any).is_open !== false;
       setTableIsOpen(isOpen);
       if (!isOpen) {
+        console.log("[initToken] table is closed");
         setTokenValid(false);
         setTokenChecking(false);
         return;
@@ -119,12 +123,13 @@ const CustomerMenu = () => {
 
     // 1️⃣ Validate token from URL
     if (tokenParam) {
-      const { data: session } = await supabase
+      const { data: session, error: e1 } = await supabase
         .from("table_sessions" as any)
         .select("*")
         .eq("token", tokenParam)
         .eq("table_id", tableId)
         .maybeSingle();
+      console.log("[initToken] url token check", { session, error: e1 });
 
       if (session) {
         const expired = new Date((session as any).expires_at) < new Date();
@@ -138,8 +143,8 @@ const CustomerMenu = () => {
       }
     }
 
-    // ✅ 2️⃣ No token in URL (page refresh) — find existing valid session for this table
-    const { data: existingSession } = await supabase
+    // 2️⃣ Find existing valid session
+    const { data: existingSession, error: e2 } = await supabase
       .from("table_sessions" as any)
       .select("*")
       .eq("table_id", tableId)
@@ -148,12 +153,12 @@ const CustomerMenu = () => {
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
+    console.log("[initToken] existing session", { existingSession, error: e2 });
 
     if (existingSession) {
       setTokenValid(true);
       setTokenExpiry((existingSession as any).expires_at);
       setSessionToken((existingSession as any).token);
-      // Restore token in URL silently
       const newUrl = new URL(window.location.href);
       newUrl.searchParams.set("token", (existingSession as any).token);
       window.history.replaceState({}, "", newUrl.toString());
@@ -161,9 +166,9 @@ const CustomerMenu = () => {
       return;
     }
 
-    // 3️⃣ No valid session — generate new token
+    // 3️⃣ Generate new token
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
-    const { data: newSession, error } = await supabase
+    const { data: newSession, error: e3 } = await supabase
       .from("table_sessions" as any)
       .insert({
         restaurant_id: restaurantId,
@@ -172,8 +177,9 @@ const CustomerMenu = () => {
       } as any)
       .select()
       .single();
+    console.log("[initToken] new session", { newSession, error: e3 });
 
-    if (!error && newSession) {
+    if (!e3 && newSession) {
       setTokenValid(true);
       setTokenExpiry((newSession as any).expires_at);
       setSessionToken((newSession as any).token);
@@ -181,6 +187,7 @@ const CustomerMenu = () => {
       newUrl.searchParams.set("token", (newSession as any).token);
       window.history.replaceState({}, "", newUrl.toString());
     } else {
+      console.log("[initToken] FAILED — setting tokenValid false");
       setTokenValid(false);
     }
     setTokenChecking(false);
