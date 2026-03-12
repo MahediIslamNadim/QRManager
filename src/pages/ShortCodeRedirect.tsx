@@ -13,7 +13,7 @@ const ShortCodeRedirect = () => {
       const { data } = await supabase
         .from("restaurants")
         .select("id")
-        .eq("short_code" as any, shortCode)
+        .eq("short_code", shortCode)
         .single();
       if (data) {
         navigate(`/menu/${data.id}`, { replace: true });
