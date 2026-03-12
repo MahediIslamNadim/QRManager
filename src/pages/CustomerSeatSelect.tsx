@@ -8,12 +8,14 @@ const CustomerSeatSelect = () => {
   const { restaurantId } = useParams();
   const [searchParams] = useSearchParams();
   const tableId = searchParams.get("table");
+  const tokenParam = searchParams.get("token"); // ✅ token from URL
   const navigate = useNavigate();
 
   const [restaurant, setRestaurant] = useState<any>(null);
   const [tableName, setTableName] = useState("");
   const [seats, setSeats] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [validToken, setValidToken] = useState<string | null>(null); // ✅
 
   useEffect(() => {
     const fetchData = async () => {
@@ -28,17 +30,53 @@ const CustomerSeatSelect = () => {
       if (restRes.data) setRestaurant(restRes.data);
       if (tableRes.data) setTableName(tableRes.data.name);
       if (seatsRes.data) setSeats(seatsRes.data);
+
+      // ✅ Find valid token for this table
+      // First check URL token
+      if (tokenParam) {
+        const { data: session } = await supabase
+          .from("table_sessions" as any)
+          .select("token, expires_at")
+          .eq("token", tokenParam)
+          .eq("table_id", tableId)
+          .single();
+        if (session && new Date((session as any).expires_at) > new Date()) {
+          setValidToken((session as any).token);
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Fallback: find any valid session for this table
+      const { data: existingSession } = await supabase
+        .from("table_sessions" as any)
+        .select("token, expires_at")
+        .eq("table_id", tableId)
+        .eq("restaurant_id", restaurantId)
+        .gt("expires_at", new Date().toISOString())
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
+
+      if (existingSession) {
+        setValidToken((existingSession as any).token);
+      }
+
       setLoading(false);
     };
     fetchData();
-  }, [restaurantId, tableId]);
+  }, [restaurantId, tableId, tokenParam]);
 
   // Realtime seat status updates
   useEffect(() => {
     if (!tableId) return;
     const channel = supabase
       .channel(`seat-status-${tableId}`)
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "table_seats", filter: `table_id=eq.${tableId}` }, (payload) => {
+      .on("postgres_changes", {
+        event: "UPDATE", schema: "public",
+        table: "table_seats",
+        filter: `table_id=eq.${tableId}`
+      }, (payload) => {
         setSeats(prev => prev.map(s => s.id === payload.new.id ? { ...s, ...payload.new } : s));
         if (payload.new.status === "occupied" && payload.old?.status === "available") {
           toast.info(`সিট ${payload.new.seat_number} এইমাত্র ব্যস্ত হয়েছে`);
@@ -48,8 +86,10 @@ const CustomerSeatSelect = () => {
     return () => { supabase.removeChannel(channel); };
   }, [tableId]);
 
+  // ✅ Pass token when navigating to menu
   const selectSeat = (seatId: string) => {
-    navigate(`/menu/${restaurantId}?table=${tableId}&seat=${seatId}`);
+    const tokenQuery = validToken ? `&token=${validToken}` : "";
+    navigate(`/menu/${restaurantId}?table=${tableId}&seat=${seatId}${tokenQuery}`);
   };
 
   if (loading) {
@@ -65,7 +105,6 @@ const CustomerSeatSelect = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background via-background to-accent/20">
-      {/* Header */}
       <header className="sticky top-0 z-20 bg-card/80 backdrop-blur-2xl border-b border-border/50 shadow-sm">
         <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-3">
           <div className="w-11 h-11 rounded-2xl gradient-primary flex items-center justify-center shadow-lg shadow-primary/20">
@@ -83,7 +122,6 @@ const CustomerSeatSelect = () => {
         </div>
       </header>
 
-      {/* Seat Selection */}
       <div className="max-w-2xl mx-auto px-4 py-8">
         <div className="text-center mb-8">
           <div className="w-16 h-16 rounded-3xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
