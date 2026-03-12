@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ShoppingCart, Plus, Minus, UtensilsCrossed, X, Send, Image as ImageIcon, Flame, CheckCircle, XCircle, Package, Search, Clock, QrCode, Lock } from "lucide-react";
+import { ShoppingCart, Plus, Minus, UtensilsCrossed, X, Send, Image as ImageIcon, Flame, CheckCircle, XCircle, Package, Search, QrCode, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -44,10 +44,8 @@ const getCategoryColor = (category: string) => {
   return categoryColors[category];
 };
 
-// Token expiry countdown hook
 const useTokenCountdown = (expiresAt: string | null) => {
   const [remaining, setRemaining] = useState<number>(0);
-
   useEffect(() => {
     if (!expiresAt) return;
     const update = () => {
@@ -58,7 +56,6 @@ const useTokenCountdown = (expiresAt: string | null) => {
     const interval = setInterval(update, 1000);
     return () => clearInterval(interval);
   }, [expiresAt]);
-
   const minutes = Math.floor(remaining / 60);
   const seconds = remaining % 60;
   return { remaining, display: `${minutes}:${seconds.toString().padStart(2, "0")}` };
@@ -87,7 +84,6 @@ const CustomerMenu = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
 
-  // Token state
   const [tokenValid, setTokenValid] = useState<boolean>(false);
   const [tokenExpiry, setTokenExpiry] = useState<string | null>(null);
   const [tokenChecking, setTokenChecking] = useState(true);
@@ -95,17 +91,15 @@ const CustomerMenu = () => {
 
   const { remaining, display: countdownDisplay } = useTokenCountdown(tokenExpiry);
 
-  // ✅ Validate or create token
   const initToken = useCallback(async () => {
     if (isDemo || !tableId || !restaurantId) {
       setTokenValid(true);
       setTokenChecking(false);
       return;
     }
-
     setTokenChecking(true);
 
-    // Check if table is open first
+    // Check table open status
     const { data: tableData } = await supabase
       .from("restaurant_tables")
       .select("name, is_open")
@@ -114,8 +108,7 @@ const CustomerMenu = () => {
 
     if (tableData) {
       setTableName(tableData.name);
-      // is_open might not exist yet — treat undefined as true (backward compat)
-      const isOpen = tableData.is_open !== false;
+      const isOpen = (tableData as any).is_open !== false;
       setTableIsOpen(isOpen);
       if (!isOpen) {
         setTokenValid(false);
@@ -124,7 +117,7 @@ const CustomerMenu = () => {
       }
     }
 
-    // If token param in URL, validate it
+    // Validate existing token from URL
     if (tokenParam) {
       const { data: session } = await supabase
         .from("table_sessions" as any)
@@ -134,11 +127,11 @@ const CustomerMenu = () => {
         .single();
 
       if (session) {
-        const expired = new Date(session.expires_at) < new Date();
+        const expired = new Date((session as any).expires_at) < new Date();
         if (!expired) {
           setTokenValid(true);
-          setTokenExpiry(session.expires_at);
-          setSessionToken(session.token);
+          setTokenExpiry((session as any).expires_at);
+          setSessionToken((session as any).token);
           setTokenChecking(false);
           return;
         }
@@ -161,7 +154,6 @@ const CustomerMenu = () => {
       setTokenValid(true);
       setTokenExpiry((newSession as any).expires_at);
       setSessionToken((newSession as any).token);
-      // Update URL with token (no page reload)
       const newUrl = new URL(window.location.href);
       newUrl.searchParams.set("token", (newSession as any).token);
       window.history.replaceState({}, "", newUrl.toString());
@@ -205,17 +197,22 @@ const CustomerMenu = () => {
         setCategories(["সব", ...new Set(menuRes.data.map((i: any) => i.category))]);
       }
 
-      if (tableId && !tableData) {
-        // tableName already fetched in initToken, skip duplicate fetch
-      }
-
+      // ✅ BUG FIX: removed invalid tableData reference
       if (seatId) {
-        const { data: seatData } = await supabase.from("table_seats").select("seat_number").eq("id", seatId).single();
+        const { data: seatData } = await supabase
+          .from("table_seats")
+          .select("seat_number")
+          .eq("id", seatId)
+          .single();
         if (seatData) setSeatNumber(seatData.seat_number);
       }
 
       if (tableId && !seatId) {
-        const { data: seatsData } = await supabase.from("table_seats").select("id").eq("table_id", tableId).limit(1);
+        const { data: seatsData } = await supabase
+          .from("table_seats")
+          .select("id")
+          .eq("table_id", tableId)
+          .limit(1);
         if (seatsData && seatsData.length > 0) {
           navigate(`/menu/${restaurantId}/select-seat?table=${tableId}`, { replace: true });
           return;
@@ -227,7 +224,7 @@ const CustomerMenu = () => {
 
     fetchData();
     initToken();
-  }, [restaurantId, tableId, seatId, isDemo]);
+  }, [restaurantId, tableId, seatId, isDemo, initToken]);
 
   // Auto-invalidate when token expires
   useEffect(() => {
@@ -276,7 +273,6 @@ const CustomerMenu = () => {
       return;
     }
 
-    // ✅ Final token validation before submit
     if (!tokenValid) {
       toast.error("সেশন শেষ! QR কোড আবার স্ক্যান করুন");
       setShowCart(false);
@@ -416,17 +412,7 @@ const CustomerMenu = () => {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {/* ✅ Token countdown badge */}
-            {tokenExpiry && remaining > 0 && (
-              <div className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold border ${
-                remaining < 300
-                  ? "bg-destructive/10 text-destructive border-destructive/20"
-                  : "bg-success/10 text-success border-success/20"
-              }`}>
-                <Clock className="w-3 h-3" />
-                {countdownDisplay}
-              </div>
-            )}
+
             <button onClick={() => setShowSearch(!showSearch)} className="w-11 h-11 rounded-2xl bg-secondary hover:bg-accent flex items-center justify-center transition-all">
               <Search className="w-5 h-5 text-muted-foreground" />
             </button>
@@ -537,7 +523,6 @@ const CustomerMenu = () => {
                 )}
                 <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-card to-transparent" />
               </div>
-
               <div className="px-4 pb-4 -mt-4 relative z-10">
                 <h3 className="font-display font-bold text-foreground text-lg leading-snug">{item.name}</h3>
                 <p className="text-sm text-muted-foreground mt-1.5 line-clamp-2 leading-relaxed">{item.description}</p>
@@ -610,13 +595,7 @@ const CustomerMenu = () => {
                 </button>
               </div>
 
-              {/* ✅ Token warning in cart */}
-              {tokenExpiry && remaining > 0 && remaining < 300 && (
-                <div className="mb-4 flex items-center gap-2 p-3 rounded-xl bg-destructive/10 border border-destructive/20">
-                  <Clock className="w-4 h-4 text-destructive flex-shrink-0" />
-                  <p className="text-xs text-destructive font-medium">সেশন মাত্র {countdownDisplay} বাকি! দ্রুত অর্ডার করুন।</p>
-                </div>
-              )}
+
 
               {cart.length === 0 ? (
                 <div className="text-center py-12">
