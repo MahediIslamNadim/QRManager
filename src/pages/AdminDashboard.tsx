@@ -29,7 +29,6 @@ const AdminDashboard = () => {
       const tables = tablesRes.data || [];
       const todayOrders = orders.filter(o => o.created_at?.startsWith(today));
       const todayRevenue = todayOrders
-        .filter(o => o.payment_status === "paid")
         .reduce((sum, o) => sum + Number(o.total || 0), 0);
       const activeTables = tables.filter(t => t.status === "occupied").length;
 
