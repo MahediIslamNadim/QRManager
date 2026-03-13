@@ -39,13 +39,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       ]);
 
       let bestRole = "admin";
-      if (superCheck.data === true) {
-        bestRole = "super_admin";
-      } else if (adminCheck.data === true) {
-        bestRole = "admin";
-      } else if (waiterCheck.data === true) {
-        bestRole = "waiter";
-      }
+      if (superCheck.data === true) bestRole = "super_admin";
+      else if (adminCheck.data === true) bestRole = "admin";
+      else if (waiterCheck.data === true) bestRole = "waiter";
       setRole(bestRole);
 
       let foundRestId: string | null = null;
@@ -73,14 +69,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
       }
 
-      // ✅ 3️⃣ staff_restaurants lookup (waiter/admin assigned to restaurant)
+      // ✅ 3️⃣ staff_restaurants lookup — .maybeSingle() ব্যবহার করা হয়েছে
       if (!foundRestId) {
         const { data: staffRow } = await supabase
           .from("staff_restaurants" as any)
           .select("restaurant_id")
           .eq("user_id", userId)
           .limit(1)
-          .single();
+          .maybeSingle();
         if (staffRow && (staffRow as any).restaurant_id) {
           foundRestId = (staffRow as any).restaurant_id;
           setRestaurantId((staffRow as any).restaurant_id);
@@ -101,12 +97,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           if (bestRole === "admin") {
             const trialEndsAt = restaurant.trial_ends_at ? new Date(restaurant.trial_ends_at) : null;
             const now = new Date();
-
             if (trialEndsAt && now > trialEndsAt && restaurant.status !== "active_paid") {
-              await supabase
-                .from("restaurants")
-                .update({ status: "inactive" })
-                .eq("id", foundRestId);
+              await supabase.from("restaurants").update({ status: "inactive" }).eq("id", foundRestId);
               setTrialExpired(true);
             } else {
               setTrialExpired(false);
