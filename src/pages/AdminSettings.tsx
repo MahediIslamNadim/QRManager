@@ -12,7 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 // ✅ আপনার bKash নম্বর এখানে দিন
-const BKASH_NUMBER = "01XXXXXXXXX";
+const BKASH_NUMBER = "01786130439";
 
 const plans = [
   {
