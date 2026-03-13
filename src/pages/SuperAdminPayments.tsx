@@ -30,6 +30,17 @@ interface PaymentRequest {
   restaurant_name?: string;
 }
 
+// ✅ Calculate expiry based on billing cycle
+const getExpiryDate = (billingCycle?: string) => {
+  const now = new Date();
+  if (billingCycle === "yearly") {
+    now.setFullYear(now.getFullYear() + 1);
+  } else {
+    now.setMonth(now.getMonth() + 1);
+  }
+  return now.toISOString();
+};
+
 const SuperAdminPayments = () => {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
@@ -48,13 +59,11 @@ const SuperAdminPayments = () => {
         .select("*")
         .order("created_at", { ascending: false });
       if (error) throw error;
-      
+
       const restIds = [...new Set((data || []).map((p: any) => p.restaurant_id))];
       const { data: restaurants } = await supabase
-        .from("restaurants")
-        .select("id, name")
-        .in("id", restIds);
-      
+        .from("restaurants").select("id, name").in("id", restIds);
+
       const restMap = new Map((restaurants || []).map(r => [r.id, r.name]));
       return (data || []).map((p: any) => ({
         ...p,
@@ -70,28 +79,31 @@ const SuperAdminPayments = () => {
   );
 
   const approveMutation = useMutation({
-    mutationFn: async ({ paymentId, restaurantId, plan, userId }: { paymentId: string; restaurantId: string; plan: string; userId: string }) => {
+    mutationFn: async ({ paymentId, restaurantId, plan, userId, billingCycle }: {
+      paymentId: string; restaurantId: string; plan: string; userId: string; billingCycle?: string;
+    }) => {
+      // ✅ Update payment status
       const { error: payError } = await supabase
         .from("payment_requests" as any)
         .update({ status: "approved", admin_notes: adminNotes || null, updated_at: new Date().toISOString() } as any)
         .eq("id", paymentId);
       if (payError) throw payError;
 
+      // ✅ Update restaurant — plan + status + trial_ends_at extended
+      const expiryDate = getExpiryDate(billingCycle);
       const { error: restError } = await supabase
         .from("restaurants")
-        .update({ status: "active_paid", plan, updated_at: new Date().toISOString() })
+        .update({
+          status: "active_paid",
+          plan,
+          trial_ends_at: expiryDate,
+          updated_at: new Date().toISOString(),
+        })
         .eq("id", restaurantId);
       if (restError) throw restError;
-
-      await supabase.from("notifications" as any).insert({
-        user_id: userId,
-        title: "পেমেন্ট অনুমোদিত ✅",
-        message: `আপনার ${plan} প্ল্যানের পেমেন্ট অনুমোদিত হয়েছে। আপনার রেস্টুরেন্ট এখন সক্রিয়!`,
-        type: "success",
-      } as any);
     },
     onSuccess: () => {
-      toast.success("পেমেন্ট অনুমোদিত এবং রেস্টুরেন্ট সক্রিয় করা হয়েছে!");
+      toast.success("✅ পেমেন্ট অনুমোদিত! রেস্টুরেন্ট সক্রিয় করা হয়েছে।");
       setDialogOpen(false);
       setSelectedPayment(null);
       setAdminNotes("");
@@ -101,19 +113,12 @@ const SuperAdminPayments = () => {
   });
 
   const rejectMutation = useMutation({
-    mutationFn: async ({ paymentId, userId }: { paymentId: string; userId: string }) => {
+    mutationFn: async ({ paymentId }: { paymentId: string }) => {
       const { error } = await supabase
         .from("payment_requests" as any)
         .update({ status: "rejected", admin_notes: adminNotes || null, updated_at: new Date().toISOString() } as any)
         .eq("id", paymentId);
       if (error) throw error;
-
-      await supabase.from("notifications" as any).insert({
-        user_id: userId,
-        title: "পেমেন্ট প্রত্যাখ্যাত ❌",
-        message: `আপনার পেমেন্ট প্রত্যাখ্যাত হয়েছে।${adminNotes ? ` কারণ: ${adminNotes}` : " বিস্তারিত জানতে যোগাযোগ করুন।"}`,
-        type: "error",
-      } as any);
     },
     onSuccess: () => {
       toast.success("পেমেন্ট প্রত্যাখ্যান করা হয়েছে");
@@ -128,28 +133,30 @@ const SuperAdminPayments = () => {
   const updatePaymentMutation = useMutation({
     mutationFn: async () => {
       if (!selectedPayment) return;
-
-      const payload = {
-        plan: editPlan,
-        amount: editAmount,
-        status: editStatus,
-        admin_notes: adminNotes || null,
-        updated_at: new Date().toISOString(),
-      } as any;
-
       const { error: paymentError } = await supabase
         .from("payment_requests" as any)
-        .update(payload)
+        .update({
+          plan: editPlan,
+          amount: editAmount,
+          status: editStatus,
+          admin_notes: adminNotes || null,
+          updated_at: new Date().toISOString(),
+        } as any)
         .eq("id", selectedPayment.id);
-
       if (paymentError) throw paymentError;
 
+      // ✅ If approving via edit — also update restaurant
       if (editStatus === "approved") {
+        const expiryDate = getExpiryDate(selectedPayment.billing_cycle);
         const { error: restaurantError } = await supabase
           .from("restaurants")
-          .update({ status: "active_paid", plan: editPlan, updated_at: new Date().toISOString() })
+          .update({
+            status: "active_paid",
+            plan: editPlan,
+            trial_ends_at: expiryDate,
+            updated_at: new Date().toISOString(),
+          })
           .eq("id", selectedPayment.restaurant_id);
-
         if (restaurantError) throw restaurantError;
       }
     },
@@ -166,24 +173,19 @@ const SuperAdminPayments = () => {
   const deletePaymentMutation = useMutation({
     mutationFn: async (paymentId: string) => {
       const { error } = await supabase
-        .from("payment_requests" as any)
-        .delete()
-        .eq("id", paymentId);
+        .from("payment_requests" as any).delete().eq("id", paymentId);
       if (error) throw error;
     },
     onSuccess: () => {
       toast.success("পেমেন্ট রিকোয়েস্ট মুছে ফেলা হয়েছে");
-      if (dialogOpen) {
-        setDialogOpen(false);
-        setSelectedPayment(null);
-      }
+      if (dialogOpen) { setDialogOpen(false); setSelectedPayment(null); }
       queryClient.invalidateQueries({ queryKey: ["all-payments"] });
     },
     onError: (err: any) => toast.error(err.message || "ডিলিট করতে সমস্যা হয়েছে"),
   });
 
   const reopenMutation = useMutation({
-    mutationFn: async ({ paymentId }: { paymentId: string }) => {
+    mutationFn: async (paymentId: string) => {
       const { error } = await supabase
         .from("payment_requests" as any)
         .update({ status: "pending", updated_at: new Date().toISOString() } as any)
@@ -194,7 +196,7 @@ const SuperAdminPayments = () => {
       toast.success("পেমেন্ট আবার পেন্ডিং করা হয়েছে");
       queryClient.invalidateQueries({ queryKey: ["all-payments"] });
     },
-    onError: (err: any) => toast.error(err.message || "স্ট্যাটাস আপডেটে সমস্যা হয়েছে"),
+    onError: (err: any) => toast.error(err.message),
   });
 
   const openReview = (p: PaymentRequest) => {
@@ -207,28 +209,50 @@ const SuperAdminPayments = () => {
   };
 
   const pendingCount = payments.filter(p => p.status === "pending").length;
-
   const getBillingLabel = (cycle?: string) => cycle === "yearly" ? "বার্ষিক" : "মাসিক";
 
   return (
     <DashboardLayout role="super_admin" title="পেমেন্ট ম্যানেজমেন্ট">
       <div className="space-y-6 animate-fade-up">
+
+        {/* ── Header ── */}
         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="relative w-full sm:w-80">
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+            <div className="relative flex-1 sm:w-80">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input placeholder="Transaction ID বা রেস্টুরেন্ট খুঁজুন..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10 bg-secondary/50" />
+              <Input placeholder="Transaction ID বা রেস্টুরেন্ট..." value={search}
+                onChange={e => setSearch(e.target.value)} className="pl-10 bg-secondary/50 h-9 text-sm" />
             </div>
             {pendingCount > 0 && (
-              <span className="px-3 py-1 rounded-full text-xs font-medium bg-warning/10 text-warning">
-                {pendingCount} পেন্ডিং
+              <span className="px-3 py-1 rounded-full text-xs font-semibold bg-warning/10 text-warning border border-warning/20 whitespace-nowrap">
+                🔔 {pendingCount} পেন্ডিং
               </span>
             )}
           </div>
         </div>
 
-        {isLoading && <p className="text-center text-muted-foreground py-8">লোড হচ্ছে...</p>}
+        {/* ── Stats ── */}
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            { label: "মোট", value: payments.length, color: "text-primary", bg: "bg-primary/10" },
+            { label: "পেন্ডিং", value: pendingCount, color: "text-warning", bg: "bg-warning/10" },
+            { label: "অনুমোদিত", value: payments.filter(p => p.status === "approved").length, color: "text-success", bg: "bg-success/10" },
+          ].map(({ label, value, color, bg }) => (
+            <div key={label} className="stat-card text-center p-3">
+              <p className={`text-xl font-display font-bold ${color}`}>{value}</p>
+              <p className="text-xs text-muted-foreground">{label}</p>
+            </div>
+          ))}
+        </div>
 
+        {isLoading && (
+          <div className="text-center py-10">
+            <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+            <p className="text-sm text-muted-foreground">লোড হচ্ছে...</p>
+          </div>
+        )}
+
+        {/* ── Table ── */}
         <Card>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
@@ -246,32 +270,30 @@ const SuperAdminPayments = () => {
                 </thead>
                 <tbody>
                   {filtered.length === 0 && !isLoading && (
-                    <tr><td colSpan={7} className="p-8 text-center text-muted-foreground">কোনো পেমেন্ট রিকোয়েস্ট নেই</td></tr>
+                    <tr><td colSpan={7} className="p-10 text-center text-muted-foreground">কোনো পেমেন্ট রিকোয়েস্ট নেই</td></tr>
                   )}
                   {filtered.map(p => (
                     <tr key={p.id} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
                       <td className="p-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-lg bg-accent flex items-center justify-center flex-shrink-0">
-                            <CreditCard className="w-5 h-5 text-accent-foreground" />
+                          <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                            <CreditCard className="w-4 h-4 text-primary" />
                           </div>
                           <div>
-                            <span className="font-medium text-foreground block">{p.restaurant_name}</span>
+                            <span className="font-medium text-foreground text-sm block">{p.restaurant_name}</span>
                             {p.phone_number && <span className="text-xs text-muted-foreground">{p.phone_number}</span>}
                           </div>
                         </div>
                       </td>
                       <td className="p-4">
-                        <div>
-                          <span className="px-3 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary capitalize">{p.plan}</span>
-                          <span className="text-xs text-muted-foreground ml-1">{getBillingLabel(p.billing_cycle)}</span>
-                        </div>
+                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary capitalize">{p.plan}</span>
+                        <span className="text-xs text-muted-foreground ml-1">{getBillingLabel(p.billing_cycle)}</span>
                       </td>
-                      <td className="p-4 text-muted-foreground capitalize hidden sm:table-cell">{p.payment_method}</td>
+                      <td className="p-4 text-muted-foreground text-sm capitalize hidden sm:table-cell">{p.payment_method}</td>
                       <td className="p-4 font-mono text-sm text-foreground hidden md:table-cell">{p.transaction_id}</td>
-                      <td className="p-4 font-medium text-foreground">৳{p.amount}</td>
+                      <td className="p-4 font-medium text-foreground text-sm">৳{p.amount}</td>
                       <td className="p-4">
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium inline-flex items-center gap-1 ${
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium inline-flex items-center gap-1 ${
                           p.status === "approved" ? "bg-success/10 text-success" :
                           p.status === "rejected" ? "bg-destructive/10 text-destructive" :
                           "bg-warning/10 text-warning"
@@ -282,15 +304,14 @@ const SuperAdminPayments = () => {
                         </span>
                       </td>
                       <td className="p-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button variant="outline" size="sm" onClick={() => openReview(p)}>
-                            <Eye className="w-4 h-4 mr-1" />
-                            রিভিউ
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => openReview(p)}>
+                            <Eye className="w-3 h-3 mr-1" /> রিভিউ
                           </Button>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreHorizontal className="w-4 h-4" />
+                              <Button variant="ghost" size="icon" className="h-7 w-7">
+                                <MoreHorizontal className="w-3.5 h-3.5" />
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-44">
@@ -298,7 +319,7 @@ const SuperAdminPayments = () => {
                                 <Edit className="w-4 h-4 mr-2" /> এডিট
                               </DropdownMenuItem>
                               {p.status !== "pending" && (
-                                <DropdownMenuItem onClick={() => reopenMutation.mutate({ paymentId: p.id })}>
+                                <DropdownMenuItem onClick={() => reopenMutation.mutate(p.id)}>
                                   <RefreshCw className="w-4 h-4 mr-2" /> পেন্ডিং করুন
                                 </DropdownMenuItem>
                               )}
@@ -312,15 +333,11 @@ const SuperAdminPayments = () => {
                                 <AlertDialogContent>
                                   <AlertDialogHeader>
                                     <AlertDialogTitle>পেমেন্ট রিকোয়েস্ট ডিলিট করবেন?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                      এটি স্থায়ীভাবে মুছে যাবে। Transaction ID: {p.transaction_id}
-                                    </AlertDialogDescription>
+                                    <AlertDialogDescription>Transaction ID: {p.transaction_id}</AlertDialogDescription>
                                   </AlertDialogHeader>
                                   <AlertDialogFooter>
                                     <AlertDialogCancel>বাতিল</AlertDialogCancel>
-                                    <AlertDialogAction onClick={() => deletePaymentMutation.mutate(p.id)}>
-                                      ডিলিট করুন
-                                    </AlertDialogAction>
+                                    <AlertDialogAction onClick={() => deletePaymentMutation.mutate(p.id)}>ডিলিট</AlertDialogAction>
                                   </AlertDialogFooter>
                                 </AlertDialogContent>
                               </AlertDialog>
@@ -337,24 +354,47 @@ const SuperAdminPayments = () => {
         </Card>
       </div>
 
+      {/* ── Review Dialog ── */}
       <Dialog open={dialogOpen} onOpenChange={v => { setDialogOpen(v); if (!v) setSelectedPayment(null); }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle className="font-display">পেমেন্ট রিভিউ ও এডিট</DialogTitle></DialogHeader>
+        <DialogContent className="max-w-md mx-4 sm:mx-auto">
+          <DialogHeader><DialogTitle className="font-display">পেমেন্ট রিভিউ</DialogTitle></DialogHeader>
           {selectedPayment && (
             <div className="space-y-4 pt-2">
-              <div className="bg-accent/50 rounded-lg p-4 space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-muted-foreground">রেস্টুরেন্ট:</span><span className="font-medium text-foreground">{selectedPayment.restaurant_name}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">মাধ্যম:</span><span className="font-medium text-foreground capitalize">{selectedPayment.payment_method}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Transaction ID:</span><span className="font-mono text-foreground">{selectedPayment.transaction_id}</span></div>
-                {selectedPayment.phone_number && <div className="flex justify-between"><span className="text-muted-foreground">ফোন:</span><span className="text-foreground">{selectedPayment.phone_number}</span></div>}
-                <div className="flex justify-between"><span className="text-muted-foreground">তারিখ:</span><span className="text-foreground">{new Date(selectedPayment.created_at).toLocaleString("bn-BD")}</span></div>
+              {/* Info */}
+              <div className="bg-secondary/50 rounded-xl p-4 space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">রেস্টুরেন্ট</span>
+                  <span className="font-medium text-foreground">{selectedPayment.restaurant_name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">মাধ্যম</span>
+                  <span className="font-medium text-foreground capitalize">{selectedPayment.payment_method}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Transaction ID</span>
+                  <span className="font-mono text-foreground">{selectedPayment.transaction_id}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">বিলিং</span>
+                  <span className="text-foreground">{getBillingLabel(selectedPayment.billing_cycle)}</span>
+                </div>
+                {selectedPayment.phone_number && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">ফোন</span>
+                    <span className="text-foreground">{selectedPayment.phone_number}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">তারিখ</span>
+                  <span className="text-foreground">{new Date(selectedPayment.created_at).toLocaleDateString("bn-BD")}</span>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label>প্ল্যান</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">প্ল্যান</Label>
                   <Select value={editPlan} onValueChange={v => setEditPlan(v as any)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="basic">Basic</SelectItem>
                       <SelectItem value="premium">Premium</SelectItem>
@@ -362,83 +402,75 @@ const SuperAdminPayments = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
-                  <Label>টাকা (৳)</Label>
-                  <Input type="number" value={editAmount} onChange={e => setEditAmount(Number(e.target.value))} />
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">টাকা (৳)</Label>
+                  <Input type="number" value={editAmount} onChange={e => setEditAmount(Number(e.target.value))} className="h-9 text-sm" />
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label>স্ট্যাটাস</Label>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">স্ট্যাটাস</Label>
                 <Select value={editStatus} onValueChange={v => setEditStatus(v as any)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="pending">পেন্ডিং</SelectItem>
-                    <SelectItem value="approved">অনুমোদিত</SelectItem>
-                    <SelectItem value="rejected">প্রত্যাখ্যাত</SelectItem>
+                    <SelectItem value="pending">⏳ পেন্ডিং</SelectItem>
+                    <SelectItem value="approved">✅ অনুমোদিত</SelectItem>
+                    <SelectItem value="rejected">❌ প্রত্যাখ্যাত</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label>অ্যাডমিন নোট (ঐচ্ছিক)</Label>
-                <Textarea value={adminNotes} onChange={e => setAdminNotes(e.target.value)} placeholder="নোট লিখুন..." rows={2} />
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">অ্যাডমিন নোট</Label>
+                <Textarea value={adminNotes} onChange={e => setAdminNotes(e.target.value)}
+                  placeholder="নোট লিখুন..." rows={2} className="text-sm resize-none" />
               </div>
 
-              {selectedPayment.status === "pending" ? (
+              {/* Quick approve/reject for pending */}
+              {selectedPayment.status === "pending" && (
                 <div className="grid grid-cols-2 gap-3">
-                  <Button
-                    variant="hero"
+                  <Button variant="hero" className="h-10"
                     onClick={() => approveMutation.mutate({
                       paymentId: selectedPayment.id,
                       restaurantId: selectedPayment.restaurant_id,
                       plan: editPlan,
                       userId: selectedPayment.user_id,
+                      billingCycle: selectedPayment.billing_cycle,
                     })}
-                    disabled={approveMutation.isPending}
-                  >
-                    {approveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <CheckCircle className="w-4 h-4 mr-1" />}
-                    অনুমোদন
+                    disabled={approveMutation.isPending}>
+                    {approveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                    <span className="ml-1">অনুমোদন</span>
                   </Button>
-                  <Button
-                    variant="destructive"
-                    onClick={() => rejectMutation.mutate({ paymentId: selectedPayment.id, userId: selectedPayment.user_id })}
-                    disabled={rejectMutation.isPending}
-                  >
-                    {rejectMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <XCircle className="w-4 h-4 mr-1" />}
-                    প্রত্যাখ্যান
+                  <Button variant="destructive" className="h-10"
+                    onClick={() => rejectMutation.mutate({ paymentId: selectedPayment.id })}
+                    disabled={rejectMutation.isPending}>
+                    {rejectMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
+                    <span className="ml-1">প্রত্যাখ্যান</span>
                   </Button>
                 </div>
-              ) : null}
+              )}
 
-              <div className="flex gap-3">
-                <Button
-                  variant="outline"
-                  className="flex-1"
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1 h-9 text-sm"
                   onClick={() => updatePaymentMutation.mutate()}
-                  disabled={updatePaymentMutation.isPending}
-                >
-                  {updatePaymentMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Edit className="w-4 h-4 mr-1" />}
-                  আপডেট সেভ করুন
+                  disabled={updatePaymentMutation.isPending}>
+                  {updatePaymentMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Edit className="w-3.5 h-3.5" />}
+                  <span className="ml-1">আপডেট সেভ</span>
                 </Button>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
-                    <Button variant="destructive" size="icon">
-                      <Trash2 className="w-4 h-4" />
+                    <Button variant="destructive" size="icon" className="h-9 w-9">
+                      <Trash2 className="w-3.5 h-3.5" />
                     </Button>
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>পেমেন্ট রিকোয়েস্ট ডিলিট করবেন?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        এটি স্থায়ীভাবে মুছে যাবে। এই অ্যাকশন ফিরিয়ে আনা যাবে না।
-                      </AlertDialogDescription>
+                      <AlertDialogTitle>ডিলিট করবেন?</AlertDialogTitle>
+                      <AlertDialogDescription>এই পেমেন্ট রিকোয়েস্ট স্থায়ীভাবে মুছে যাবে।</AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                       <AlertDialogCancel>বাতিল</AlertDialogCancel>
-                      <AlertDialogAction onClick={() => deletePaymentMutation.mutate(selectedPayment.id)}>
-                        ডিলিট করুন
-                      </AlertDialogAction>
+                      <AlertDialogAction onClick={() => deletePaymentMutation.mutate(selectedPayment.id)}>ডিলিট</AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
