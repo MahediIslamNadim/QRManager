@@ -1,4 +1,3 @@
-import { Link } from "react-router-dom";
 import { UtensilsCrossed, ArrowRight, Star, Menu, X } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 
