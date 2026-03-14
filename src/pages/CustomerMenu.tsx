@@ -26,6 +26,21 @@ interface CartItem extends MenuItem {
   quantity: number;
 }
 
+interface OrderItem {
+  id: string;
+  name: string;
+  price: number;
+  quantity: number;
+}
+
+interface Order {
+  id: string;
+  total: number;
+  status: string;
+  created_at?: string;
+  items: OrderItem[];
+}
+
 const categoryColors: Record<string, { bg: string; text: string; border: string; dot: string }> = {};
 const colorPalette = [
   { bg: "bg-primary/10", text: "text-primary", border: "border-primary/30", dot: "bg-primary" },
@@ -43,6 +58,9 @@ const getCategoryColor = (category: string) => {
   }
   return categoryColors[category];
 };
+
+// ── Active statuses — orders that are still in progress ──
+const ACTIVE_STATUSES = ["pending", "confirmed", "preparing", "ready"];
 
 const CustomerMenu = () => {
   const { restaurantId } = useParams();
@@ -66,14 +84,56 @@ const CustomerMenu = () => {
   const [submitting, setSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
-  const [myOrders, setMyOrders] = useState<any[]>([]);
+  const [myOrders, setMyOrders] = useState<Order[]>([]);
   const [showOrderStatus, setShowOrderStatus] = useState(false);
+  const [ordersLoading, setOrdersLoading] = useState(false);
 
-  // ✅ Token state — default true, only false if explicitly expired/closed
   const [tokenValid, setTokenValid] = useState<boolean>(true);
   const [tokenChecking, setTokenChecking] = useState(false);
   const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [tableChecked, setTableChecked] = useState(false);
+
+  // ── Helper: fetch order items for an order ──
+  const fetchOrderItems = async (orderId: string): Promise<OrderItem[]> => {
+    const { data } = await supabase
+      .from("order_items")
+      .select("id, name, price, quantity")
+      .eq("order_id", orderId);
+    return (data as OrderItem[]) || [];
+  };
+
+  // ── Fetch existing active orders for this table from DB ──
+  // This ensures orders survive page refresh
+  const fetchExistingOrders = useCallback(async () => {
+    if (isDemo || !tableId || !restaurantId) return;
+    setOrdersLoading(true);
+    try {
+      const { data: ordersData, error } = await supabase
+        .from("orders")
+        .select("id, total, status, created_at")
+        .eq("restaurant_id", restaurantId)
+        .eq("table_id", tableId)
+        .in("status", ACTIVE_STATUSES)
+        .order("created_at", { ascending: false })
+        .limit(10);
+
+      if (error || !ordersData) return;
+
+      // Fetch items for each order in parallel
+      const ordersWithItems: Order[] = await Promise.all(
+        ordersData.map(async (order) => {
+          const items = await fetchOrderItems(order.id);
+          return { ...order, items };
+        })
+      );
+
+      setMyOrders(ordersWithItems);
+    } catch (err) {
+      // silently fail — don't block UI
+    } finally {
+      setOrdersLoading(false);
+    }
+  }, [isDemo, tableId, restaurantId]);
 
   // ── Fetch menu data ──
   useEffect(() => {
@@ -119,15 +179,13 @@ const CustomerMenu = () => {
     fetchData();
   }, [restaurantId, seatId, isDemo]);
 
-  // ── Token + Table check — runs when URL params change ──
+  // ── Token + Table check ──
   useEffect(() => {
     if (isDemo || !tableId || !restaurantId) return;
 
     const checkTokenAndTable = async () => {
       setTokenChecking(true);
-
       try {
-        // 1️⃣ Check table open/closed + name
         const { data: tableData } = await supabase
           .from("restaurant_tables")
           .select("name, is_open")
@@ -146,7 +204,6 @@ const CustomerMenu = () => {
           }
         }
 
-        // 2️⃣ Token in URL — validate
         if (tokenParam) {
           const { data: session } = await supabase
             .from("table_sessions" as any)
@@ -164,7 +221,6 @@ const CustomerMenu = () => {
           }
         }
 
-        // 3️⃣ No token / invalid — find existing valid session
         const { data: existing } = await supabase
           .from("table_sessions" as any)
           .select("token, expires_at")
@@ -186,7 +242,6 @@ const CustomerMenu = () => {
           return;
         }
 
-        // 4️⃣ Create new token
         const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
         const { data: newSession, error } = await supabase
           .from("table_sessions" as any)
@@ -201,11 +256,9 @@ const CustomerMenu = () => {
           newUrl.searchParams.set("token", (newSession as any).token);
           window.history.replaceState({}, "", newUrl.toString());
         } else {
-          // ✅ Even if token creation fails — still allow menu access
           setTokenValid(true);
         }
       } catch (err) {
-        // ✅ On any error — still show menu (don't block customer)
         setTokenValid(true);
       }
 
@@ -214,10 +267,9 @@ const CustomerMenu = () => {
     };
 
     checkTokenAndTable();
-  // ✅ tokenParam in deps — re-runs when URL changes (seat select navigate)
   }, [isDemo, tableId, restaurantId, tokenParam]);
 
-  // ── Seat redirect — after table checked ──
+  // ── Seat redirect ──
   useEffect(() => {
     if (!isDemo && tableId && !seatId && tableChecked && tokenValid && restaurantId) {
       const checkSeats = async () => {
@@ -231,6 +283,97 @@ const CustomerMenu = () => {
       checkSeats();
     }
   }, [isDemo, tableId, seatId, tableChecked, tokenValid, restaurantId, sessionToken, navigate]);
+
+  // ── Fetch existing orders once tableChecked and valid ──
+  useEffect(() => {
+    if (tableChecked && tokenValid) {
+      fetchExistingOrders();
+    }
+  }, [tableChecked, tokenValid, fetchExistingOrders]);
+
+  // ── Realtime: listen to order INSERT and UPDATE for this table ──
+  useEffect(() => {
+    if (!tableId || !restaurantId || isDemo) return;
+
+    const channel = supabase
+      .channel(`orders-realtime-${tableId}`)
+      // ✅ Listen to new orders placed (INSERT)
+      .on("postgres_changes", {
+        event: "INSERT",
+        schema: "public",
+        table: "orders",
+        filter: `table_id=eq.${tableId}`,
+      }, async (payload) => {
+        const newOrder = payload.new as any;
+        // Only track active orders
+        if (!ACTIVE_STATUSES.includes(newOrder.status)) return;
+        // Fetch items for this new order
+        const items = await fetchOrderItems(newOrder.id);
+        setMyOrders(prev => {
+          // Avoid duplicates
+          if (prev.find(o => o.id === newOrder.id)) return prev;
+          return [{ ...newOrder, items }, ...prev];
+        });
+      })
+      // ✅ Listen to status changes (UPDATE)
+      .on("postgres_changes", {
+        event: "UPDATE",
+        schema: "public",
+        table: "orders",
+        filter: `table_id=eq.${tableId}`,
+      }, async (payload) => {
+        const updated = payload.new as any;
+
+        setMyOrders(prev => {
+          const exists = prev.find(o => o.id === updated.id);
+          if (exists) {
+            // Update status of existing order
+            return prev.map(o =>
+              o.id === updated.id ? { ...o, status: updated.status } : o
+            );
+          } else if (ACTIVE_STATUSES.includes(updated.status)) {
+            // Order wasn't in our list — add it (fetch items first)
+            fetchOrderItems(updated.id).then(items => {
+              setMyOrders(p => {
+                if (p.find(o => o.id === updated.id)) return p;
+                return [{ ...updated, items }, ...p];
+              });
+            });
+            return prev;
+          }
+          return prev;
+        });
+
+        // ✅ Toast notifications for status changes
+        const statusMessages: Record<string, string> = {
+          confirmed: "✅ রান্নাঘর অর্ডার accept করেছে!",
+          preparing: "🍳 আপনার খাবার রান্না হচ্ছে...",
+          ready: "🛎️ খাবার ready! ওয়েটার আসছে।",
+          delivered: "🎉 খাবার পৌঁছে গেছে! ধন্যবাদ।",
+          cancelled: "❌ দুঃখিত, অর্ডারটি বাতিল হয়েছে।",
+        };
+        if (statusMessages[updated.status]) {
+          toast(statusMessages[updated.status], { duration: 5000 });
+        }
+
+        // ✅ Auto-open order status drawer when status changes to something notable
+        if (["confirmed", "preparing", "ready"].includes(updated.status)) {
+          setShowOrderStatus(true);
+        }
+
+        // ✅ Remove delivered/cancelled orders after delay (keep UI clean)
+        if (["delivered", "cancelled"].includes(updated.status)) {
+          setTimeout(() => {
+            setMyOrders(prev => prev.filter(o => o.id !== updated.id));
+          }, 30000); // remove after 30 seconds
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [tableId, restaurantId, isDemo]);
 
   const filtered = menuItems
     .filter(i => activeCategory === "সব" || i.category === activeCategory)
@@ -263,6 +406,9 @@ const CustomerMenu = () => {
   const totalItems = cart.reduce((sum, c) => sum + c.quantity, 0);
   const totalPrice = cart.reduce((sum, c) => sum + c.price * c.quantity, 0);
 
+  // ── Active orders count (for badge) ──
+  const activeOrdersCount = myOrders.filter(o => ACTIVE_STATUSES.includes(o.status)).length;
+
   const submitOrder = async () => {
     if (isDemo) {
       toast.success("ডেমো অর্ডার পাঠানো হয়েছে!");
@@ -278,6 +424,7 @@ const CustomerMenu = () => {
 
     setSubmitting(true);
     try {
+      // 1️⃣ Create order
       const { data: order, error: orderErr } = await supabase
         .from("orders")
         .insert({
@@ -292,7 +439,8 @@ const CustomerMenu = () => {
 
       if (orderErr) throw orderErr;
 
-      const items = cart.map(c => ({
+      // 2️⃣ Insert order items
+      const orderItemsPayload = cart.map(c => ({
         order_id: order.id,
         menu_item_id: c.id,
         name: c.name,
@@ -300,15 +448,33 @@ const CustomerMenu = () => {
         quantity: c.quantity,
       }));
 
-      const { error: itemsErr } = await supabase.from("order_items").insert(items);
+      const { error: itemsErr } = await supabase.from("order_items").insert(orderItemsPayload);
       if (itemsErr) throw itemsErr;
 
+      // 3️⃣ Update seat status
       if (seatId) {
         await supabase.from("table_seats").update({ status: "occupied" }).eq("id", seatId);
       }
 
+      // 4️⃣ Build order items for local state
+      const localItems: OrderItem[] = cart.map(c => ({
+        id: c.id,
+        name: c.name,
+        price: c.price,
+        quantity: c.quantity,
+      }));
+
+      // 5️⃣ Add to local myOrders state
+      const newOrder: Order = {
+        id: order.id,
+        total: totalPrice,
+        status: "pending",
+        created_at: order.created_at,
+        items: localItems,
+      };
+      setMyOrders(prev => [newOrder, ...prev]);
+
       toast.success("অর্ডার সফলভাবে পাঠানো হয়েছে! 🎉");
-      setMyOrders(prev => [...prev, { ...order, items: cart, status: "pending" }]);
       setCart([]);
       setShowCart(false);
       setShowOrderStatus(true);
@@ -318,34 +484,6 @@ const CustomerMenu = () => {
       setSubmitting(false);
     }
   };
-
-  // ── Realtime order status subscription ──
-  useEffect(() => {
-    if (!tableId || !restaurantId || isDemo) return;
-    const channel = supabase
-      .channel(`orders-${tableId}`)
-      .on("postgres_changes", {
-        event: "UPDATE",
-        schema: "public",
-        table: "orders",
-        filter: `table_id=eq.${tableId}`,
-      }, (payload) => {
-        const updated = payload.new as any;
-        setMyOrders(prev => prev.map(o => o.id === updated.id ? { ...o, status: updated.status } : o));
-        const statusMessages: Record<string, string> = {
-          confirmed: "✅ রান্নাঘর অর্ডার accept করেছে!",
-          preparing: "🍳 আপনার খাবার রান্না হচ্ছে...",
-          ready: "🛎️ খাবার ready! ওয়েটার আসছে।",
-          delivered: "🎉 খাবার পৌঁছে গেছে! ধন্যবাদ।",
-          cancelled: "❌ দুঃখিত, অর্ডারটি বাতিল হয়েছে।",
-        };
-        if (statusMessages[updated.status]) {
-          toast(statusMessages[updated.status], { duration: 5000 });
-        }
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [tableId, restaurantId, isDemo]);
 
   // ── LOADING ──
   if (loading || tokenChecking) {
@@ -377,7 +515,7 @@ const CustomerMenu = () => {
     );
   }
 
-  // ── TOKEN EXPIRED — only show if table is open but token truly invalid ──
+  // ── TOKEN EXPIRED ──
   if (!isDemo && tableId && tableChecked && !tokenValid && tableIsOpen) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-6">
@@ -420,12 +558,13 @@ const CustomerMenu = () => {
             <button onClick={() => setShowSearch(!showSearch)} className="w-11 h-11 rounded-2xl bg-secondary hover:bg-accent flex items-center justify-center transition-all">
               <Search className="w-5 h-5 text-muted-foreground" />
             </button>
+            {/* ✅ Order status button — shows when there are any orders */}
             {myOrders.length > 0 && (
               <button onClick={() => setShowOrderStatus(true)} className="relative w-11 h-11 rounded-2xl bg-warning/10 hover:bg-warning/20 flex items-center justify-center transition-all">
                 <ClipboardList className="w-5 h-5 text-warning" />
-                {myOrders.filter(o => !["delivered","cancelled"].includes(o.status)).length > 0 && (
+                {activeOrdersCount > 0 && (
                   <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-warning text-warning-foreground text-[10px] flex items-center justify-center font-bold animate-pulse">
-                    {myOrders.filter(o => !["delivered","cancelled"].includes(o.status)).length}
+                    {activeOrdersCount}
                   </span>
                 )}
               </button>
@@ -588,7 +727,7 @@ const CustomerMenu = () => {
         </div>
       )}
 
-      {/* Order Status Drawer */}
+      {/* ── ORDER STATUS DRAWER ── */}
       {showOrderStatus && (
         <div className="fixed inset-0 z-50 bg-foreground/60 backdrop-blur-md" onClick={() => setShowOrderStatus(false)}>
           <div className="absolute bottom-0 left-0 right-0 bg-card rounded-t-3xl max-h-[85vh] overflow-y-auto"
@@ -601,32 +740,63 @@ const CustomerMenu = () => {
               <div className="flex items-center justify-between mb-6">
                 <div>
                   <h2 className="font-display font-bold text-xl text-foreground">অর্ডার স্ট্যাটাস</h2>
-                  <p className="text-sm text-muted-foreground">রিয়েলটাইম আপডেট</p>
+                  <p className="text-sm text-muted-foreground">
+                    {ordersLoading ? "লোড হচ্ছে..." : `${myOrders.length}টি অর্ডার • রিয়েলটাইম আপডেট`}
+                  </p>
                 </div>
                 <button onClick={() => setShowOrderStatus(false)} className="w-9 h-9 rounded-xl bg-secondary hover:bg-accent flex items-center justify-center transition-colors">
                   <X className="w-4 h-4 text-foreground" />
                 </button>
               </div>
 
+              {/* Loading state */}
+              {ordersLoading && (
+                <div className="flex items-center justify-center py-8">
+                  <div className="w-8 h-8 border-3 border-primary border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
+
+              {/* No orders */}
+              {!ordersLoading && myOrders.length === 0 && (
+                <div className="text-center py-10">
+                  <ClipboardList className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
+                  <p className="text-muted-foreground text-sm">এখনো কোনো অর্ডার নেই</p>
+                </div>
+              )}
+
               <div className="space-y-4">
                 {myOrders.map((order, oi) => {
                   const steps = [
-                    { key: "pending",   icon: ClipboardList, label: "অর্ডার দেওয়া হয়েছে", color: "text-muted-foreground", bg: "bg-muted/30" },
-                    { key: "confirmed", icon: CheckCircle,   label: "রান্নাঘর accept করেছে", color: "text-info",    bg: "bg-info/10" },
-                    { key: "preparing", icon: ChefHat,       label: "রান্না হচ্ছে",          color: "text-warning", bg: "bg-warning/10" },
-                    { key: "ready",     icon: Bell,          label: "আসছে!",                 color: "text-success", bg: "bg-success/10" },
-                    { key: "delivered", icon: Bike,          label: "পৌঁছে গেছে",            color: "text-primary", bg: "bg-primary/10" },
+                    { key: "pending",   icon: ClipboardList, label: "অর্ডার দেওয়া হয়েছে",      color: "text-muted-foreground", bg: "bg-muted/30" },
+                    { key: "confirmed", icon: CheckCircle,   label: "রান্নাঘর accept করেছে",  color: "text-info",             bg: "bg-info/10" },
+                    { key: "preparing", icon: ChefHat,       label: "রান্না হচ্ছে",             color: "text-warning",          bg: "bg-warning/10" },
+                    { key: "ready",     icon: Bell,          label: "আসছে!",                   color: "text-success",          bg: "bg-success/10" },
+                    { key: "delivered", icon: Bike,          label: "পৌঁছে গেছে",              color: "text-primary",          bg: "bg-primary/10" },
                   ];
                   const currentIdx = steps.findIndex(s => s.key === order.status);
                   const isCancelled = order.status === "cancelled";
+                  const isDelivered = order.status === "delivered";
 
                   return (
-                    <div key={order.id} className="bg-secondary/30 rounded-2xl p-4 border border-border/50">
+                    <div key={order.id} className={`rounded-2xl p-4 border ${
+                      isCancelled ? "bg-destructive/5 border-destructive/20"
+                      : isDelivered ? "bg-success/5 border-success/20"
+                      : "bg-secondary/30 border-border/50"
+                    }`}>
+                      {/* Order header */}
                       <div className="flex items-center justify-between mb-4">
-                        <p className="font-semibold text-sm text-foreground">অর্ডার #{oi + 1}</p>
-                        <span className="text-xs text-muted-foreground">৳{order.total}</span>
+                        <div>
+                          <p className="font-semibold text-sm text-foreground">অর্ডার #{oi + 1}</p>
+                          {order.created_at && (
+                            <p className="text-[11px] text-muted-foreground mt-0.5">
+                              {new Date(order.created_at).toLocaleTimeString("bn-BD", { hour: "2-digit", minute: "2-digit" })}
+                            </p>
+                          )}
+                        </div>
+                        <span className="text-sm font-bold text-foreground">৳{order.total}</span>
                       </div>
 
+                      {/* Status steps */}
                       {isCancelled ? (
                         <div className="flex items-center gap-3 p-3 rounded-xl bg-destructive/10 border border-destructive/20">
                           <XCircle className="w-5 h-5 text-destructive flex-shrink-0" />
@@ -639,32 +809,42 @@ const CustomerMenu = () => {
                             const isDone = si <= currentIdx;
                             const isActive = si === currentIdx;
                             return (
-                              <div key={step.key} className={`flex items-center gap-3 p-2.5 rounded-xl transition-all ${isActive ? `${step.bg} border border-current/20` : isDone ? "opacity-60" : "opacity-25"}`}>
+                              <div key={step.key}
+                                className={`flex items-center gap-3 p-2.5 rounded-xl transition-all ${
+                                  isActive ? `${step.bg} border border-current/20`
+                                  : isDone ? "opacity-60"
+                                  : "opacity-25"
+                                }`}>
                                 <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${isActive ? step.bg : "bg-muted/20"}`}>
                                   <Icon className={`w-4 h-4 ${isActive ? step.color : isDone ? "text-muted-foreground" : "text-muted-foreground/40"}`} />
                                 </div>
-                                <div className="flex-1">
-                                  <p className={`text-sm font-semibold ${isActive ? step.color : isDone ? "text-foreground" : "text-muted-foreground/40"}`}>{step.label}</p>
-                                </div>
-                                {isDone && !isActive && <CheckCircle className="w-4 h-4 text-success" />}
-                                {isActive && <div className="w-2 h-2 rounded-full bg-current animate-pulse" style={{ color: "inherit" }} />}
+                                <p className={`text-sm font-semibold flex-1 ${isActive ? step.color : isDone ? "text-foreground" : "text-muted-foreground/40"}`}>
+                                  {step.label}
+                                </p>
+                                {isDone && !isActive && <CheckCircle className="w-4 h-4 text-success flex-shrink-0" />}
+                                {isActive && (
+                                  <div className="w-2 h-2 rounded-full animate-pulse flex-shrink-0"
+                                    style={{ background: "currentColor" }} />
+                                )}
                               </div>
                             );
                           })}
                         </div>
                       )}
 
-                      {/* Order items summary */}
-                      <div className="mt-3 pt-3 border-t border-border/30">
-                        <p className="text-xs text-muted-foreground mb-1.5">আইটেম:</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {(order.items || []).map((item: any) => (
-                            <span key={item.id} className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
-                              {item.name} ×{item.quantity}
-                            </span>
-                          ))}
+                      {/* Order items */}
+                      {order.items && order.items.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-border/30">
+                          <p className="text-xs text-muted-foreground mb-1.5">আইটেম:</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {order.items.map((item, idx) => (
+                              <span key={`${item.id}-${idx}`} className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
+                                {item.name} ×{item.quantity}
+                              </span>
+                            ))}
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
                   );
                 })}
@@ -674,7 +854,7 @@ const CustomerMenu = () => {
         </div>
       )}
 
-      {/* Cart Drawer */}
+      {/* ── CART DRAWER ── */}
       {showCart && (
         <div className="fixed inset-0 z-50 bg-foreground/60 backdrop-blur-md" onClick={() => setShowCart(false)}>
           <div className="absolute bottom-0 left-0 right-0 bg-card rounded-t-3xl max-h-[85vh] overflow-y-auto"
@@ -749,6 +929,7 @@ const CustomerMenu = () => {
           </div>
         </div>
       )}
+
       <style>{`
         @keyframes slideUp {
           from { transform: translateY(100%); }
