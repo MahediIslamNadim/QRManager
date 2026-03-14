@@ -15,8 +15,8 @@ const Login = () => {
   const { user, role, loading } = useAuth();
 
   const [mode, setMode] = useState<Mode>("login");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState("shadin@gmail.com");
+  const [password, setPassword] = useState("shadin123");
   const [fullName, setFullName] = useState("");
   const [restaurantName, setRestaurantName] = useState("");
   const [restaurantAddress, setRestaurantAddress] = useState("");
