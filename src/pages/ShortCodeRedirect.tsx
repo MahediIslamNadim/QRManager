@@ -17,11 +17,19 @@ const ShortCodeRedirect = () => {
         .eq("short_code", shortCode)
         .single();
 
-      if (data) {
-        // ✅ table, seat, token params সহ forward করো
-        navigate(`/menu/${data.id}${window.location.search}`, { replace: true });
+      if (!data) { setError(true); return; }
+
+      const params = new URLSearchParams(window.location.search);
+      const tableId = params.get("table");
+      const seat = params.get("seat");
+      const token = params.get("token");
+
+      if (tableId && !seat && !token) {
+        // ✅ Group customer — seat select এ পাঠাও
+        navigate(`/seat-select/${data.id}?table=${tableId}`, { replace: true });
       } else {
-        setError(true);
+        // ✅ Single customer বা token আছে — সরাসরি menu
+        navigate(`/menu/${data.id}${window.location.search}`, { replace: true });
       }
     };
     lookup();
