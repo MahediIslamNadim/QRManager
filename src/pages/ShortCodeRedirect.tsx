@@ -26,7 +26,7 @@ const ShortCodeRedirect = () => {
 
       if (tableId && !seat && !token) {
         // ✅ Group customer — seat select এ পাঠাও
-        navigate(`/seat-select/${data.id}?table=${tableId}`, { replace: true });
+        navigate(`/menu/${data.id}/select-seat?table=${tableId}`, { replace: true });
       } else {
         // ✅ Single customer বা token আছে — সরাসরি menu
         navigate(`/menu/${data.id}${window.location.search}`, { replace: true });
