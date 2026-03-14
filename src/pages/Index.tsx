@@ -15,10 +15,10 @@ function useReveal() {
   return { ref, visible };
 }
 
-const Reveal = ({ children, delay = 0, className = "" }: { children: React.ReactNode; delay?: number; className?: string }) => {
+const Reveal = ({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) => {
   const { ref, visible } = useReveal();
   return (
-    <div ref={ref} className={className} style={{
+    <div ref={ref} style={{
       opacity: visible ? 1 : 0,
       transform: visible ? "translateY(0px)" : "translateY(48px)",
       transition: `opacity 0.9s ${delay}s cubic-bezier(0.16,1,0.3,1), transform 0.9s ${delay}s cubic-bezier(0.16,1,0.3,1)`,
@@ -30,8 +30,13 @@ export default function Index() {
   const [emojis, setEmojis] = useState<FE[]>([]);
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+
     setEmojis(Array.from({ length: 10 }, (_, i) => ({
       id: i, emoji: floatingEmojis[i % floatingEmojis.length],
       left: Math.random() * 100, delay: Math.random() * 14,
@@ -39,7 +44,10 @@ export default function Index() {
     })));
     const fn = () => setScrolled(window.scrollY > 40);
     window.addEventListener("scroll", fn);
-    return () => window.removeEventListener("scroll", fn);
+    return () => {
+      window.removeEventListener("resize", checkMobile);
+      window.removeEventListener("scroll", fn);
+    };
   }, []);
 
   const gold = "linear-gradient(135deg, #c9a84c, #f5d780, #b8860b)";
@@ -52,22 +60,12 @@ export default function Index() {
       {/* Floating emojis */}
       <div style={{ position:"fixed", inset:0, pointerEvents:"none", zIndex:0, overflow:"hidden" }}>
         {emojis.map(e => (
-          <span key={e.id} style={{
-            position:"absolute", left:`${e.left}%`, bottom:"-50px",
-            fontSize:`${e.size}px`, opacity:0.07, userSelect:"none",
-            animation:`floatUp ${e.duration}s ${e.delay}s linear infinite`,
-          }}>{e.emoji}</span>
+          <span key={e.id} style={{ position:"absolute", left:`${e.left}%`, bottom:"-50px", fontSize:`${e.size}px`, opacity:0.07, userSelect:"none", animation:`floatUp ${e.duration}s ${e.delay}s linear infinite` }}>{e.emoji}</span>
         ))}
       </div>
 
       {/* ─── NAVBAR ─── */}
-      <nav style={{
-        position:"sticky", top:0, zIndex:100,
-        backgroundColor: scrolled ? "rgba(10,10,10,0.95)" : "transparent",
-        backdropFilter: scrolled ? "blur(24px)" : "none",
-        borderBottom: scrolled ? "1px solid rgba(201,168,76,0.2)" : "1px solid transparent",
-        transition:"all 0.5s ease",
-      }}>
+      <nav style={{ position:"sticky", top:0, zIndex:100, backgroundColor: scrolled ? "rgba(10,10,10,0.95)" : "transparent", backdropFilter: scrolled ? "blur(24px)" : "none", borderBottom: scrolled ? "1px solid rgba(201,168,76,0.2)" : "1px solid transparent", transition:"all 0.5s ease" }}>
         <div style={{ maxWidth:1140, margin:"0 auto", padding:"0 clamp(16px,4vw,32px)", height:64, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
 
           {/* Logo */}
@@ -81,41 +79,47 @@ export default function Index() {
             </div>
           </div>
 
-          {/* Desktop nav links */}
-          <div style={{ display:"flex", gap:36, alignItems:"center" }} className="nav-desktop">
-            {navLinks.map(([l,h]) => (
-              <a key={l} href={h} style={{ fontSize:14, fontWeight:500, color:"rgba(255,255,255,0.75)", textDecoration:"none", letterSpacing:"0.05em", transition:"color 0.2s" }}
-                onMouseEnter={e => e.currentTarget.style.color="#f5d780"}
-                onMouseLeave={e => e.currentTarget.style.color="rgba(255,255,255,0.75)"}>{l}</a>
-            ))}
-          </div>
+          {/* Desktop nav — hidden on mobile */}
+          {!isMobile && (
+            <div style={{ display:"flex", gap:36, alignItems:"center" }}>
+              {navLinks.map(([l,h]) => (
+                <a key={l} href={h} style={{ fontSize:14, fontWeight:500, color:"rgba(255,255,255,0.75)", textDecoration:"none", letterSpacing:"0.05em", transition:"color 0.2s" }}
+                  onMouseEnter={e => e.currentTarget.style.color="#f5d780"}
+                  onMouseLeave={e => e.currentTarget.style.color="rgba(255,255,255,0.75)"}>{l}</a>
+              ))}
+            </div>
+          )}
 
-          {/* Desktop CTAs */}
-          <div style={{ display:"flex", gap:8, alignItems:"center" }} className="nav-desktop">
-            <a href="/menu/demo" style={{ padding:"8px 18px", borderRadius:8, fontSize:13, fontWeight:600, color:"#f5d780", textDecoration:"none", border:"1px solid rgba(201,168,76,0.45)", transition:"all 0.2s" }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor="rgba(201,168,76,0.9)"; e.currentTarget.style.backgroundColor="rgba(201,168,76,0.08)"; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor="rgba(201,168,76,0.45)"; e.currentTarget.style.backgroundColor="transparent"; }}>
-              ডেমো
-            </a>
-            <a href="/login" style={{ padding:"8px 20px", borderRadius:8, fontSize:13, fontWeight:700, color:"#0a0a0a", textDecoration:"none", background:gold, boxShadow:"0 4px 20px rgba(201,168,76,0.35)", display:"flex", alignItems:"center", gap:6, transition:"all 0.2s" }}
-              onMouseEnter={e => { e.currentTarget.style.boxShadow="0 6px 28px rgba(201,168,76,0.55)"; e.currentTarget.style.transform="translateY(-1px)"; }}
-              onMouseLeave={e => { e.currentTarget.style.boxShadow="0 4px 20px rgba(201,168,76,0.35)"; e.currentTarget.style.transform="translateY(0)"; }}>
-              লগইন <ArrowRight size={13} />
-            </a>
-          </div>
+          {/* Desktop CTAs — hidden on mobile */}
+          {!isMobile && (
+            <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+              <a href="/menu/demo" style={{ padding:"8px 18px", borderRadius:8, fontSize:13, fontWeight:600, color:"#f5d780", textDecoration:"none", border:"1px solid rgba(201,168,76,0.45)", transition:"all 0.2s" }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor="rgba(201,168,76,0.9)"; e.currentTarget.style.backgroundColor="rgba(201,168,76,0.08)"; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor="rgba(201,168,76,0.45)"; e.currentTarget.style.backgroundColor="transparent"; }}>
+                ডেমো
+              </a>
+              <a href="/login" style={{ padding:"8px 20px", borderRadius:8, fontSize:13, fontWeight:700, color:"#0a0a0a", textDecoration:"none", background:gold, boxShadow:"0 4px 20px rgba(201,168,76,0.35)", display:"flex", alignItems:"center", gap:6, transition:"all 0.2s" }}
+                onMouseEnter={e => { e.currentTarget.style.boxShadow="0 6px 28px rgba(201,168,76,0.55)"; e.currentTarget.style.transform="translateY(-1px)"; }}
+                onMouseLeave={e => { e.currentTarget.style.boxShadow="0 4px 20px rgba(201,168,76,0.35)"; e.currentTarget.style.transform="translateY(0)"; }}>
+                লগইন <ArrowRight size={13} />
+              </a>
+            </div>
+          )}
 
-          {/* Mobile: login + hamburger */}
-          <div style={{ display:"flex", alignItems:"center", gap:8 }} className="nav-mobile">
-            <a href="/login" style={{ padding:"7px 14px", borderRadius:8, fontSize:12, fontWeight:700, color:"#0a0a0a", textDecoration:"none", background:gold }}>লগইন</a>
-            <button onClick={() => setMenuOpen(!menuOpen)} style={{ width:36, height:36, borderRadius:8, background:"rgba(201,168,76,0.1)", border:"1px solid rgba(201,168,76,0.25)", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}>
-              {menuOpen ? <X size={16} color="#f5d780" /> : <Menu size={16} color="#f5d780" />}
-            </button>
-          </div>
+          {/* Mobile: login + hamburger — hidden on desktop */}
+          {isMobile && (
+            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+              <a href="/login" style={{ padding:"7px 14px", borderRadius:8, fontSize:12, fontWeight:700, color:"#0a0a0a", textDecoration:"none", background:gold }}>লগইন</a>
+              <button onClick={() => setMenuOpen(!menuOpen)} style={{ width:36, height:36, borderRadius:8, background:"rgba(201,168,76,0.1)", border:"1px solid rgba(201,168,76,0.25)", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}>
+                {menuOpen ? <X size={16} color="#f5d780" /> : <Menu size={16} color="#f5d780" />}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Mobile dropdown */}
-        {menuOpen && (
-          <div style={{ backgroundColor:"rgba(10,10,10,0.98)", borderTop:"1px solid rgba(201,168,76,0.12)", padding:"8px 20px 16px" }} className="nav-mobile">
+        {isMobile && menuOpen && (
+          <div style={{ backgroundColor:"rgba(10,10,10,0.98)", borderTop:"1px solid rgba(201,168,76,0.12)", padding:"8px 20px 16px" }}>
             {navLinks.map(([l,h]) => (
               <a key={l} href={h} onClick={() => setMenuOpen(false)} style={{ display:"block", padding:"13px 0", borderBottom:"1px solid rgba(201,168,76,0.07)", fontSize:15, color:"rgba(255,255,255,0.7)", textDecoration:"none", fontFamily:"'DM Sans', sans-serif" }}>{l}</a>
             ))}
@@ -140,8 +144,7 @@ export default function Index() {
           <div style={{ animation:"fadeDown 0.8s 0.1s ease both", marginBottom:"clamp(20px,4vw,40px)" }}>
             <div style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"8px clamp(14px,3vw,24px)", borderRadius:100, border:"1px solid rgba(201,168,76,0.45)", background:"linear-gradient(135deg, rgba(201,168,76,0.12), rgba(201,168,76,0.05))", fontSize:"clamp(9px,2.2vw,12px)", fontWeight:600, color:"#f5d780", letterSpacing:"0.06em" }}>
               <span style={{ width:5, height:5, borderRadius:"50%", background:gold, display:"inline-block", boxShadow:"0 0 8px rgba(201,168,76,0.9)", animation:"glow 2s infinite", flexShrink:0 }} />
-              <span className="badge-full">BANGLADESH'S PREMIER RESTAURANT SOLUTION</span>
-              <span className="badge-short">RESTAURANT SOLUTION</span>
+              {isMobile ? "RESTAURANT SOLUTION" : "BANGLADESH'S PREMIER RESTAURANT SOLUTION"}
               <span style={{ padding:"2px 8px", borderRadius:20, fontSize:9, fontWeight:700, background:"rgba(201,168,76,0.2)", color:"#f5d780", letterSpacing:"0.1em", flexShrink:0 }}>NEW</span>
             </div>
           </div>
@@ -156,12 +159,8 @@ export default function Index() {
 
           {/* Headline */}
           <div style={{ animation:"fadeUp 0.8s 0.25s ease both" }}>
-            <h1 style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:"clamp(38px,9vw,108px)", fontWeight:700, lineHeight:1.05, color:"#FFFFFF", marginBottom:8, letterSpacing:"-0.02em" }}>
-              স্মার্ট রেস্টুরেন্ট
-            </h1>
-            <h1 style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:"clamp(38px,9vw,108px)", fontWeight:700, lineHeight:1.2, marginBottom:"clamp(16px,3vw,32px)", letterSpacing:"-0.02em", padding:"8px 4px", ...goldText }}>
-              অর্ডারিং সিস্টেম
-            </h1>
+            <h1 style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:"clamp(38px,9vw,108px)", fontWeight:700, lineHeight:1.05, color:"#FFFFFF", marginBottom:8, letterSpacing:"-0.02em" }}>স্মার্ট রেস্টুরেন্ট</h1>
+            <h1 style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:"clamp(38px,9vw,108px)", fontWeight:700, lineHeight:1.2, marginBottom:"clamp(16px,3vw,32px)", letterSpacing:"-0.02em", padding:"8px 4px", ...goldText }}>অর্ডারিং সিস্টেম</h1>
           </div>
 
           {/* Divider */}
@@ -192,7 +191,7 @@ export default function Index() {
             </a>
           </div>
 
-          {/* Trust badges */}
+          {/* Trust */}
           <div style={{ display:"flex", gap:"clamp(12px,4vw,28px)", justifyContent:"center", flexWrap:"wrap", animation:"fadeUp 0.8s 0.65s ease both" }}>
             {["✓ ৭ দিন ফ্রি ট্রায়াল","✓ ক্রেডিট কার্ড লাগবে না","✓ যেকোনো সময় বাতিল"].map((t,i) => (
               <span key={i} style={{ fontSize:"clamp(10px,2.5vw,13px)", color:"rgba(245,215,128,0.75)", fontFamily:"'DM Sans', sans-serif", fontWeight:500 }}>{t}</span>
@@ -207,28 +206,24 @@ export default function Index() {
           <Reveal>
             <div style={{ textAlign:"center", marginBottom:"clamp(36px,6vw,72px)" }}>
               <div style={{ fontSize:11, letterSpacing:"0.4em", color:"#f5d780", textTransform:"uppercase", fontFamily:"monospace", marginBottom:14, fontWeight:600 }}>✦ কিভাবে কাজ করে ✦</div>
-              <h2 style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:"clamp(30px,5vw,60px)", fontWeight:700, color:"#FFFFFF", marginBottom:14 }}>
-                তিনটি সহজ{" "}<span style={goldText}>ধাপ</span>
-              </h2>
+              <h2 style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:"clamp(30px,5vw,60px)", fontWeight:700, color:"#FFFFFF", marginBottom:14 }}>তিনটি সহজ{" "}<span style={goldText}>ধাপ</span></h2>
               <p style={{ fontSize:"clamp(13px,3vw,16px)", color:"rgba(255,255,255,0.65)", maxWidth:380, margin:"0 auto", fontFamily:"'DM Sans', sans-serif" }}>মিনিটের মধ্যে আপনার রেস্টুরেন্ট ডিজিটাল হয়ে যাক</p>
             </div>
           </Reveal>
-
-          <div className="steps-grid">
+          <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3,1fr)", gap: isMobile ? 12 : 2 }}>
             {[
               { emoji:"📱", step:"01", title:"QR স্ক্যান করুন", desc:"টেবিলের QR স্ক্যান করলেই মেনু — কোনো অ্যাপ লাগবে না!" },
               { emoji:"🍽️", step:"02", title:"অর্ডার দিন", desc:"পছন্দের খাবার বেছে এক ক্লিকে অর্ডার। প্রতিটি সিটে আলাদা অর্ডার!" },
               { emoji:"⚡", step:"03", title:"রিয়েলটাইম আপডেট", desc:"রান্নাঘর সাথে সাথে অর্ডার পায়। স্ট্যাটাস রিয়েলটাইমে ট্র্যাক করুন!" },
             ].map((f, i) => (
               <Reveal key={i} delay={i * 0.15}>
-                <div style={{ padding:"clamp(28px,5vw,44px) clamp(20px,4vw,36px)", backgroundColor:"#141414", border:"1px solid rgba(201,168,76,0.15)", transition:"all 0.4s", position:"relative", overflow:"hidden", borderRadius:4 }}
+                <div style={{ padding:"clamp(28px,5vw,44px) clamp(20px,4vw,36px)", backgroundColor:"#141414", border:"1px solid rgba(201,168,76,0.15)", transition:"all 0.4s", position:"relative", overflow:"hidden", borderRadius: isMobile ? 12 : 4, marginBottom: isMobile ? 0 : 0 }}
                   onMouseEnter={e => { e.currentTarget.style.backgroundColor="#1a1a1a"; e.currentTarget.style.borderColor="rgba(201,168,76,0.4)"; }}
                   onMouseLeave={e => { e.currentTarget.style.backgroundColor="#141414"; e.currentTarget.style.borderColor="rgba(201,168,76,0.15)"; }}>
                   <div style={{ position:"absolute", top:20, right:20, fontFamily:"monospace", fontSize:44, fontWeight:800, color:"rgba(201,168,76,0.1)", lineHeight:1 }}>{f.step}</div>
                   <div style={{ fontSize:40, marginBottom:20 }}>{f.emoji}</div>
                   <div style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:"clamp(18px,3vw,24px)", fontWeight:700, color:"#FFFFFF", marginBottom:10 }}>{f.title}</div>
                   <div style={{ fontSize:"clamp(13px,2.5vw,15px)", color:"rgba(255,255,255,0.7)", lineHeight:1.8, fontFamily:"'DM Sans', sans-serif" }}>{f.desc}</div>
-                  <div style={{ position:"absolute", bottom:0, left:0, right:0, height:2, background:gold, opacity:0, transition:"opacity 0.3s" }} />
                 </div>
               </Reveal>
             ))}
@@ -242,13 +237,10 @@ export default function Index() {
           <Reveal>
             <div style={{ textAlign:"center", marginBottom:"clamp(36px,6vw,72px)" }}>
               <div style={{ fontSize:11, letterSpacing:"0.4em", color:"#f5d780", textTransform:"uppercase", fontFamily:"monospace", marginBottom:14, fontWeight:600 }}>✦ সুবিধাসমূহ ✦</div>
-              <h2 style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:"clamp(30px,5vw,60px)", fontWeight:700, color:"#FFFFFF" }}>
-                সব কিছু <span style={goldText}>এক জায়গায়</span>
-              </h2>
+              <h2 style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:"clamp(30px,5vw,60px)", fontWeight:700, color:"#FFFFFF" }}>সব কিছু <span style={goldText}>এক জায়গায়</span></h2>
             </div>
           </Reveal>
-
-          <div className="features-grid">
+          <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3,1fr)", gap:1 }}>
             {[
               { emoji:"📱", title:"QR ডিজিটাল মেনু", desc:"টেবিলে QR রাখুন — স্ক্যান করলেই সুন্দর মেনু।" },
               { emoji:"⚡", title:"রিয়েলটাইম অর্ডার", desc:"অর্ডার হওয়ার সাথে সাথে কিচেনে চলে যায়।" },
@@ -258,7 +250,7 @@ export default function Index() {
               { emoji:"🏢", title:"মাল্টি-ব্রাঞ্চ", desc:"একাধিক রেস্টুরেন্ট একটি account থেকে পরিচালনা।" },
             ].map((f, i) => (
               <Reveal key={i} delay={i * 0.07}>
-                <div style={{ padding:"clamp(22px,4vw,32px) clamp(18px,3vw,28px)", backgroundColor:"#111111", border:"1px solid rgba(201,168,76,0.12)", transition:"all 0.3s", cursor:"default" }}
+                <div style={{ padding:"clamp(22px,4vw,32px) clamp(18px,3vw,28px)", backgroundColor:"#111111", border:"1px solid rgba(201,168,76,0.12)", transition:"all 0.3s", cursor:"default", marginBottom: isMobile ? 2 : 0 }}
                   onMouseEnter={e => { e.currentTarget.style.backgroundColor="#161616"; e.currentTarget.style.borderColor="rgba(201,168,76,0.35)"; e.currentTarget.style.transform="translateY(-3px)"; }}
                   onMouseLeave={e => { e.currentTarget.style.backgroundColor="#111111"; e.currentTarget.style.borderColor="rgba(201,168,76,0.12)"; e.currentTarget.style.transform="translateY(0)"; }}>
                   <div style={{ fontSize:28, marginBottom:14 }}>{f.emoji}</div>
@@ -277,14 +269,11 @@ export default function Index() {
           <Reveal>
             <div style={{ textAlign:"center", marginBottom:"clamp(36px,6vw,72px)" }}>
               <div style={{ fontSize:11, letterSpacing:"0.4em", color:"#f5d780", textTransform:"uppercase", fontFamily:"monospace", marginBottom:14, fontWeight:600 }}>✦ মূল্য পরিকল্পনা ✦</div>
-              <h2 style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:"clamp(30px,5vw,60px)", fontWeight:700, color:"#FFFFFF", marginBottom:10 }}>
-                সাশ্রয়ী <span style={goldText}>প্রাইসিং</span>
-              </h2>
+              <h2 style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:"clamp(30px,5vw,60px)", fontWeight:700, color:"#FFFFFF", marginBottom:10 }}>সাশ্রয়ী <span style={goldText}>প্রাইসিং</span></h2>
               <p style={{ fontSize:"clamp(13px,3vw,16px)", color:"rgba(255,255,255,0.65)", fontFamily:"'DM Sans', sans-serif" }}>আপনার রেস্টুরেন্টের আকার অনুযায়ী প্ল্যান বেছে নিন</p>
             </div>
           </Reveal>
-
-          <div className="pricing-grid">
+          <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3,1fr)", gap:20 }}>
             {[
               { name:"বেসিক", price:"৩৯৯", desc:"ছোট রেস্টুরেন্টের জন্য", features:["৫০টি মেনু আইটেম","৫টি টেবিল","৩ জন স্টাফ","QR অর্ডারিং","রিয়েলটাইম নোটিফিকেশন"], hot:false, delay:0 },
               { name:"প্রিমিয়াম", price:"৬৯৯", desc:"বড় রেস্টুরেন্টের সেরা চয়েস", features:["২০০টি মেনু আইটেম","২০টি টেবিল","১৫ জন স্টাফ","সব বেসিক ফিচার","অ্যানালিটিক্স ড্যাশবোর্ড","প্রায়োরিটি সাপোর্ট"], hot:true, delay:0.1 },
@@ -294,9 +283,7 @@ export default function Index() {
                 <div style={{ borderRadius:20, padding:"clamp(28px,5vw,40px) clamp(20px,4vw,32px)", backgroundColor: p.hot ? "#141414" : "#111111", border: p.hot ? "1px solid rgba(201,168,76,0.5)" : "1px solid rgba(201,168,76,0.15)", boxShadow: p.hot ? "0 0 60px rgba(201,168,76,0.1), inset 0 1px 0 rgba(201,168,76,0.2)" : "none", position:"relative", display:"flex", flexDirection:"column", transition:"all 0.3s" }}
                   onMouseEnter={e => { e.currentTarget.style.transform="translateY(-4px)"; }}
                   onMouseLeave={e => { e.currentTarget.style.transform="translateY(0)"; }}>
-                  {p.hot && (
-                    <div style={{ position:"absolute", top:-14, left:"50%", transform:"translateX(-50%)", padding:"5px 18px", borderRadius:100, fontSize:11, fontWeight:700, background:gold, color:"#0a0a0a", letterSpacing:"0.05em", boxShadow:"0 4px 20px rgba(201,168,76,0.4)", whiteSpace:"nowrap", fontFamily:"'DM Sans', sans-serif" }}>✦ সবচেয়ে জনপ্রিয়</div>
-                  )}
+                  {p.hot && <div style={{ position:"absolute", top:-14, left:"50%", transform:"translateX(-50%)", padding:"5px 18px", borderRadius:100, fontSize:11, fontWeight:700, background:gold, color:"#0a0a0a", letterSpacing:"0.05em", boxShadow:"0 4px 20px rgba(201,168,76,0.4)", whiteSpace:"nowrap", fontFamily:"'DM Sans', sans-serif" }}>✦ সবচেয়ে জনপ্রিয়</div>}
                   <div style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:24, fontWeight:700, color: p.hot ? "#f5d780" : "#FFFFFF", marginBottom:4, marginTop: p.hot ? 8 : 0 }}>{p.name}</div>
                   <div style={{ fontSize:13, color:"rgba(255,255,255,0.55)", marginBottom:24, fontFamily:"'DM Sans', sans-serif" }}>{p.desc}</div>
                   <div style={{ marginBottom:28, display:"flex", alignItems:"baseline", gap:4 }}>
@@ -313,15 +300,14 @@ export default function Index() {
                     ))}
                   </div>
                   <a href="/login" style={{ display:"block", textAlign:"center", padding:"13px", borderRadius:10, fontSize:14, fontWeight:700, textDecoration:"none", background: p.hot ? gold : "transparent", color: p.hot ? "#0a0a0a" : "#f5d780", border: p.hot ? "none" : "1px solid rgba(201,168,76,0.4)", boxShadow: p.hot ? "0 6px 24px rgba(201,168,76,0.3)" : "none", fontFamily:"'DM Sans', sans-serif", transition:"all 0.2s" }}
-                    onMouseEnter={e => { e.currentTarget.style.opacity="0.85"; e.currentTarget.style.transform="translateY(-1px)"; }}
-                    onMouseLeave={e => { e.currentTarget.style.opacity="1"; e.currentTarget.style.transform="translateY(0)"; }}>
+                    onMouseEnter={e => { e.currentTarget.style.opacity="0.85"; }}
+                    onMouseLeave={e => { e.currentTarget.style.opacity="1"; }}>
                     শুরু করুন →
                   </a>
                 </div>
               </Reveal>
             ))}
           </div>
-
           <Reveal delay={0.35}>
             <p style={{ textAlign:"center", color:"rgba(245,215,128,0.65)", fontSize:"clamp(12px,2.5vw,14px)", marginTop:28, fontFamily:"'DM Sans', sans-serif" }}>
               ✦ সব প্ল্যানে <span style={{ color:"#f5d780", fontWeight:700 }}>৭ দিনের ফ্রি ট্রায়াল</span> — কোনো ক্রেডিট কার্ড লাগবে না
@@ -362,8 +348,7 @@ export default function Index() {
       {/* ─── NCT BAR ─── */}
       <div style={{ backgroundColor:"#060606", borderTop:"1px solid rgba(201,168,76,0.12)", padding:"12px clamp(16px,4vw,32px)", display:"flex", alignItems:"center", justifyContent:"center", gap:12, flexWrap:"wrap" }}>
         <span style={{ fontSize:9, letterSpacing:"0.3em", color:"rgba(255,255,255,0.4)", fontFamily:"monospace", textTransform:"uppercase" }}>A Product of</span>
-        <a href="https://nexcoreltd.com" target="_blank" rel="noopener noreferrer"
-          style={{ fontSize:9, letterSpacing:"0.3em", color:"rgba(201,168,76,0.65)", fontFamily:"monospace", textTransform:"uppercase", textDecoration:"none", transition:"color 0.2s" }}
+        <a href="https://nexcoreltd.com" target="_blank" rel="noopener noreferrer" style={{ fontSize:9, letterSpacing:"0.3em", color:"rgba(201,168,76,0.65)", fontFamily:"monospace", textTransform:"uppercase", textDecoration:"none", transition:"color 0.2s" }}
           onMouseEnter={e => e.currentTarget.style.color="#f5d780"}
           onMouseLeave={e => e.currentTarget.style.color="rgba(201,168,76,0.65)"}>
           ⬡ NexCore Technologies Ltd.
@@ -401,56 +386,15 @@ export default function Index() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=DM+Sans:wght@400;500;600;700&display=swap');
         * { margin:0; padding:0; box-sizing:border-box; }
-
-        /* Navbar responsive */
-        .nav-desktop { display:flex; }
-        .nav-mobile  { display:none; }
-
-        /* Badge text */
-        .badge-full  { display:inline; }
-        .badge-short { display:none; }
-
-        /* Grids */
-        .steps-grid    { display:grid; grid-template-columns:repeat(3,1fr); gap:2px; }
-        .features-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:1px; }
-        .pricing-grid  { display:grid; grid-template-columns:repeat(3,1fr); gap:20px; }
-
-        @media (max-width: 768px) {
-          .nav-desktop { display:none !important; }
-          .nav-mobile  { display:flex !important; }
-          .badge-full  { display:none; }
-          .badge-short { display:inline; }
-          .steps-grid    { grid-template-columns:1fr; gap:12px; }
-          .features-grid { grid-template-columns:repeat(2,1fr); gap:1px; }
-          .pricing-grid  { grid-template-columns:1fr; gap:20px; }
-        }
-
-        @media (max-width: 480px) {
-          .features-grid { grid-template-columns:1fr; }
-        }
-
         @keyframes floatUp {
           0%   { transform:translateY(0) rotate(0deg); opacity:0; }
-          8%   { opacity:0.07; }
-          92%  { opacity:0.07; }
+          8%   { opacity:0.07; } 92% { opacity:0.07; }
           100% { transform:translateY(-110vh) rotate(360deg); opacity:0; }
         }
-        @keyframes fadeUp {
-          from { opacity:0; transform:translateY(28px); }
-          to   { opacity:1; transform:translateY(0); }
-        }
-        @keyframes fadeDown {
-          from { opacity:0; transform:translateY(-16px); }
-          to   { opacity:1; transform:translateY(0); }
-        }
-        @keyframes pulse {
-          0%,100% { opacity:0.12; transform:scale(1); }
-          50%     { opacity:0.22; transform:scale(1.05); }
-        }
-        @keyframes glow {
-          0%,100% { box-shadow:0 0 8px rgba(201,168,76,0.9); }
-          50%     { box-shadow:0 0 18px rgba(201,168,76,1); }
-        }
+        @keyframes fadeUp { from { opacity:0; transform:translateY(28px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes fadeDown { from { opacity:0; transform:translateY(-16px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes pulse { 0%,100% { opacity:0.12; transform:scale(1); } 50% { opacity:0.22; transform:scale(1.05); } }
+        @keyframes glow { 0%,100% { box-shadow:0 0 8px rgba(201,168,76,0.9); } 50% { box-shadow:0 0 18px rgba(201,168,76,1); } }
         html { scroll-behavior:smooth; }
       `}</style>
     </div>
