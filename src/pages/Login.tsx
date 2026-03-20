@@ -441,12 +441,6 @@ const Login = () => {
         input::placeholder { color: rgba(255,255,255,0.25); }
         input:-webkit-autofill { -webkit-box-shadow: 0 0 0 1000px #111 inset !important; -webkit-text-fill-color: #fff !important; }
         @keyframes spin { to { transform: rotate(360deg); } }
-        .lg-flex { display: none !important; }
-        .lg-hide { display: flex !important; }
-        @media (min-width: 1024px) {
-          .lg-flex { display: flex !important; }
-          .lg-hide { display: none !important; }
-        }
       `}</style>
     </div>
   );
