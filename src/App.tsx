@@ -30,6 +30,9 @@ import CustomerMenu from "./pages/CustomerMenu";
 import CustomerSeatSelect from "./pages/CustomerSeatSelect";
 import TrialExpired from "./pages/TrialExpired";
 import ShortCodeRedirect from "./pages/ShortCodeRedirect";
+import Pricing from "./pages/Pricing";
+import Features from "./pages/Features";
+import Demo from "./pages/Demo";
 
 const queryClient = new QueryClient();
 
@@ -45,6 +48,9 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/admin-setup" element={<AdminSetup />} />
+            <Route path="/pricing" element={<Pricing />} />
+            <Route path="/features" element={<Features />} />
+            <Route path="/demo" element={<Demo />} />
 
             {/* Super Admin */}
             <Route path="/super-admin" element={<ProtectedRoute allowedRoles={["super_admin"]}><SuperAdminDashboard /></ProtectedRoute>} />
