@@ -223,7 +223,7 @@ const Login = () => {
         <div style={{ width: "100%", maxWidth: 440 }}>
 
           {/* Mobile logo */}
-          <div style={{ display: "flex", justifyContent: "center", marginBottom: 36 }} className="lg-hide">
+          <div style={{ justifyContent: "center", marginBottom: 36 }} className="flex lg:hidden">
             <Logo size="sm" />
           </div>
 
