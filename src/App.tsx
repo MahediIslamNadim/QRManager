@@ -30,6 +30,9 @@ import CustomerMenu from "./pages/CustomerMenu";
 import CustomerSeatSelect from "./pages/CustomerSeatSelect";
 import TrialExpired from "./pages/TrialExpired";
 import ShortCodeRedirect from "./pages/ShortCodeRedirect";
+import Pricing from "./pages/Pricing";
+import Features from "./pages/Features";
+import Demo from "./pages/Demo";
 
 const queryClient = new QueryClient();
 
