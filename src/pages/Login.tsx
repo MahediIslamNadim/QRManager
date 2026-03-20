@@ -177,11 +177,11 @@ const Login = () => {
 
       {/* ── LEFT PANEL ── */}
       <div style={{
-        display: "none", width: "52%", position: "relative", overflow: "hidden",
+        width: "52%", position: "relative", overflow: "hidden",
         flexDirection: "column", justifyContent: "space-between", padding: "48px",
         background: "linear-gradient(145deg, #0d0d0d 0%, #0f0c07 60%, #0a0a0a 100%)",
         borderRight: "1px solid rgba(201,168,76,0.1)",
-      }} className="lg:flex">
+      }} className="hidden lg:flex">
         <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
           <div style={{ position: "absolute", top: "-5%", right: "-10%", width: 500, height: 500, borderRadius: "50%", background: "radial-gradient(circle, rgba(201,168,76,0.07) 0%, transparent 65%)" }} />
           <div style={{ position: "absolute", bottom: "-10%", left: "-5%", width: 400, height: 400, borderRadius: "50%", background: "radial-gradient(circle, rgba(201,168,76,0.04) 0%, transparent 65%)" }} />
