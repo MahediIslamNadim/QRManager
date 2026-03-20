@@ -230,7 +230,7 @@ const ResetPassword = () => {
         )}
 
         <p style={{ textAlign: "center", fontSize: 11, color: "rgba(255,255,255,0.18)", marginTop: 40, letterSpacing: "0.03em" }}>
-          © {new Date().getFullYear()} Tasty QR Spot · <span style={{ color: "rgba(201,168,76,0.4)" }}>NexCore Technologies Ltd.</span>
+          © {new Date().getFullYear()} QRManager · <span style={{ color: "rgba(201,168,76,0.4)" }}>NexCore Technologies Ltd.</span>
         </p>
       </div>
 

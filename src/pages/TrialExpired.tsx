@@ -11,9 +11,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 const paidPlans = [
-  { id: "basic", name: "Basic", price: 499, priceText: "৳৪৯৯/মাস", features: ["মেনু ম্যানেজমেন্ট", "QR কোড", "অর্ডার ম্যানেজমেন্ট"] },
-  { id: "premium", name: "Premium", price: 799, priceText: "৳৭৯৯/মাস", features: ["সব Basic ফিচার", "এনালিটিক্স", "স্টাফ ম্যানেজমেন্ট", "প্রায়োরিটি সাপোর্ট"], popular: true },
-  { id: "enterprise", name: "Enterprise", price: 1299, priceText: "৳১,২৯৯/মাস", features: ["সব Premium ফিচার", "মাল্টি-ব্রাঞ্চ", "কাস্টম ব্র্যান্ডিং", "ডেডিকেটেড সাপোর্ট"] },
+  { id: "basic", name: "Basic", price: 399, priceText: "৳৩৯৯/মাস", features: ["মেনু ম্যানেজমেন্ট", "QR কোড", "অর্ডার ম্যানেজমেন্ট"] },
+  { id: "premium", name: "Premium", price: 699, priceText: "৳৬৯৯/মাস", features: ["সব Basic ফিচার", "এনালিটিক্স", "স্টাফ ম্যানেজমেন্ট", "প্রায়োরিটি সাপোর্ট"], popular: true },
+  { id: "enterprise", name: "Enterprise", price: 1199, priceText: "৳১,১৯৯/মাস", features: ["সব Premium ফিচার", "মাল্টি-ব্রাঞ্চ", "কাস্টম ব্র্যান্ডিং", "ডেডিকেটেড সাপোর্ট"] },
 ];
 
 const BKASH_NUMBER = "01786130439";
