@@ -80,7 +80,7 @@ const ResetPassword = () => {
             <UtensilsCrossed size={20} color="#0a0a0a" />
           </div>
           <div>
-            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontWeight: 700, fontSize: 18, color: "#FFFFFF" }}>Tasty QR Spot</div>
+            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontWeight: 700, fontSize: 18, color: "#FFFFFF" }}>QRManager</div>
             <div style={{ fontSize: 9, letterSpacing: "0.28em", color: "rgba(201,168,76,0.55)", textTransform: "uppercase", fontFamily: "monospace" }}>by NexCore Technologies</div>
           </div>
         </div>
