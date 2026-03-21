@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Eye, EyeOff, UtensilsCrossed, ArrowRight, KeyRound, CheckCircle } from "lucide-react";
+import { APP_NAME, COMPANY_NAME } from "@/constants/app";
 
 const ResetPassword = () => {
   const navigate = useNavigate();
