@@ -219,7 +219,7 @@ const Login = () => {
           </div>
         </div>
         <p style={{ position: "relative", zIndex: 1, fontSize: 11, color: "rgba(255,255,255,0.2)" }}>
-          © {new Date().getFullYear()} QRManager · একটি <span style={{ color: "rgba(201,168,76,0.45)" }}>NexCore Technologies Ltd.</span> পণ্য
+          © {new Date().getFullYear()} {APP_NAME} · একটি <span style={{ color: "rgba(201,168,76,0.45)" }}>{COMPANY_NAME}</span> পণ্য
         </p>
       </div>
 
