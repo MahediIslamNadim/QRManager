@@ -77,7 +77,7 @@ const Login = () => {
         if (data.user) {
           const isBasicPlan = selectedPlan === "basic";
           const trialEndsAt = new Date();
-          if (isBasicPlan) trialEndsAt.setDate(trialEndsAt.getDate() + 7);
+          if (isBasicPlan) trialEndsAt.setDate(trialEndsAt.getDate() + FREE_TRIAL_DAYS);
           else trialEndsAt.setDate(trialEndsAt.getDate() - 1);
 
           const { data: restaurant, error: restError } = await supabase
