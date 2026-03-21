@@ -203,9 +203,9 @@ const AdminSettings = () => {
                   const price = billingCycle === "monthly" ? plan.monthlyPrice : plan.yearlyPrice;
                   const isCurrentPlan = currentPlan === plan.id;
                   return (
-                    <Card key={plan.id} className={`relative overflow-hidden transition-all duration-300 hover:shadow-lg ${plan.popular ? "border-primary/50 shadow-primary/10 shadow-lg" : ""} ${isCurrentPlan ? "ring-2 ring-primary" : ""}`}>
-                      {plan.popular && <div className="absolute top-0 left-0 right-0 h-1 bg-primary" />}
-                      {plan.popular && (
+                    <Card key={plan.id} className={`relative overflow-hidden transition-all duration-300 hover:shadow-lg ${'popular' in plan && plan.popular ? "border-primary/50 shadow-primary/10 shadow-lg" : ""} ${isCurrentPlan ? "ring-2 ring-primary" : ""}`}>
+                      {'popular' in plan && plan.popular && <div className="absolute top-0 left-0 right-0 h-1 bg-primary" />}
+                      {'popular' in plan && plan.popular && (
                         <div className="absolute top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold whitespace-nowrap">
                           জনপ্রিয়
                         </div>
