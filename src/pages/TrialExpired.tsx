@@ -9,12 +9,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AlertTriangle, Crown, LogOut, CheckCircle, Loader2, Smartphone, Zap, Gift } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { FREE_TRIAL_DAYS } from "@/constants/app";
+import { PLANS_LIST } from "@/constants/pricing";
 
-const paidPlans = [
-  { id: "basic", name: "Basic", price: 399, priceText: "৳৩৯৯/মাস", features: ["মেনু ম্যানেজমেন্ট", "QR কোড", "অর্ডার ম্যানেজমেন্ট"] },
-  { id: "premium", name: "Premium", price: 699, priceText: "৳৬৯৯/মাস", features: ["সব Basic ফিচার", "এনালিটিক্স", "স্টাফ ম্যানেজমেন্ট", "প্রায়োরিটি সাপোর্ট"], popular: true },
-  { id: "enterprise", name: "Enterprise", price: 1199, priceText: "৳১,১৯৯/মাস", features: ["সব Premium ফিচার", "মাল্টি-ব্রাঞ্চ", "কাস্টম ব্র্যান্ডিং", "ডেডিকেটেড সাপোর্ট"] },
-];
+const paidPlans = PLANS_LIST.map(p => ({
+  id: p.id,
+  name: p.name,
+  price: p.monthlyPrice,
+  priceText: p.priceText,
+  features: p.features.slice(0, 4),
+  popular: 'popular' in p ? (p as any).popular : false,
+}));
 
 const BKASH_NUMBER = "01786130439";
 const NAGAD_NUMBER = "01786130439";
