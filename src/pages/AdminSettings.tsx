@@ -10,34 +10,12 @@ import { User, Store, Save, Loader2, CreditCard, Check, Crown, Copy, AlertCircle
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { PLANS_LIST } from "@/constants/pricing";
 
 // ✅ আপনার bKash নম্বর এখানে দিন
 const BKASH_NUMBER = "01786130439";
 
-const plans = [
-  {
-    id: "basic",
-    name: "বেসিক",
-    monthlyPrice: 399,
-    yearlyPrice: 3990,
-    features: ["৫০ টি মেনু আইটেম", "৫ টি টেবিল", "QR কোড মেনু", "বেসিক রিপোর্ট"],
-  },
-  {
-    id: "premium",
-    name: "প্রিমিয়াম",
-    monthlyPrice: 699,
-    yearlyPrice: 6990,
-    popular: true,
-    features: ["২০০ টি মেনু আইটেম", "২০ টি টেবিল", "রিয়েলটাইম অর্ডার", "অ্যাডভান্সড অ্যানালিটিক্স", "ওয়েটার ম্যানেজমেন্ট"],
-  },
-  {
-    id: "enterprise",
-    name: "এন্টারপ্রাইজ",
-    monthlyPrice: 1199,
-    yearlyPrice: 11990,
-    features: ["সব প্রিমিয়াম ফিচার", "আনলিমিটেড টেবিল", "মাল্টি-ব্রাঞ্চ সাপোর্ট", "ডেডিকেটেড সাপোর্ট", "কাস্টম ব্র্যান্ডিং"],
-  },
-];
+const plans = PLANS_LIST;
 
 const AdminSettings = () => {
   const { user, restaurantId } = useAuth();
