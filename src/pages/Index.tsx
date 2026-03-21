@@ -195,7 +195,7 @@ export default function Index() {
 
           {/* Trust */}
           <div style={{ display:"flex", gap:"clamp(12px,4vw,28px)", justifyContent:"center", flexWrap:"wrap", animation:"fadeUp 0.8s 0.65s ease both" }}>
-            {["✓ ৭ দিন ফ্রি ট্রায়াল","✓ ক্রেডিট কার্ড লাগবে না","✓ যেকোনো সময় বাতিল"].map((t,i) => (
+            {[`✓ ${FREE_TRIAL_DAYS} দিন ফ্রি ট্রায়াল`,"✓ ক্রেডিট কার্ড লাগবে না","✓ যেকোনো সময় বাতিল"].map((t,i) => (
               <span key={i} style={{ fontSize:"clamp(10px,2.5vw,13px)", color:"rgba(245,215,128,0.75)", fontFamily:"'DM Sans', sans-serif", fontWeight:500 }}>{t}</span>
             ))}
           </div>
