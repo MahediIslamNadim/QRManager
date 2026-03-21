@@ -140,7 +140,7 @@ const TrialExpired = () => {
               <Gift className="w-7 h-7 text-success" />
             </div>
             <div className="flex-1 text-center sm:text-left space-y-1">
-              <h3 className="text-xl font-display font-bold text-foreground">ফ্রি ট্রায়াল — ১৪ দিন</h3>
+              <h3 className="text-xl font-display font-bold text-foreground">ফ্রি ট্রায়াল — {FREE_TRIAL_DAYS} দিন</h3>
               <p className="text-muted-foreground text-sm">কোনো পেমেন্ট ছাড়াই Basic ফিচার ব্যবহার করুন। মেনু, QR কোড, অর্ডার ম্যানেজমেন্ট সব ফ্রি!</p>
               <p className="text-xs text-success font-medium">✦ কোনো টাকা লাগবে না • স্বয়ংক্রিয়ভাবে সক্রিয় হবে</p>
             </div>

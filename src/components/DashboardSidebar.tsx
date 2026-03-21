@@ -73,7 +73,7 @@ const SidebarContent = ({
         </div>
         {(!collapsed || isMobile) && (
           <span className="font-display font-bold text-sidebar-foreground text-base">
-            QRManager
+            {APP_NAME}
           </span>
         )}
         {isMobile ? (

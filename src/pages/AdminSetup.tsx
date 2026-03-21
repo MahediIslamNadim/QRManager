@@ -112,7 +112,7 @@ const AdminSetup = () => {
               <Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+880..." />
             </div>
             <div className="p-3 rounded-lg bg-success/10 border border-success/30 text-sm text-success">
-              ✦ Basic প্ল্যান — ৭ দিনের ফ্রি ট্রায়াল অটোমেটিক শুরু হবে
+              ✦ Basic প্ল্যান — {FREE_TRIAL_DAYS} দিনের ফ্রি ট্রায়াল অটোমেটিক শুরু হবে
             </div>
             <Button type="submit" variant="hero" className="w-full" disabled={submitting}>
               {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}

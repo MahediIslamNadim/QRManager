@@ -378,8 +378,8 @@ export default function Index() {
             ))}
           </div>
           <p style={{ fontSize:"clamp(11px,2.5vw,13px)", color:"rgba(255,255,255,0.35)", fontFamily:"'DM Sans', sans-serif" }}>
-            © 2025 QRManager — একটি{" "}
-            <a href="https://nexcoreltd.com" target="_blank" rel="noopener noreferrer" style={{ color:"rgba(201,168,76,0.65)", textDecoration:"none" }}>NexCore Technologies Ltd.</a>{" "}
+            © {new Date().getFullYear()} {APP_NAME} — একটি{" "}
+            <a href={COMPANY_URL} target="_blank" rel="noopener noreferrer" style={{ color:"rgba(201,168,76,0.65)", textDecoration:"none" }}>{COMPANY_NAME}</a>{" "}
             পণ্য · সকল অধিকার সংরক্ষিত
           </p>
         </div>
