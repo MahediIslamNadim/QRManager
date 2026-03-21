@@ -1,5 +1,7 @@
 import { UtensilsCrossed, ArrowRight, Star, Menu, X } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
+import { APP_NAME, COMPANY_NAME, COMPANY_URL, FREE_TRIAL_DAYS } from "@/constants/app";
+import { PLANS_LIST } from "@/constants/pricing";
 
 const floatingEmojis = ["🍛","🍕","🍜","🥘","🍱","🥗","🍔","🍣","🧁","🍝","🌮","🥩"];
 interface FE { id:number; emoji:string; left:number; delay:number; duration:number; size:number; }
