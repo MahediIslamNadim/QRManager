@@ -1,4 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
+import { APP_NAME } from "@/constants/app";
 import {
   LayoutDashboard, UtensilsCrossed, Store, Users, BarChart3,
   CreditCard, Menu, QrCode, ShoppingCart, UserCheck, Bell,
@@ -72,7 +73,7 @@ const SidebarContent = ({
         </div>
         {(!collapsed || isMobile) && (
           <span className="font-display font-bold text-sidebar-foreground text-base">
-            QRManager
+            {APP_NAME}
           </span>
         )}
         {isMobile ? (

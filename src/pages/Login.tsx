@@ -7,12 +7,17 @@ import {
   Eye, EyeOff, ArrowRight,
   QrCode, Zap, ShieldCheck, ChevronDown, KeyRound, ArrowLeft
 } from "lucide-react";
+import { APP_NAME, COMPANY_NAME, COMPANY_URL, FREE_TRIAL_DAYS } from "@/constants/app";
+import { PRICING, PLANS_LIST } from "@/constants/pricing";
 
-const PLANS = [
-  { id: "basic", label: "বেসিক", price: "৩৯৯", trial: true, desc: "৭ দিন ফ্রি ট্রায়াল", features: ["৫০টি মেনু আইটেম", "৫টি টেবিল", "৩ জন স্টাফ"] },
-  { id: "premium", label: "প্রিমিয়াম", price: "৬৯৯", trial: false, desc: "পেমেন্ট প্রয়োজন", features: ["২০০টি মেনু আইটেম", "২০টি টেবিল", "১৫ জন স্টাফ"] },
-  { id: "enterprise", label: "এন্টারপ্রাইজ", price: "১,১৯৯", trial: false, desc: "পেমেন্ট প্রয়োজন", features: ["আনলিমিটেড সব", "মাল্টি-ব্রাঞ্চ", "ডেডিকেটেড সাপোর্ট"] },
-];
+const PLANS = PLANS_LIST.map(p => ({
+  id: p.id,
+  label: p.name,
+  price: p.priceBn,
+  trial: p.id === "basic",
+  desc: p.id === "basic" ? `${FREE_TRIAL_DAYS} দিন ফ্রি ট্রায়াল` : "পেমেন্ট প্রয়োজন",
+  features: p.features.slice(0, 3),
+}));
 
 type Mode = "login" | "signup" | "forgot" | "forgot_sent";
 
@@ -72,7 +77,7 @@ const Login = () => {
         if (data.user) {
           const isBasicPlan = selectedPlan === "basic";
           const trialEndsAt = new Date();
-          if (isBasicPlan) trialEndsAt.setDate(trialEndsAt.getDate() + 7);
+          if (isBasicPlan) trialEndsAt.setDate(trialEndsAt.getDate() + FREE_TRIAL_DAYS);
           else trialEndsAt.setDate(trialEndsAt.getDate() - 1);
 
           const { data: restaurant, error: restError } = await supabase
@@ -166,8 +171,8 @@ const Login = () => {
         fontFamily: "'DM Sans', sans-serif", letterSpacing: "-0.02em",
       }}>QR</div>
       <div>
-        <div style={{ fontFamily: "'Cormorant Garamond', serif", fontWeight: 700, fontSize: size === "sm" ? 17 : 20, color: "#FFFFFF" }}>QRManager</div>
-        <div style={{ fontSize: 9, letterSpacing: "0.3em", color: "rgba(201,168,76,0.6)", textTransform: "uppercase", fontFamily: "monospace" }}>by NexCore Technologies</div>
+        <div style={{ fontFamily: "'Cormorant Garamond', serif", fontWeight: 700, fontSize: size === "sm" ? 17 : 20, color: "#FFFFFF" }}>{APP_NAME}</div>
+        <div style={{ fontSize: 9, letterSpacing: "0.3em", color: "rgba(201,168,76,0.6)", textTransform: "uppercase", fontFamily: "monospace" }}>by {COMPANY_NAME.replace(" Ltd.", "")}</div>
       </div>
     </div>
   );
@@ -214,7 +219,7 @@ const Login = () => {
           </div>
         </div>
         <p style={{ position: "relative", zIndex: 1, fontSize: 11, color: "rgba(255,255,255,0.2)" }}>
-          © {new Date().getFullYear()} QRManager · একটি <span style={{ color: "rgba(201,168,76,0.45)" }}>NexCore Technologies Ltd.</span> পণ্য
+          © {new Date().getFullYear()} {APP_NAME} · একটি <span style={{ color: "rgba(201,168,76,0.45)" }}>{COMPANY_NAME}</span> পণ্য
         </p>
       </div>
 
@@ -286,7 +291,7 @@ const Login = () => {
                   {mode === "signup" ? "শুরু করুন" : "স্বাগতম 👋"}
                 </h2>
                 <p style={{ fontSize: 14, color: "rgba(255,255,255,0.45)" }}>
-                  {mode === "signup" ? "QRManager এ নতুন অ্যাকাউন্ট তৈরি করুন • ৭ দিন ফ্রি ট্রায়াল" : "QRManager ড্যাশবোর্ডে লগইন করুন"}
+                  {mode === "signup" ? `${APP_NAME} এ নতুন অ্যাকাউন্ট তৈরি করুন • ${FREE_TRIAL_DAYS} দিন ফ্রি ট্রায়াল` : `${APP_NAME} ড্যাশবোর্ডে লগইন করুন`}
                 </p>
               </div>
 
@@ -430,7 +435,7 @@ const Login = () => {
           )}
 
           <p style={{ textAlign: "center", fontSize: 11, color: "rgba(255,255,255,0.18)", marginTop: 32, letterSpacing: "0.03em" }}>
-            © {new Date().getFullYear()} QRManager · <span style={{ color: "rgba(201,168,76,0.4)" }}>NexCore Technologies Ltd.</span>
+            © {new Date().getFullYear()} {APP_NAME} · <span style={{ color: "rgba(201,168,76,0.4)" }}>{COMPANY_NAME}</span>
           </p>
         </div>
       </div>

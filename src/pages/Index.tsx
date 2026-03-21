@@ -1,5 +1,7 @@
 import { UtensilsCrossed, ArrowRight, Star, Menu, X } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
+import { APP_NAME, COMPANY_NAME, COMPANY_URL, FREE_TRIAL_DAYS } from "@/constants/app";
+import { PLANS_LIST } from "@/constants/pricing";
 
 const floatingEmojis = ["🍛","🍕","🍜","🥘","🍱","🥗","🍔","🍣","🧁","🍝","🌮","🥩"];
 interface FE { id:number; emoji:string; left:number; delay:number; duration:number; size:number; }
@@ -74,8 +76,8 @@ export default function Index() {
               <UtensilsCrossed size={19} color="#0a0a0a" />
             </div>
             <div>
-              <div style={{ fontFamily:"'Cormorant Garamond', serif", fontWeight:700, fontSize:"clamp(16px,4vw,20px)", color:"#FFFFFF", letterSpacing:"0.02em" }}>QRManager</div>
-              <div style={{ fontSize:7, letterSpacing:"0.25em", color:"rgba(201,168,76,0.7)", textTransform:"uppercase", fontFamily:"monospace" }}>by NexCore Technologies</div>
+              <div style={{ fontFamily:"'Cormorant Garamond', serif", fontWeight:700, fontSize:"clamp(16px,4vw,20px)", color:"#FFFFFF", letterSpacing:"0.02em" }}>{APP_NAME}</div>
+              <div style={{ fontSize:7, letterSpacing:"0.25em", color:"rgba(201,168,76,0.7)", textTransform:"uppercase", fontFamily:"monospace" }}>by {COMPANY_NAME.replace(" Ltd.", "")}</div>
             </div>
           </div>
 
@@ -193,7 +195,7 @@ export default function Index() {
 
           {/* Trust */}
           <div style={{ display:"flex", gap:"clamp(12px,4vw,28px)", justifyContent:"center", flexWrap:"wrap", animation:"fadeUp 0.8s 0.65s ease both" }}>
-            {["✓ ৭ দিন ফ্রি ট্রায়াল","✓ ক্রেডিট কার্ড লাগবে না","✓ যেকোনো সময় বাতিল"].map((t,i) => (
+            {[`✓ ${FREE_TRIAL_DAYS} দিন ফ্রি ট্রায়াল`,"✓ ক্রেডিট কার্ড লাগবে না","✓ যেকোনো সময় বাতিল"].map((t,i) => (
               <span key={i} style={{ fontSize:"clamp(10px,2.5vw,13px)", color:"rgba(245,215,128,0.75)", fontFamily:"'DM Sans', sans-serif", fontWeight:500 }}>{t}</span>
             ))}
           </div>
@@ -310,7 +312,7 @@ export default function Index() {
           </div>
           <Reveal delay={0.35}>
             <p style={{ textAlign:"center", color:"rgba(245,215,128,0.65)", fontSize:"clamp(12px,2.5vw,14px)", marginTop:28, fontFamily:"'DM Sans', sans-serif" }}>
-              ✦ সব প্ল্যানে <span style={{ color:"#f5d780", fontWeight:700 }}>৭ দিনের ফ্রি ট্রায়াল</span> — কোনো ক্রেডিট কার্ড লাগবে না
+              ✦ সব প্ল্যানে <span style={{ color:"#f5d780", fontWeight:700 }}>{FREE_TRIAL_DAYS} দিনের ফ্রি ট্রায়াল</span> — কোনো ক্রেডিট কার্ড লাগবে না
             </p>
           </Reveal>
         </div>
@@ -364,8 +366,8 @@ export default function Index() {
               <UtensilsCrossed size={16} color="#0a0a0a" />
             </div>
             <div style={{ textAlign:"left" }}>
-              <div style={{ fontFamily:"'Cormorant Garamond', serif", fontWeight:700, fontSize:17, color:"#f5d780" }}>QRManager</div>
-              <div style={{ fontSize:7, letterSpacing:"0.2em", color:"rgba(201,168,76,0.55)", textTransform:"uppercase", fontFamily:"monospace" }}>by NexCore Technologies</div>
+              <div style={{ fontFamily:"'Cormorant Garamond', serif", fontWeight:700, fontSize:17, color:"#f5d780" }}>{APP_NAME}</div>
+              <div style={{ fontSize:7, letterSpacing:"0.2em", color:"rgba(201,168,76,0.55)", textTransform:"uppercase", fontFamily:"monospace" }}>by {COMPANY_NAME.replace(" Ltd.", "")}</div>
             </div>
           </div>
           <div style={{ display:"flex", justifyContent:"center", gap:"clamp(16px,4vw,32px)", flexWrap:"wrap", marginBottom:20 }}>
@@ -376,8 +378,8 @@ export default function Index() {
             ))}
           </div>
           <p style={{ fontSize:"clamp(11px,2.5vw,13px)", color:"rgba(255,255,255,0.35)", fontFamily:"'DM Sans', sans-serif" }}>
-            © 2025 QRManager — একটি{" "}
-            <a href="https://nexcoreltd.com" target="_blank" rel="noopener noreferrer" style={{ color:"rgba(201,168,76,0.65)", textDecoration:"none" }}>NexCore Technologies Ltd.</a>{" "}
+            © {new Date().getFullYear()} {APP_NAME} — একটি{" "}
+            <a href={COMPANY_URL} target="_blank" rel="noopener noreferrer" style={{ color:"rgba(201,168,76,0.65)", textDecoration:"none" }}>{COMPANY_NAME}</a>{" "}
             পণ্য · সকল অধিকার সংরক্ষিত
           </p>
         </div>

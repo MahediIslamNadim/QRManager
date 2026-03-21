@@ -9,12 +9,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AlertTriangle, Crown, LogOut, CheckCircle, Loader2, Smartphone, Zap, Gift } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { FREE_TRIAL_DAYS } from "@/constants/app";
+import { PLANS_LIST } from "@/constants/pricing";
 
-const paidPlans = [
-  { id: "basic", name: "Basic", price: 399, priceText: "৳৩৯৯/মাস", features: ["মেনু ম্যানেজমেন্ট", "QR কোড", "অর্ডার ম্যানেজমেন্ট"] },
-  { id: "premium", name: "Premium", price: 699, priceText: "৳৬৯৯/মাস", features: ["সব Basic ফিচার", "এনালিটিক্স", "স্টাফ ম্যানেজমেন্ট", "প্রায়োরিটি সাপোর্ট"], popular: true },
-  { id: "enterprise", name: "Enterprise", price: 1199, priceText: "৳১,১৯৯/মাস", features: ["সব Premium ফিচার", "মাল্টি-ব্রাঞ্চ", "কাস্টম ব্র্যান্ডিং", "ডেডিকেটেড সাপোর্ট"] },
-];
+const paidPlans = PLANS_LIST.map(p => ({
+  id: p.id,
+  name: p.name,
+  price: p.monthlyPrice,
+  priceText: p.priceText,
+  features: p.features.slice(0, 4),
+  popular: 'popular' in p ? (p as any).popular : false,
+}));
 
 const BKASH_NUMBER = "01786130439";
 const NAGAD_NUMBER = "01786130439";
@@ -37,7 +42,7 @@ const TrialExpired = () => {
     setActivatingTrial(true);
     try {
       const trialEndsAt = new Date();
-      trialEndsAt.setDate(trialEndsAt.getDate() + 14);
+      trialEndsAt.setDate(trialEndsAt.getDate() + FREE_TRIAL_DAYS);
 
       const { error } = await supabase
         .from("restaurants")
@@ -50,7 +55,7 @@ const TrialExpired = () => {
         .eq("id", restaurantId);
 
       if (error) throw error;
-      toast.success("১৪ দিনের ফ্রি ট্রায়াল সক্রিয় হয়েছে!");
+      toast.success(`${FREE_TRIAL_DAYS} দিনের ফ্রি ট্রায়াল সক্রিয় হয়েছে!`);
       window.location.href = "/admin";
     } catch (err: any) {
       toast.error(err.message || "ট্রায়াল সক্রিয় করতে সমস্যা হয়েছে");
@@ -135,7 +140,7 @@ const TrialExpired = () => {
               <Gift className="w-7 h-7 text-success" />
             </div>
             <div className="flex-1 text-center sm:text-left space-y-1">
-              <h3 className="text-xl font-display font-bold text-foreground">ফ্রি ট্রায়াল — ১৪ দিন</h3>
+              <h3 className="text-xl font-display font-bold text-foreground">ফ্রি ট্রায়াল — {FREE_TRIAL_DAYS} দিন</h3>
               <p className="text-muted-foreground text-sm">কোনো পেমেন্ট ছাড়াই Basic ফিচার ব্যবহার করুন। মেনু, QR কোড, অর্ডার ম্যানেজমেন্ট সব ফ্রি!</p>
               <p className="text-xs text-success font-medium">✦ কোনো টাকা লাগবে না • স্বয়ংক্রিয়ভাবে সক্রিয় হবে</p>
             </div>

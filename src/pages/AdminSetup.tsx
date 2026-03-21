@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { UtensilsCrossed, ArrowRight, Loader2 } from "lucide-react";
+import { FREE_TRIAL_DAYS } from "@/constants/app";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -45,7 +46,7 @@ const AdminSetup = () => {
 
     try {
       const trialEndsAt = new Date();
-      trialEndsAt.setDate(trialEndsAt.getDate() + 7);
+      trialEndsAt.setDate(trialEndsAt.getDate() + FREE_TRIAL_DAYS);
 
       const { error: restError } = await supabase
         .from("restaurants")
@@ -111,7 +112,7 @@ const AdminSetup = () => {
               <Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+880..." />
             </div>
             <div className="p-3 rounded-lg bg-success/10 border border-success/30 text-sm text-success">
-              ✦ Basic প্ল্যান — ৭ দিনের ফ্রি ট্রায়াল অটোমেটিক শুরু হবে
+              ✦ Basic প্ল্যান — {FREE_TRIAL_DAYS} দিনের ফ্রি ট্রায়াল অটোমেটিক শুরু হবে
             </div>
             <Button type="submit" variant="hero" className="w-full" disabled={submitting}>
               {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}

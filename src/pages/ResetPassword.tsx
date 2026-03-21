@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Eye, EyeOff, UtensilsCrossed, ArrowRight, KeyRound, CheckCircle } from "lucide-react";
+import { APP_NAME, COMPANY_NAME } from "@/constants/app";
 
 const ResetPassword = () => {
   const navigate = useNavigate();
@@ -80,8 +81,8 @@ const ResetPassword = () => {
             <UtensilsCrossed size={20} color="#0a0a0a" />
           </div>
           <div>
-            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontWeight: 700, fontSize: 18, color: "#FFFFFF" }}>QRManager</div>
-            <div style={{ fontSize: 9, letterSpacing: "0.28em", color: "rgba(201,168,76,0.55)", textTransform: "uppercase", fontFamily: "monospace" }}>by NexCore Technologies</div>
+            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontWeight: 700, fontSize: 18, color: "#FFFFFF" }}>{APP_NAME}</div>
+            <div style={{ fontSize: 9, letterSpacing: "0.28em", color: "rgba(201,168,76,0.55)", textTransform: "uppercase", fontFamily: "monospace" }}>by {COMPANY_NAME.replace(" Ltd.", "")}</div>
           </div>
         </div>
 
@@ -230,7 +231,7 @@ const ResetPassword = () => {
         )}
 
         <p style={{ textAlign: "center", fontSize: 11, color: "rgba(255,255,255,0.18)", marginTop: 40, letterSpacing: "0.03em" }}>
-          © {new Date().getFullYear()} QRManager · <span style={{ color: "rgba(201,168,76,0.4)" }}>NexCore Technologies Ltd.</span>
+          © {new Date().getFullYear()} {APP_NAME} · <span style={{ color: "rgba(201,168,76,0.4)" }}>{COMPANY_NAME}</span>
         </p>
       </div>
 

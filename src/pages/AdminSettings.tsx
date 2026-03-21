@@ -10,34 +10,12 @@ import { User, Store, Save, Loader2, CreditCard, Check, Crown, Copy, AlertCircle
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { PLANS_LIST } from "@/constants/pricing";
 
 // ✅ আপনার bKash নম্বর এখানে দিন
 const BKASH_NUMBER = "01786130439";
 
-const plans = [
-  {
-    id: "basic",
-    name: "বেসিক",
-    monthlyPrice: 399,
-    yearlyPrice: 3990,
-    features: ["৫০ টি মেনু আইটেম", "৫ টি টেবিল", "QR কোড মেনু", "বেসিক রিপোর্ট"],
-  },
-  {
-    id: "premium",
-    name: "প্রিমিয়াম",
-    monthlyPrice: 699,
-    yearlyPrice: 6990,
-    popular: true,
-    features: ["২০০ টি মেনু আইটেম", "২০ টি টেবিল", "রিয়েলটাইম অর্ডার", "অ্যাডভান্সড অ্যানালিটিক্স", "ওয়েটার ম্যানেজমেন্ট"],
-  },
-  {
-    id: "enterprise",
-    name: "এন্টারপ্রাইজ",
-    monthlyPrice: 1199,
-    yearlyPrice: 11990,
-    features: ["সব প্রিমিয়াম ফিচার", "আনলিমিটেড টেবিল", "মাল্টি-ব্রাঞ্চ সাপোর্ট", "ডেডিকেটেড সাপোর্ট", "কাস্টম ব্র্যান্ডিং"],
-  },
-];
+const plans = PLANS_LIST;
 
 const AdminSettings = () => {
   const { user, restaurantId } = useAuth();
@@ -225,9 +203,9 @@ const AdminSettings = () => {
                   const price = billingCycle === "monthly" ? plan.monthlyPrice : plan.yearlyPrice;
                   const isCurrentPlan = currentPlan === plan.id;
                   return (
-                    <Card key={plan.id} className={`relative overflow-hidden transition-all duration-300 hover:shadow-lg ${plan.popular ? "border-primary/50 shadow-primary/10 shadow-lg" : ""} ${isCurrentPlan ? "ring-2 ring-primary" : ""}`}>
-                      {plan.popular && <div className="absolute top-0 left-0 right-0 h-1 bg-primary" />}
-                      {plan.popular && (
+                    <Card key={plan.id} className={`relative overflow-hidden transition-all duration-300 hover:shadow-lg ${'popular' in plan && plan.popular ? "border-primary/50 shadow-primary/10 shadow-lg" : ""} ${isCurrentPlan ? "ring-2 ring-primary" : ""}`}>
+                      {'popular' in plan && plan.popular && <div className="absolute top-0 left-0 right-0 h-1 bg-primary" />}
+                      {'popular' in plan && plan.popular && (
                         <div className="absolute top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold whitespace-nowrap">
                           জনপ্রিয়
                         </div>
@@ -248,7 +226,7 @@ const AdminSettings = () => {
                             </li>
                           ))}
                         </ul>
-                        <Button variant={plan.popular ? "hero" : "outline"} className="w-full"
+                        <Button variant={'popular' in plan && plan.popular ? "hero" : "outline"} className="w-full"
                           disabled={isCurrentPlan} onClick={() => openPayment(plan.id)}>
                           {isCurrentPlan ? "✅ অ্যাক্টিভ" : "আপগ্রেড করুন"}
                         </Button>
