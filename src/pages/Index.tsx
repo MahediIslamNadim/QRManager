@@ -366,8 +366,8 @@ export default function Index() {
               <UtensilsCrossed size={16} color="#0a0a0a" />
             </div>
             <div style={{ textAlign:"left" }}>
-              <div style={{ fontFamily:"'Cormorant Garamond', serif", fontWeight:700, fontSize:17, color:"#f5d780" }}>QRManager</div>
-              <div style={{ fontSize:7, letterSpacing:"0.2em", color:"rgba(201,168,76,0.55)", textTransform:"uppercase", fontFamily:"monospace" }}>by NexCore Technologies</div>
+              <div style={{ fontFamily:"'Cormorant Garamond', serif", fontWeight:700, fontSize:17, color:"#f5d780" }}>{APP_NAME}</div>
+              <div style={{ fontSize:7, letterSpacing:"0.2em", color:"rgba(201,168,76,0.55)", textTransform:"uppercase", fontFamily:"monospace" }}>by {COMPANY_NAME.replace(" Ltd.", "")}</div>
             </div>
           </div>
           <div style={{ display:"flex", justifyContent:"center", gap:"clamp(16px,4vw,32px)", flexWrap:"wrap", marginBottom:20 }}>
