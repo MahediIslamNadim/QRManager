@@ -46,7 +46,7 @@ const AdminSetup = () => {
 
     try {
       const trialEndsAt = new Date();
-      trialEndsAt.setDate(trialEndsAt.getDate() + 7);
+      trialEndsAt.setDate(trialEndsAt.getDate() + FREE_TRIAL_DAYS);
 
       const { error: restError } = await supabase
         .from("restaurants")
