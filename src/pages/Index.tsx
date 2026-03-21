@@ -312,7 +312,7 @@ export default function Index() {
           </div>
           <Reveal delay={0.35}>
             <p style={{ textAlign:"center", color:"rgba(245,215,128,0.65)", fontSize:"clamp(12px,2.5vw,14px)", marginTop:28, fontFamily:"'DM Sans', sans-serif" }}>
-              ✦ সব প্ল্যানে <span style={{ color:"#f5d780", fontWeight:700 }}>৭ দিনের ফ্রি ট্রায়াল</span> — কোনো ক্রেডিট কার্ড লাগবে না
+              ✦ সব প্ল্যানে <span style={{ color:"#f5d780", fontWeight:700 }}>{FREE_TRIAL_DAYS} দিনের ফ্রি ট্রায়াল</span> — কোনো ক্রেডিট কার্ড লাগবে না
             </p>
           </Reveal>
         </div>
