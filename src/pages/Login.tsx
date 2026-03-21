@@ -7,12 +7,17 @@ import {
   Eye, EyeOff, ArrowRight,
   QrCode, Zap, ShieldCheck, ChevronDown, KeyRound, ArrowLeft
 } from "lucide-react";
+import { APP_NAME, COMPANY_NAME, COMPANY_URL, FREE_TRIAL_DAYS } from "@/constants/app";
+import { PRICING, PLANS_LIST } from "@/constants/pricing";
 
-const PLANS = [
-  { id: "basic", label: "বেসিক", price: "৩৯৯", trial: true, desc: "৭ দিন ফ্রি ট্রায়াল", features: ["৫০টি মেনু আইটেম", "৫টি টেবিল", "৩ জন স্টাফ"] },
-  { id: "premium", label: "প্রিমিয়াম", price: "৬৯৯", trial: false, desc: "পেমেন্ট প্রয়োজন", features: ["২০০টি মেনু আইটেম", "২০টি টেবিল", "১৫ জন স্টাফ"] },
-  { id: "enterprise", label: "এন্টারপ্রাইজ", price: "১,১৯৯", trial: false, desc: "পেমেন্ট প্রয়োজন", features: ["আনলিমিটেড সব", "মাল্টি-ব্রাঞ্চ", "ডেডিকেটেড সাপোর্ট"] },
-];
+const PLANS = PLANS_LIST.map(p => ({
+  id: p.id,
+  label: p.name,
+  price: p.priceBn,
+  trial: p.id === "basic",
+  desc: p.id === "basic" ? `${FREE_TRIAL_DAYS} দিন ফ্রি ট্রায়াল` : "পেমেন্ট প্রয়োজন",
+  features: p.features.slice(0, 3),
+}));
 
 type Mode = "login" | "signup" | "forgot" | "forgot_sent";
 
