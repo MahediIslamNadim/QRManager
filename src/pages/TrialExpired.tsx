@@ -42,7 +42,7 @@ const TrialExpired = () => {
     setActivatingTrial(true);
     try {
       const trialEndsAt = new Date();
-      trialEndsAt.setDate(trialEndsAt.getDate() + 14);
+      trialEndsAt.setDate(trialEndsAt.getDate() + FREE_TRIAL_DAYS);
 
       const { error } = await supabase
         .from("restaurants")
