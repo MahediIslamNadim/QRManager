@@ -171,8 +171,8 @@ const Login = () => {
         fontFamily: "'DM Sans', sans-serif", letterSpacing: "-0.02em",
       }}>QR</div>
       <div>
-        <div style={{ fontFamily: "'Cormorant Garamond', serif", fontWeight: 700, fontSize: size === "sm" ? 17 : 20, color: "#FFFFFF" }}>QRManager</div>
-        <div style={{ fontSize: 9, letterSpacing: "0.3em", color: "rgba(201,168,76,0.6)", textTransform: "uppercase", fontFamily: "monospace" }}>by NexCore Technologies</div>
+        <div style={{ fontFamily: "'Cormorant Garamond', serif", fontWeight: 700, fontSize: size === "sm" ? 17 : 20, color: "#FFFFFF" }}>{APP_NAME}</div>
+        <div style={{ fontSize: 9, letterSpacing: "0.3em", color: "rgba(201,168,76,0.6)", textTransform: "uppercase", fontFamily: "monospace" }}>by {COMPANY_NAME.replace(" Ltd.", "")}</div>
       </div>
     </div>
   );
