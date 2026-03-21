@@ -1,4 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
+import { APP_NAME } from "@/constants/app";
 import {
   LayoutDashboard, UtensilsCrossed, Store, Users, BarChart3,
   CreditCard, Menu, QrCode, ShoppingCart, UserCheck, Bell,
