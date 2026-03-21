@@ -226,7 +226,7 @@ const AdminSettings = () => {
                             </li>
                           ))}
                         </ul>
-                        <Button variant={plan.popular ? "hero" : "outline"} className="w-full"
+                        <Button variant={'popular' in plan && plan.popular ? "hero" : "outline"} className="w-full"
                           disabled={isCurrentPlan} onClick={() => openPayment(plan.id)}>
                           {isCurrentPlan ? "✅ অ্যাক্টিভ" : "আপগ্রেড করুন"}
                         </Button>
