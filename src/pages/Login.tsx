@@ -291,7 +291,7 @@ const Login = () => {
                   {mode === "signup" ? "শুরু করুন" : "স্বাগতম 👋"}
                 </h2>
                 <p style={{ fontSize: 14, color: "rgba(255,255,255,0.45)" }}>
-                  {mode === "signup" ? "QRManager এ নতুন অ্যাকাউন্ট তৈরি করুন • ৭ দিন ফ্রি ট্রায়াল" : "QRManager ড্যাশবোর্ডে লগইন করুন"}
+                  {mode === "signup" ? `${APP_NAME} এ নতুন অ্যাকাউন্ট তৈরি করুন • ${FREE_TRIAL_DAYS} দিন ফ্রি ট্রায়াল` : `${APP_NAME} ড্যাশবোর্ডে লগইন করুন`}
                 </p>
               </div>
 
