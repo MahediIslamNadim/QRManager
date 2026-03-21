@@ -76,8 +76,8 @@ export default function Index() {
               <UtensilsCrossed size={19} color="#0a0a0a" />
             </div>
             <div>
-              <div style={{ fontFamily:"'Cormorant Garamond', serif", fontWeight:700, fontSize:"clamp(16px,4vw,20px)", color:"#FFFFFF", letterSpacing:"0.02em" }}>QRManager</div>
-              <div style={{ fontSize:7, letterSpacing:"0.25em", color:"rgba(201,168,76,0.7)", textTransform:"uppercase", fontFamily:"monospace" }}>by NexCore Technologies</div>
+              <div style={{ fontFamily:"'Cormorant Garamond', serif", fontWeight:700, fontSize:"clamp(16px,4vw,20px)", color:"#FFFFFF", letterSpacing:"0.02em" }}>{APP_NAME}</div>
+              <div style={{ fontSize:7, letterSpacing:"0.25em", color:"rgba(201,168,76,0.7)", textTransform:"uppercase", fontFamily:"monospace" }}>by {COMPANY_NAME.replace(" Ltd.", "")}</div>
             </div>
           </div>
 
