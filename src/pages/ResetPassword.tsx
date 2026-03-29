@@ -17,13 +17,29 @@ const ResetPassword = () => {
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    // Supabase automatically handles the token from URL
-    supabase.auth.onAuthStateChange((event, session) => {
+    // Check existing session on mount (user already has recovery token)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        setValidSession(true);
+        setChecking(false);
+      }
+    });
+
+    // Listen for PASSWORD_RECOVERY event (fired when coming from email link)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === "PASSWORD_RECOVERY") {
         setValidSession(true);
       }
       setChecking(false);
     });
+
+    // Fallback: stop spinner after 3s if no event fires
+    const timeout = setTimeout(() => setChecking(false), 3000);
+
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(timeout);
+    };
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
