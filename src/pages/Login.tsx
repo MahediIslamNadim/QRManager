@@ -7,7 +7,7 @@ import {
   Eye, EyeOff, ArrowRight,
   QrCode, Zap, ShieldCheck, KeyRound, ArrowLeft
 } from "lucide-react";
-import { APP_NAME, COMPANY_NAME, COMPANY_URL, FREE_TRIAL_DAYS } from "@/constants/app";
+import { APP_NAME, COMPANY_NAME, FREE_TRIAL_DAYS } from "@/constants/app";
 
 type Mode = "login" | "signup" | "forgot" | "forgot_sent";
 
@@ -81,7 +81,8 @@ const Login = () => {
             .select().single();
 
           if (restError) throw new Error("রেস্টুরেন্ট তৈরি করতে ব্যর্থ: " + restError.message);
-          await supabase.from("user_roles").insert({ user_id: data.user.id, role: "admin" });
+          const { error: roleError } = await supabase.from("user_roles").insert({ user_id: data.user.id, role: "admin" });
+          if (roleError) throw new Error("রোল সেট করতে ব্যর্থ: " + roleError.message);
 
           if (restaurant) {
             await supabase.from("menu_items").insert([
@@ -346,7 +347,7 @@ const Login = () => {
                       )}
                     </div>
                     <div style={{ position: "relative" }}>
-                      <input type={showPassword ? "text" : "password"} placeholder={mode === "signup" ? "যেমন: Admin@123" : "••••••••"} value={password} onChange={e => setPassword(e.target.value)} style={{ ...inputStyle, paddingRight: 48 }} required
+                      <input type={showPassword ? "text" : "password"} placeholder={mode === "signup" ? "যেমন: Admin@123" : "••••••••"} value={password} onChange={e => setPassword(e.target.value)} style={{ ...inputStyle, paddingRight: 48 }} required minLength={6}
                         onFocus={e => { e.target.style.borderColor = "rgba(201,168,76,0.6)"; e.target.style.backgroundColor = "rgba(255,255,255,0.06)"; }}
                         onBlur={e => { e.target.style.borderColor = "rgba(201,168,76,0.2)"; e.target.style.backgroundColor = "rgba(255,255,255,0.04)"; }} />
                       <button type="button" onClick={() => setShowPassword(!showPassword)}
@@ -383,7 +384,7 @@ const Login = () => {
 
               <p style={{ textAlign: "center", fontSize: 14, color: "rgba(255,255,255,0.45)" }}>
                 {mode === "signup" ? "ইতিমধ্যে অ্যাকাউন্ট আছে? " : "অ্যাকাউন্ট নেই? "}
-                <button onClick={() => setMode(mode === "signup" ? "login" : "signup")}
+                <button onClick={() => { setMode(mode === "signup" ? "login" : "signup"); setPassword(""); }}
                   style={{ background: "none", border: "none", cursor: "pointer", fontSize: 14, fontWeight: 700, color: "#f5d780", fontFamily: "'DM Sans', sans-serif", transition: "color 0.2s", padding: 0 }}
                   onMouseEnter={e => e.currentTarget.style.color = "#c9a84c"}
                   onMouseLeave={e => e.currentTarget.style.color = "#f5d780"}>
