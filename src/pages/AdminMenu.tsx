@@ -68,6 +68,8 @@ const AdminMenu = () => {
     mutationFn: async () => {
       if (!restaurantId) throw new Error("No restaurant");
       if (!editingItem && isAtMenuLimit) throw new Error(`আপনার ${limits.label} প্ল্যানে সর্বোচ্চ ${formatLimit(limits.maxMenuItems)} টি আইটেম যোগ করা যায়। আপগ্রেড করুন।`);
+      if (!form.name.trim() || form.name.trim().length < 2) throw new Error("আইটেমের নাম কমপক্ষে ২ অক্ষর হতে হবে");
+      if (Number(form.price) <= 0) throw new Error("মূল্য অবশ্যই শূন্যের বেশি হতে হবে");
       setUploading(true);
 
       let image_url = editingItem?.image_url || null;

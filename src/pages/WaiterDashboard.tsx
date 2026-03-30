@@ -67,7 +67,7 @@ const WaiterDashboard = () => {
   // Fetch profile
   useEffect(() => {
     if (!user) return;
-    supabase.from("profiles").select("full_name, phone").eq("id", user.id).single()
+    supabase.from("profiles").select("full_name, phone").eq("id", user.id).maybeSingle()
       .then(({ data }) => {
         if (data) {
           setProfileName(data.full_name || "");

@@ -1,3 +1,5 @@
+const esc = (s: string) => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+
 interface ReceiptOrder {
   id: string;
   total: number | string;
@@ -21,7 +23,7 @@ export function printReceipt(order: ReceiptOrder, restaurantName: string) {
 
   const itemRows = items.map(i => `
     <tr>
-      <td style="padding:3px 0;font-size:13px;">${i.name}</td>
+      <td style="padding:3px 0;font-size:13px;">${esc(i.name)}</td>
       <td style="text-align:center;padding:3px 4px;font-size:13px;">${i.quantity}</td>
       <td style="text-align:right;padding:3px 0;font-size:13px;">৳${i.price}</td>
       <td style="text-align:right;padding:3px 0;font-size:13px;font-weight:600;">৳${i.price * i.quantity}</td>
@@ -70,7 +72,7 @@ export function printReceipt(order: ReceiptOrder, restaurantName: string) {
 </head>
 <body>
   <div class="center" style="margin-bottom:10px;">
-    <div class="bold" style="font-size:18px;">${restaurantName}</div>
+    <div class="bold" style="font-size:18px;">${esc(restaurantName)}</div>
     <div style="font-size:11px;color:#555;margin-top:2px;">QRManager — ডিজিটাল রেস্টুরেন্ট</div>
   </div>
 
@@ -119,7 +121,7 @@ export function printReceipt(order: ReceiptOrder, restaurantName: string) {
     </div>
     ${order.paid_to_staff_name ? `<div style="display:flex;justify-content:space-between;margin-top:3px;">
       <span>গ্রহণকারী:</span>
-      <span class="bold">${order.paid_to_staff_name}</span>
+      <span class="bold">${esc(order.paid_to_staff_name!)}</span>
     </div>` : ""}
     <div class="center" style="margin-top:6px;">
       <span class="paid-badge">✓ পরিশোধিত</span>

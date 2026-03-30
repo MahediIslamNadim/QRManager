@@ -1,3 +1,5 @@
+const esc = (s: string) => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+
 interface DailyReportData {
   restaurantName: string;
   date: string;
@@ -24,7 +26,7 @@ export function printDailyReport(data: DailyReportData) {
 
   const topItemRows = data.topItems.slice(0, 8).map((item, i) =>
     `<tr>
-      <td style="padding:4px 0;font-size:13px;">${i + 1}. ${item.name}</td>
+      <td style="padding:4px 0;font-size:13px;">${i + 1}. ${esc(item.name)}</td>
       <td style="text-align:right;padding:4px 0;font-size:13px;font-weight:600;">${item.value}টি</td>
     </tr>`
   ).join("");
@@ -48,7 +50,7 @@ export function printDailyReport(data: DailyReportData) {
 <html lang="bn">
 <head>
   <meta charset="UTF-8" />
-  <title>দৈনিক রিপোর্ট — ${data.restaurantName}</title>
+  <title>দৈনিক রিপোর্ট — ${esc(data.restaurantName)}</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -79,7 +81,7 @@ export function printDailyReport(data: DailyReportData) {
 </head>
 <body>
   <div class="center" style="margin-bottom:10px;">
-    <div class="bold" style="font-size:18px;">${data.restaurantName}</div>
+    <div class="bold" style="font-size:18px;">${esc(data.restaurantName)}</div>
     <div style="font-size:11px;color:#555;margin-top:2px;">দৈনিক বিক্রয় রিপোর্ট</div>
   </div>
 

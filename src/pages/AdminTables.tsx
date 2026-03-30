@@ -50,7 +50,7 @@ const AdminTables = () => {
         .from("restaurants")
         .select("id, short_code")
         .eq("id", restaurantId)
-        .single();
+        .maybeSingle();
       if (error) { console.warn("Restaurant fetch error:", error.message); return null; }
       return data;
     },
@@ -162,7 +162,8 @@ const AdminTables = () => {
       const { error } = await supabase
         .from("restaurant_tables")
         .update({ is_open } as any)
-        .eq("id", id);
+        .eq("id", id)
+        .eq("restaurant_id", restaurantId);
       if (error) throw error;
     },
     onSuccess: (_, vars) => {

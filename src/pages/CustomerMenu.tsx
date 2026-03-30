@@ -110,7 +110,7 @@ const CustomerMenu = () => {
     const color = colorPalette[idx];
     setCategoryColors(prev => ({ ...prev, [category]: color }));
     return color;
-  }, [categoryColors]);
+  }, []);
 
   // ✅ FIX Bug 4: fetchOrderItems useCallback এ
   const fetchOrderItems = useCallback(async (orderId: string): Promise<OrderItem[]> => {
@@ -179,7 +179,7 @@ const CustomerMenu = () => {
       }
 
       const [restRes, menuRes] = await Promise.all([
-        supabase.from("restaurants").select("*").eq("id", restaurantId!).single(),
+        supabase.from("restaurants").select("*").eq("id", restaurantId!).maybeSingle(),
         supabase.from("menu_items").select("*").eq("restaurant_id", restaurantId!).order("sort_order"),
       ]);
 
@@ -211,7 +211,7 @@ const CustomerMenu = () => {
           .from("restaurant_tables")
           .select("name, is_open")
           .eq("id", tableId)
-          .single();
+          .maybeSingle();
 
         if (tableData) {
           setTableName(tableData.name);
