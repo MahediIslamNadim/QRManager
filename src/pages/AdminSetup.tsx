@@ -40,6 +40,8 @@ const AdminSetup = () => {
         });
     } else if (!loading && !user) {
       navigate("/login", { replace: true });
+    } else if (!loading && role === "super_admin") {
+      navigate("/super-admin", { replace: true });
     } else if (!loading) {
       setChecking(false);
     }
