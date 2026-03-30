@@ -18,10 +18,10 @@ const SuperAdminSettings = () => {
 
   useEffect(() => {
     if (!user) return;
-    supabase.from("profiles").select("*").eq("id", user.id).single().then(({ data }) => {
+    setEmail(user.email || "");
+    supabase.from("profiles").select("*").eq("id", user.id).maybeSingle().then(({ data }) => {
       if (data) {
         setName(data.full_name || "");
-        setEmail(data.email || "");
         setPhone(data.phone || "");
       }
     });
@@ -33,8 +33,7 @@ const SuperAdminSettings = () => {
     try {
       const { error } = await supabase
         .from("profiles")
-        .update({ full_name: name, phone, updated_at: new Date().toISOString() })
-        .eq("id", user.id);
+        .upsert({ id: user.id, full_name: name, phone, updated_at: new Date().toISOString() });
       if (error) throw error;
       toast.success("প্রোফাইল আপডেট হয়েছে");
     } catch (err: any) {
