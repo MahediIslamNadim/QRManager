@@ -33,11 +33,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const fetchUserData = useCallback(async (userId: string) => {
     try {
-      const [superCheck, adminCheck, waiterCheck] = await Promise.all([
-        supabase.rpc("has_role", { _user_id: userId, _role: "super_admin" }),
-        supabase.rpc("has_role", { _user_id: userId, _role: "admin" }),
-        supabase.rpc("has_role", { _user_id: userId, _role: "waiter" }),
-      ]);
+      const { data: roleRow } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .order("role")
+        .limit(3);
+
+      const roles = (roleRow || []).map((r: any) => r.role);
+      const superCheck = { data: roles.includes("super_admin") };
+      const adminCheck = { data: roles.includes("admin") };
+      const waiterCheck = { data: roles.includes("waiter") };
 
       let bestRole = "admin";
       if (superCheck.data === true) bestRole = "super_admin";
