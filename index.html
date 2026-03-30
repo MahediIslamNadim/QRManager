@@ -1,55 +1,14 @@
-
-// ✅ Central pricing constants — সব পেজে এখান থেকে import করুন
-// src/constants/pricing.ts
-
-export const PRICING = {
-  basic: {
-    name: "Basic",
-    price: 499,
-    priceDisplay: "৳৪৯৯",
-    period: "মাস",
-    trial: true,
-    trialDays: 7,
-    features: [
-      "১টি রেস্টুরেন্ট",
-      "সর্বোচ্চ ১০টি টেবিল",
-      "QR মেনু সিস্টেম",
-      "রিয়েলটাইম অর্ডার",
-      "Basic Analytics",
-    ],
-  },
-  premium: {
-    name: "Premium",
-    price: 799,
-    priceDisplay: "৳৭৯৯",
-    period: "মাস",
-    trial: false,
-    trialDays: 0,
-    features: [
-      "৩টি রেস্টুরেন্ট",
-      "সর্বোচ্চ ৩০টি টেবিল",
-      "সব Basic features",
-      "Advanced Analytics",
-      "Priority Support",
-    ],
-  },
-  enterprise: {
-    name: "Enterprise",
-    price: 1299,
-    priceDisplay: "৳১,২৯৯",
-    period: "মাস",
-    trial: false,
-    trialDays: 0,
-    features: [
-      "Unlimited রেস্টুরেন্ট",
-      "Unlimited টেবিল",
-      "সব Premium features",
-      "Custom Branding",
-      "Dedicated Support",
-    ],
-  },
-} as const;
-
-export const TRIAL_DAYS = 7;
-export const TRIAL_DISPLAY = "৭ দিন";
-<script async data-explicit-opt-in="true" data-cookie-opt-in="true" data-deployment-id="dpl_AAnqmvebb1raArGtZGuYAc8G5hAS" src="https://vercel.live/_next-live/feedback/feedback.js"></script>
+<!doctype html>
+<html lang="bn">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>QRManager — ডিজিটাল রেস্টুরেন্ট ম্যানেজমেন্ট</title>
+    <meta name="description" content="Bangladesh-এর রেস্টুরেন্টের জন্য QR-based অর্ডারিং ও ম্যানেজমেন্ট প্ল্যাটফর্ম।" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
