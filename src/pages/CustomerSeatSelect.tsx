@@ -15,15 +15,17 @@ const CustomerSeatSelect = () => {
   const [tableName, setTableName] = useState("");
   const [seats, setSeats] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [validToken, setValidToken] = useState<string | null>(null); // ✅
+  const [error, setError] = useState<string | null>(null);
+  const [validToken, setValidToken] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!restaurantId || !tableId) return;
+      if (!restaurantId || !tableId) { setError("ভুল লিংক"); setLoading(false); return; }
 
+      try {
       const [restRes, tableRes, seatsRes] = await Promise.all([
-        supabase.from("restaurants").select("name").eq("id", restaurantId).single(),
-        supabase.from("restaurant_tables").select("name, seats").eq("id", tableId).single(),
+        supabase.from("restaurants").select("name").eq("id", restaurantId).maybeSingle(),
+        supabase.from("restaurant_tables").select("name, seats").eq("id", tableId).maybeSingle(),
         supabase.from("table_seats").select("*").eq("table_id", tableId).order("seat_number"),
       ]);
 
@@ -39,7 +41,7 @@ const CustomerSeatSelect = () => {
           .select("token, expires_at")
           .eq("token", tokenParam)
           .eq("table_id", tableId)
-          .single();
+          .maybeSingle();
         if (session && new Date((session as any).expires_at) > new Date()) {
           setValidToken((session as any).token);
           setLoading(false);
@@ -63,6 +65,10 @@ const CustomerSeatSelect = () => {
       }
 
       setLoading(false);
+      } catch (err) {
+        setError("তথ্য লোড করতে সমস্যা হয়েছে। পেজ রিফ্রেশ করুন।");
+        setLoading(false);
+      }
     };
     fetchData();
   }, [restaurantId, tableId, tokenParam]);
@@ -98,6 +104,17 @@ const CustomerSeatSelect = () => {
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
           <p className="text-muted-foreground font-medium animate-pulse">লোড হচ্ছে...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center p-6">
+          <p className="text-destructive font-medium mb-3">{error}</p>
+          <button onClick={() => window.location.reload()} className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium">রিফ্রেশ করুন</button>
         </div>
       </div>
     );

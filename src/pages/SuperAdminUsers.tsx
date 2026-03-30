@@ -73,7 +73,7 @@ const SuperAdminUsers = () => {
         .select("id, status")
         .eq("email", inviteEmail.trim())
         .eq("status", "pending")
-        .single();
+        .maybeSingle();
 
       if (existing) throw new Error("এই ইমেইলে ইতিমধ্যে একটি pending invite আছে");
 
@@ -90,7 +90,7 @@ const SuperAdminUsers = () => {
           expires_at: expiresAt.toISOString(),
         } as any)
         .select()
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
 

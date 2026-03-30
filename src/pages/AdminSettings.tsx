@@ -157,8 +157,12 @@ const AdminSettings = () => {
       if (error) throw error;
       toast.success("✅ পেমেন্ট রিকোয়েস্ট পাঠানো হয়েছে! ২৪ ঘন্টার মধ্যে অনুমোদন হবে।");
       setPayDialog(false);
+      setTransactionId("");
+      setPayPhone("");
+      setPayStep(1);
     } catch (err: any) {
       toast.error(err.message);
+      setPaySubmitting(false);
     } finally {
       setPaySubmitting(false);
     }

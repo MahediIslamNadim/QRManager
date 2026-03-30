@@ -111,14 +111,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             const isValidDate = trialEndsAt && !isNaN(trialEndsAt.getTime());
             const now = new Date();
             if (isValidDate && now > trialEndsAt! && restaurant.status !== "active_paid") {
-              // Guard against multiple concurrent updates
               if (!trialUpdateInProgress.current) {
                 trialUpdateInProgress.current = true;
                 supabase.from("restaurants").update({ status: "inactive" }).eq("id", foundRestId)
-                  .then(() => { trialUpdateInProgress.current = false; })
+                  .then(({ error }) => {
+                    trialUpdateInProgress.current = false;
+                    if (!error) setTrialExpired(true);
+                  })
                   .catch((e) => { console.warn("Trial update failed:", e); trialUpdateInProgress.current = false; });
+              } else {
+                setTrialExpired(true);
               }
-              setTrialExpired(true);
             } else {
               setTrialExpired(false);
             }
