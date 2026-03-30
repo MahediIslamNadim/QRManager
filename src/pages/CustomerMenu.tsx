@@ -138,12 +138,16 @@ const CustomerMenu = () => {
 
       if (error || !ordersData) return;
 
-      const ordersWithItems: Order[] = await Promise.all(
-        ordersData.map(async (order) => {
-          const items = await fetchOrderItems(order.id);
-          return { ...order, items };
-        })
-      );
+      const orderIds = ordersData.map(o => o.id);
+      const { data: itemsData } = await supabase
+        .from("order_items")
+        .select("id, name, price, quantity, order_id")
+        .in("order_id", orderIds);
+
+      const ordersWithItems: Order[] = ordersData.map(order => ({
+        ...order,
+        items: (itemsData || []).filter((i: any) => i.order_id === order.id) as OrderItem[],
+      }));
 
       setMyOrders(ordersWithItems);
     } catch (err) {

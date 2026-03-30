@@ -76,7 +76,6 @@ const KitchenDisplay = () => {
       return (data || []) as KitchenOrder[];
     },
     enabled: !!restaurantId,
-    refetchInterval: 30000,
   });
 
   // Realtime subscription

@@ -37,8 +37,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         .from("user_roles")
         .select("role")
         .eq("user_id", userId)
-        .order("role")
-        .limit(3);
+        .order("role");
 
       const roles = (roleRow || []).map((r: any) => r.role);
       const superCheck = { data: roles.includes("super_admin") };

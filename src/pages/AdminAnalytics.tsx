@@ -31,19 +31,12 @@ const AdminAnalytics = () => {
 
       const { data: orders } = await supabase
         .from("orders")
-        .select("id, total, status, created_at")
-        .eq("restaurant_id", restaurantId);
-
-      const orderIds = (orders || []).map(o => o.id);
-      const { data: orderItems } = orderIds.length > 0
-        ? await supabase
-            .from("order_items")
-            .select("name, quantity, price, order_id")
-            .in("order_id", orderIds)
-        : { data: [] };
+        .select("id, total, status, created_at, order_items(name, quantity, price)")
+        .eq("restaurant_id", restaurantId)
+        .limit(2000);
 
       const allOrders = orders || [];
-      const allItems = orderItems || [];
+      const allItems = allOrders.flatMap((o: any) => o.order_items || []);
 
       const totalRevenue = allOrders.reduce((s, o) => s + Number(o.total || 0), 0);
       const totalOrders = allOrders.length;
@@ -83,7 +76,7 @@ const AdminAnalytics = () => {
       return { totalRevenue, totalOrders, avgOrder, dailyData, topItems, statusMap };
     },
     enabled: !!restaurantId,
-    refetchInterval: 60000,
+    refetchInterval: 300000,
   });
 
   const handlePrintReport = () => {
