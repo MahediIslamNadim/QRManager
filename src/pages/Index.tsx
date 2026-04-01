@@ -265,57 +265,170 @@ export default function Index() {
         </div>
       </section>
 
-      {/* ─── PRICING ─── */}
-      <section id="pricing" style={{ padding:"clamp(56px,10vw,120px) clamp(16px,5vw,32px)", backgroundColor:"#0d0d0d" }}>
-        <div style={{ maxWidth:1100, margin:"0 auto" }}>
-          <Reveal>
-            <div style={{ textAlign:"center", marginBottom:"clamp(36px,6vw,72px)" }}>
-              <div style={{ fontSize:11, letterSpacing:"0.4em", color:"#f5d780", textTransform:"uppercase", fontFamily:"monospace", marginBottom:14, fontWeight:600 }}>✦ মূল্য পরিকল্পনা ✦</div>
-              <h2 style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:"clamp(30px,5vw,60px)", fontWeight:700, color:"#FFFFFF", marginBottom:10 }}>সাশ্রয়ী <span style={goldText}>প্রাইসিং</span></h2>
-              <p style={{ fontSize:"clamp(13px,3vw,16px)", color:"rgba(255,255,255,0.65)", fontFamily:"'DM Sans', sans-serif" }}>আপনার রেস্টুরেন্টের আকার অনুযায়ী প্ল্যান বেছে নিন</p>
+      {/* ─── PRICING (Windows 2000 Style) ─── */}
+      <section id="pricing" style={{ padding:"clamp(40px,8vw,80px) clamp(12px,4vw,24px)", backgroundColor:"#d4d0c8", fontFamily:"'Tahoma', 'MS Sans Serif', 'Arial', sans-serif" }}>
+
+        {/* Win2k Desktop Wallpaper teal bar at top */}
+        <div style={{ background:"linear-gradient(180deg, #1f3a8f 0%, #3a6ea5 40%, #1a5276 100%)", padding:"3px 8px", marginBottom:20, display:"flex", alignItems:"center", gap:8, borderRadius:0, boxShadow:"inset 0 1px 0 rgba(255,255,255,0.3)" }}>
+          <div style={{ display:"flex", gap:2 }}>
+            <div style={{ width:12, height:12, background:"#c0392b", border:"1px solid #922b21", borderRadius:2, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><span style={{ fontSize:9, color:"#fff", lineHeight:1, fontWeight:700 }}>✕</span></div>
+            <div style={{ width:12, height:12, background:"#f39c12", border:"1px solid #b7770d", borderRadius:2, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><span style={{ fontSize:9, color:"#7d6608", lineHeight:1, fontWeight:700 }}>—</span></div>
+            <div style={{ width:12, height:12, background:"#27ae60", border:"1px solid #1d8348", borderRadius:2, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><span style={{ fontSize:9, color:"#fff", lineHeight:1, fontWeight:700 }}>□</span></div>
+          </div>
+          <span style={{ fontSize:11, color:"#ffffff", fontWeight:700, letterSpacing:"0.02em", textShadow:"1px 1px 0 rgba(0,0,0,0.5)", flex:1 }}>QRManager - মূল্য পরিকল্পনা - Microsoft Internet Explorer</span>
+          <span style={{ fontSize:10, color:"rgba(255,255,255,0.75)" }}>🌐</span>
+        </div>
+
+        {/* IE Toolbar */}
+        <div style={{ background:"#d4d0c8", borderTop:"2px solid #ffffff", borderLeft:"2px solid #ffffff", borderRight:"2px solid #808080", borderBottom:"2px solid #808080", padding:"4px 8px", marginBottom:4, display:"flex", gap:6, alignItems:"center", flexWrap:"wrap" }}>
+          {["← পেছনে","→ সামনে","🔄 রিফ্রেশ","🏠 হোম","🔍 সার্চ","⭐ পছন্দ","📰 ইতিহাস"].map((btn, i) => (
+            <button key={i} style={{ padding:"2px 10px", fontSize:11, background:"#d4d0c8", border:"2px solid transparent", borderTopColor:"#ffffff", borderLeftColor:"#ffffff", borderRightColor:"#808080", borderBottomColor:"#808080", cursor:"pointer", color:"#000000", fontFamily:"'Tahoma', sans-serif", whiteSpace:"nowrap" }}
+              onMouseEnter={e => { e.currentTarget.style.borderTopColor="#dfdfdf"; e.currentTarget.style.borderLeftColor="#dfdfdf"; }}
+              onMouseLeave={e => { e.currentTarget.style.borderTopColor="#ffffff"; e.currentTarget.style.borderLeftColor="#ffffff"; }}>
+              {btn}
+            </button>
+          ))}
+          <div style={{ flex:1, marginLeft:8, display:"flex", alignItems:"center", gap:4 }}>
+            <span style={{ fontSize:11, color:"#000000", whiteSpace:"nowrap" }}>Address:</span>
+            <div style={{ flex:1, background:"#ffffff", border:"2px solid #808080", borderTopColor:"#404040", borderLeftColor:"#404040", padding:"2px 6px", fontSize:11, color:"#000080", fontFamily:"monospace" }}>
+              http://qrmanager.com/pricing
             </div>
-          </Reveal>
-          <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3,1fr)", gap:20 }}>
+            <button style={{ padding:"2px 12px", fontSize:11, background:"#d4d0c8", border:"2px solid transparent", borderTopColor:"#ffffff", borderLeftColor:"#ffffff", borderRightColor:"#808080", borderBottomColor:"#808080", cursor:"pointer", fontFamily:"'Tahoma', sans-serif" }}>যান</button>
+          </div>
+        </div>
+
+        {/* Main window area */}
+        <div style={{ background:"#d4d0c8", border:"2px solid #808080", borderTopColor:"#dfdfdf", borderLeftColor:"#dfdfdf", padding:"clamp(16px,3vw,28px)" }}>
+
+          {/* Window title bar inside content */}
+          <div style={{ background:"linear-gradient(180deg, #1f3a8f 0%, #3a6ea5 100%)", padding:"4px 8px", marginBottom:16, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+            <span style={{ fontSize:12, color:"#ffffff", fontWeight:700, textShadow:"1px 1px 0 rgba(0,0,0,0.6)" }}>📦 মূল্য পরিকল্পনা — আপনার প্ল্যান বেছে নিন</span>
+            <div style={{ display:"flex", gap:2 }}>
+              {["_","□","✕"].map((s,i) => (
+                <button key={i} style={{ width:16, height:14, fontSize:9, background:"#d4d0c8", border:"1px solid", borderTopColor:"#ffffff", borderLeftColor:"#ffffff", borderRightColor:"#404040", borderBottomColor:"#404040", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700 }}>{s}</button>
+              ))}
+            </div>
+          </div>
+
+          {/* Marquee-style banner */}
+          <div style={{ background:"#000080", color:"#ffff00", padding:"4px 12px", fontSize:12, fontFamily:"'Courier New', monospace", marginBottom:16, overflow:"hidden", whiteSpace:"nowrap" }}>
+            <span style={{ display:"inline-block", animation:"marquee 18s linear infinite" }}>
+              ★ সব প্ল্যানে {FREE_TRIAL_DAYS} দিনের FREE TRIAL! ★ কোনো ক্রেডিট কার্ড লাগবে না! ★ QRManager দিয়ে আপনার রেস্টুরেন্ট ডিজিটাল করুন! ★ এখনই শুরু করুন! ★ বাংলাদেশের সেরা QR অর্ডারিং সিস্টেম! ★
+            </span>
+          </div>
+
+          {/* Section header group box */}
+          <div style={{ border:"2px solid #808080", borderTopColor:"#dfdfdf", borderLeftColor:"#dfdfdf", padding:"12px 16px", marginBottom:20, background:"#d4d0c8" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:4 }}>
+              <img src="/placeholder.svg?width=24&height=24" alt="" style={{ width:24, height:24, imageRendering:"pixelated" }} />
+              <span style={{ fontSize:16, fontWeight:700, color:"#000080", fontFamily:"'Tahoma', sans-serif" }}>সাশ্রয়ী প্রাইসিং প্ল্যান</span>
+            </div>
+            <div style={{ width:"100%", height:2, background:"#808080", marginBottom:1 }} />
+            <div style={{ width:"100%", height:1, background:"#ffffff" }} />
+            <p style={{ fontSize:12, color:"#000000", marginTop:8, fontFamily:"'Tahoma', sans-serif" }}>
+              আপনার রেস্টুরেন্টের আকার অনুযায়ী নিচের প্ল্যান থেকে বেছে নিন। সব প্ল্যানে {FREE_TRIAL_DAYS} দিনের ফ্রি ট্রায়াল অন্তর্ভুক্ত।
+            </p>
+          </div>
+
+          {/* Pricing Cards Grid */}
+          <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3,1fr)", gap:12 }}>
             {[
-              { name:"বেসিক", price:"১৯৯", desc:"ছোট রেস্টুরেন্টের জন্য", features:["৫০টি মেনু আইটেম","৫টি টেবিল","৩ জন স্টাফ","QR অর্ডারিং","রিয়েলটাইম নোটিফিকেশন"], hot:false, delay:0 },
-              { name:"প্রিমিয়াম", price:"২৯৯", desc:"বড় রেস্টুরেন্টের সেরা চয়েস", features:["২০০টি মেনু আইটেম","২০টি টেবিল","১৫ জন স্টাফ","সব বেসিক ফিচার","অ্যানালিটিক্স ড্যাশবোর্ড","প্রায়োরিটি সাপোর্ট"], hot:true, delay:0.1 },
-              { name:"এন্টারপ্রাইজ", price:"৪৯৯", desc:"চেইন রেস্টুরেন্টের জন্য", features:["আনলিমিটেড মেনু","আনলিমিটেড টেবিল","আনলিমিটেড স্টাফ","সব প্রিমিয়াম ফিচার","মাল্টি-ব্রাঞ্চ","ডেডিকেটেড সাপোর্ট"], hot:false, delay:0.2 },
+              { name:"বেসিক", price:"১৯৯", priceNum:199, desc:"ছোট রেস্টুরেন্টের জন্য উপযুক্ত", features:["৫০টি মেনু আইটেম","৫টি টেবিল","৩ জন স্টাফ","QR অর্ডারিং","রিয়েলটাইম নোটিফিকেশন"], hot:false, icon:"📋" },
+              { name:"প্রিমিয়াম", price:"২৯৯", priceNum:299, desc:"বড় রেস্টুরেন্টের সেরা চয়েস", features:["২০০টি মেনু আইটেম","২০টি টেবিল","১৫ জন স্টাফ","সব বেসিক ফিচার","অ্যানালিটিক্স ড্যাশবোর্ড","প্রায়োরিটি সাপোর্ট"], hot:true, icon:"⭐" },
+              { name:"এন্টারপ্রাইজ", price:"৪৯৯", priceNum:499, desc:"চেইন রেস্টুরেন্টের জন্য আদর্শ", features:["আনলিমিটেড মেনু","আনলিমিটেড টেবিল","আনলিমিটেড স্টাফ","সব প্রিমিয়াম ফিচার","মাল্টি-ব্রাঞ্চ","ডেডিকেটেড সাপোর্ট"], hot:false, icon:"🏢" },
             ].map((p, i) => (
-              <Reveal key={i} delay={p.delay}>
-                <div style={{ borderRadius:20, padding:"clamp(28px,5vw,40px) clamp(20px,4vw,32px)", backgroundColor: p.hot ? "#141414" : "#111111", border: p.hot ? "1px solid rgba(201,168,76,0.5)" : "1px solid rgba(201,168,76,0.15)", boxShadow: p.hot ? "0 0 60px rgba(201,168,76,0.1), inset 0 1px 0 rgba(201,168,76,0.2)" : "none", position:"relative", display:"flex", flexDirection:"column", transition:"all 0.3s" }}
-                  onMouseEnter={e => { e.currentTarget.style.transform="translateY(-4px)"; }}
-                  onMouseLeave={e => { e.currentTarget.style.transform="translateY(0)"; }}>
-                  {p.hot && <div style={{ position:"absolute", top:-14, left:"50%", transform:"translateX(-50%)", padding:"5px 18px", borderRadius:100, fontSize:11, fontWeight:700, background:gold, color:"#0a0a0a", letterSpacing:"0.05em", boxShadow:"0 4px 20px rgba(201,168,76,0.4)", whiteSpace:"nowrap", fontFamily:"'DM Sans', sans-serif" }}>✦ সবচেয়ে জনপ্রিয়</div>}
-                  <div style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:24, fontWeight:700, color: p.hot ? "#f5d780" : "#FFFFFF", marginBottom:4, marginTop: p.hot ? 8 : 0 }}>{p.name}</div>
-                  <div style={{ fontSize:13, color:"rgba(255,255,255,0.55)", marginBottom:24, fontFamily:"'DM Sans', sans-serif" }}>{p.desc}</div>
-                  <div style={{ marginBottom:28, display:"flex", alignItems:"baseline", gap:4 }}>
-                    <span style={{ fontSize:17, color:"rgba(201,168,76,0.8)", fontFamily:"'DM Sans', sans-serif", fontWeight:600 }}>৳</span>
-                    <span style={{ fontSize:"clamp(40px,8vw,56px)", fontWeight:700, fontFamily:"'Cormorant Garamond', serif", lineHeight:1, ...( p.hot ? goldText : { color:"#FFFFFF" }) }}>{p.price}</span>
-                    <span style={{ fontSize:14, color:"rgba(255,255,255,0.5)", fontFamily:"'DM Sans', sans-serif" }}>/মাস</span>
+              <div key={i} style={{
+                background: p.hot ? "#fffff0" : "#d4d0c8",
+                border:"2px solid",
+                borderTopColor: p.hot ? "#ffffff" : "#dfdfdf",
+                borderLeftColor: p.hot ? "#ffffff" : "#dfdfdf",
+                borderRightColor:"#808080",
+                borderBottomColor:"#808080",
+                display:"flex", flexDirection:"column",
+                boxShadow: p.hot ? "inset 0 0 0 1px #000080" : "none",
+              }}>
+                {/* Card title bar */}
+                <div style={{ background: p.hot ? "linear-gradient(180deg,#000080 0%,#1464a0 100%)" : "linear-gradient(180deg,#6a6a8f 0%,#4a4a6f 100%)", padding:"3px 6px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                    <span style={{ fontSize:13 }}>{p.icon}</span>
+                    <span style={{ fontSize:11, color:"#ffffff", fontWeight:700, textShadow:"1px 1px 0 rgba(0,0,0,0.7)" }}>{p.name}</span>
+                    {p.hot && <span style={{ fontSize:9, background:"#ffff00", color:"#000000", padding:"1px 5px", fontWeight:700, fontFamily:"'Tahoma', sans-serif" }}>HOT!</span>}
                   </div>
-                  <div style={{ borderTop:"1px solid rgba(201,168,76,0.15)", paddingTop:24, marginBottom:24, flex:1 }}>
-                    {p.features.map((f, fi) => (
-                      <div key={fi} style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
-                        <span style={{ ...goldText, fontSize:12, fontWeight:800, flexShrink:0 }}>✦</span>
-                        <span style={{ fontSize:"clamp(12px,2.5vw,14px)", color:"rgba(255,255,255,0.8)", fontFamily:"'DM Sans', sans-serif" }}>{f}</span>
-                      </div>
+                  <div style={{ display:"flex", gap:1 }}>
+                    {["_","□","✕"].map((s,si) => (
+                      <button key={si} style={{ width:14, height:12, fontSize:8, background:"#d4d0c8", border:"1px solid", borderTopColor:"#ffffff", borderLeftColor:"#ffffff", borderRightColor:"#404040", borderBottomColor:"#404040", cursor:"default", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700, lineHeight:1 }}>{s}</button>
                     ))}
                   </div>
-                  <a href="/login" style={{ display:"block", textAlign:"center", padding:"13px", borderRadius:10, fontSize:14, fontWeight:700, textDecoration:"none", background: p.hot ? gold : "transparent", color: p.hot ? "#0a0a0a" : "#f5d780", border: p.hot ? "none" : "1px solid rgba(201,168,76,0.4)", boxShadow: p.hot ? "0 6px 24px rgba(201,168,76,0.3)" : "none", fontFamily:"'DM Sans', sans-serif", transition:"all 0.2s" }}
-                    onMouseEnter={e => { e.currentTarget.style.opacity="0.85"; }}
-                    onMouseLeave={e => { e.currentTarget.style.opacity="1"; }}>
-                    শুরু করুন →
+                </div>
+
+                {/* Card content */}
+                <div style={{ padding:"12px 14px", flex:1, display:"flex", flexDirection:"column", gap:10 }}>
+
+                  {/* Description */}
+                  <p style={{ fontSize:11, color:"#444444", fontFamily:"'Tahoma', sans-serif", margin:0 }}>{p.desc}</p>
+
+                  {/* Sunken price display */}
+                  <div style={{ background:"#ffffff", border:"2px solid", borderTopColor:"#808080", borderLeftColor:"#808080", borderRightColor:"#dfdfdf", borderBottomColor:"#dfdfdf", padding:"8px 12px", textAlign:"center" }}>
+                    <div style={{ fontSize:10, color:"#000080", fontFamily:"'Tahoma', sans-serif", fontWeight:700, marginBottom:2 }}>মাসিক মূল্য</div>
+                    <div style={{ display:"flex", alignItems:"baseline", justifyContent:"center", gap:3 }}>
+                      <span style={{ fontSize:18, fontWeight:700, color:"#cc0000", fontFamily:"'Tahoma', sans-serif" }}>৳</span>
+                      <span style={{ fontSize:32, fontWeight:700, color: p.hot ? "#000080" : "#000000", fontFamily:"'Courier New', monospace" }}>{p.price}</span>
+                      <span style={{ fontSize:11, color:"#666666", fontFamily:"'Tahoma', sans-serif" }}>/মাস</span>
+                    </div>
+                  </div>
+
+                  {/* Separator */}
+                  <div>
+                    <div style={{ height:1, background:"#808080" }} />
+                    <div style={{ height:1, background:"#ffffff" }} />
+                  </div>
+
+                  {/* Features list */}
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontSize:11, fontWeight:700, color:"#000080", marginBottom:6, fontFamily:"'Tahoma', sans-serif" }}>✔ অন্তর্ভুক্ত ফিচার:</div>
+                    <div style={{ background:"#ffffff", border:"2px solid", borderTopColor:"#808080", borderLeftColor:"#808080", borderRightColor:"#dfdfdf", borderBottomColor:"#dfdfdf", padding:"6px" }}>
+                      {p.features.map((f, fi) => (
+                        <div key={fi} style={{ display:"flex", alignItems:"center", gap:6, padding:"3px 4px", background: fi % 2 === 0 ? "#f0f0f8" : "#ffffff", fontSize:11, color:"#000000", fontFamily:"'Tahoma', sans-serif" }}>
+                          <span style={{ color:"#006400", fontWeight:700, fontSize:10, flexShrink:0 }}>✔</span>
+                          {f}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* CTA Button — classic Win2k raised button */}
+                  <a href="/login" style={{ display:"block", textAlign:"center", padding:"5px 14px", fontSize:12, fontWeight:700, textDecoration:"none", fontFamily:"'Tahoma', sans-serif", color:"#000000", background: p.hot ? "#d4d0c8" : "#d4d0c8", border:"2px solid", borderTopColor:"#ffffff", borderLeftColor:"#ffffff", borderRightColor:"#808080", borderBottomColor:"#808080", cursor:"pointer", letterSpacing:"0.02em" }}
+                    onMouseEnter={e => { e.currentTarget.style.borderTopColor="#dfdfdf"; e.currentTarget.style.borderLeftColor="#dfdfdf"; e.currentTarget.style.background="#e4e0d8"; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderTopColor="#ffffff"; e.currentTarget.style.borderLeftColor="#ffffff"; e.currentTarget.style.background="#d4d0c8"; }}
+                    onMouseDown={e => { e.currentTarget.style.borderTopColor="#808080"; e.currentTarget.style.borderLeftColor="#808080"; e.currentTarget.style.borderRightColor="#ffffff"; e.currentTarget.style.borderBottomColor="#ffffff"; }}
+                    onMouseUp={e => { e.currentTarget.style.borderTopColor="#ffffff"; e.currentTarget.style.borderLeftColor="#ffffff"; e.currentTarget.style.borderRightColor="#808080"; e.currentTarget.style.borderBottomColor="#808080"; }}>
+                    {p.hot ? "⭐ এখনই শুরু করুন" : "শুরু করুন »"}
                   </a>
                 </div>
-              </Reveal>
+              </div>
             ))}
           </div>
-          <Reveal delay={0.35}>
-            <p style={{ textAlign:"center", color:"rgba(245,215,128,0.65)", fontSize:"clamp(12px,2.5vw,14px)", marginTop:28, fontFamily:"'DM Sans', sans-serif" }}>
-              ✦ সব প্ল্যানে <span style={{ color:"#f5d780", fontWeight:700 }}>{FREE_TRIAL_DAYS} দিনের ফ্রি ট্রায়াল</span> — কোনো ক্রেডিট কার্ড লাগবে না
-            </p>
-          </Reveal>
+
+          {/* Status bar */}
+          <div style={{ marginTop:16, display:"flex", gap:2, alignItems:"stretch" }}>
+            <div style={{ flex:3, background:"#d4d0c8", border:"2px solid", borderTopColor:"#808080", borderLeftColor:"#808080", borderRightColor:"#dfdfdf", borderBottomColor:"#dfdfdf", padding:"2px 8px", fontSize:11, color:"#000000", fontFamily:"'Tahoma', sans-serif" }}>
+              ✔ সব প্ল্যানে {FREE_TRIAL_DAYS} দিনের বিনামূল্যে ট্রায়াল — কোনো ক্রেডিট কার্ড প্রয়োজন নেই
+            </div>
+            <div style={{ flex:1, background:"#d4d0c8", border:"2px solid", borderTopColor:"#808080", borderLeftColor:"#808080", borderRightColor:"#dfdfdf", borderBottomColor:"#dfdfdf", padding:"2px 8px", fontSize:11, color:"#000080", fontFamily:"'Tahoma', sans-serif", textAlign:"center" }}>
+              🌐 Internet zone
+            </div>
+            <div style={{ width:80, background:"#d4d0c8", border:"2px solid", borderTopColor:"#808080", borderLeftColor:"#808080", borderRightColor:"#dfdfdf", borderBottomColor:"#dfdfdf", padding:"2px 4px", fontSize:10, color:"#444444", fontFamily:"'Tahoma', sans-serif", textAlign:"center" }}>
+              100% ✓
+            </div>
+          </div>
         </div>
+
+        <style>{`
+          @keyframes marquee {
+            0% { transform: translateX(100%); }
+            100% { transform: translateX(-100%); }
+          }
+        `}</style>
       </section>
 
       {/* ─── CTA ─── */}
