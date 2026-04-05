@@ -34,7 +34,7 @@ const AdminSetup = () => {
             setChecking(false);
           }
         })
-        .catch((err) => {
+        .then(undefined, (err: any) => {
           console.warn("Restaurant ID check failed:", err);
           setChecking(false);
         });

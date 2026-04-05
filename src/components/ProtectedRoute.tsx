@@ -25,7 +25,7 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
   }
 
   // Admin has no restaurant → force setup (super_admin exempt)
-  if (role === "admin" && !restaurantId && role !== "super_admin") {
+  if (role === "admin" && !restaurantId) {
     return <Navigate to="/admin-setup" replace />;
   }
 
