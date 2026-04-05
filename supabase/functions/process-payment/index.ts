@@ -133,11 +133,18 @@ Deno.serve(async (req) => {
         .eq("id", payment_id);
       if (error) throw error;
 
+      // Rollback restaurant to inactive if it was previously approved by this payment
+      if (payment.status === "approved") {
+        await admin.from("restaurants")
+          .update({ status: "inactive", updated_at: now })
+          .eq("id", payment.restaurant_id);
+      }
+
       console.log(`[process-payment] REJECT payment=${payment_id} by super_admin=${caller.id}`);
       return json({ success: true, action: "reject" });
     }
 
-    // ── UPDATE (edit fields freely, activate restaurant if status→approved) ────
+    // ── UPDATE (edit fields freely, sync restaurant state to match new status) ─
     if (action === "update") {
       const newStatus = body.status ?? payment.status;
       const newPlan   = body.plan   ?? payment.plan;
@@ -161,6 +168,7 @@ Deno.serve(async (req) => {
         .eq("id", payment_id);
       if (payErr) throw payErr;
 
+      // Sync restaurant status whenever payment status changes
       if (newStatus === "approved") {
         const expiryDate = getExpiryDate(payment.billing_cycle);
         const { error: restErr } = await admin
@@ -168,6 +176,11 @@ Deno.serve(async (req) => {
           .update({ status: "active_paid", plan: newPlan, trial_ends_at: expiryDate, updated_at: now })
           .eq("id", payment.restaurant_id);
         if (restErr) throw restErr;
+      } else if (payment.status === "approved" && newStatus !== "approved") {
+        // Was approved, now being demoted — roll back restaurant
+        await admin.from("restaurants")
+          .update({ status: "inactive", plan: "basic", updated_at: now })
+          .eq("id", payment.restaurant_id);
       }
 
       console.log(`[process-payment] UPDATE payment=${payment_id} status=${newStatus} plan=${newPlan} by super_admin=${caller.id}`);
@@ -182,12 +195,26 @@ Deno.serve(async (req) => {
         .eq("id", payment_id);
       if (error) throw error;
 
+      // Rollback restaurant if it was activated by this payment
+      if (payment.status === "approved") {
+        await admin.from("restaurants")
+          .update({ status: "inactive", plan: "basic", updated_at: now })
+          .eq("id", payment.restaurant_id);
+      }
+
       console.log(`[process-payment] REOPEN payment=${payment_id} by super_admin=${caller.id}`);
       return json({ success: true, action: "reopen" });
     }
 
     // ── DELETE ─────────────────────────────────────────────────────────────────
     if (action === "delete") {
+      // Rollback restaurant before deleting the record
+      if (payment.status === "approved") {
+        await admin.from("restaurants")
+          .update({ status: "inactive", plan: "basic", updated_at: now })
+          .eq("id", payment.restaurant_id);
+      }
+
       const { error } = await admin
         .from("payment_requests")
         .delete()

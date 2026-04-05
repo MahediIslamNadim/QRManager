@@ -22,14 +22,29 @@ const ShortCodeRedirect = () => {
       const params = new URLSearchParams(window.location.search);
       const tableId = params.get("table");
       const seat = params.get("seat");
-      const token = params.get("token");
+      const existingToken = params.get("token");
 
-      if (tableId && !seat && !token) {
-        // ✅ Group customer — seat select এ পাঠাও
-        navigate(`/menu/${data.id}/select-seat?table=${tableId}`, { replace: true });
+      // If a tableId is present and no token yet, create a session server-side
+      // so the token is in the URL before any customer page loads.
+      let token = existingToken;
+      if (tableId && !existingToken) {
+        const { data: session } = await (supabase.rpc as any)(
+          "validate_and_create_session",
+          { p_restaurant_id: data.id, p_table_id: tableId, p_token: null },
+        );
+        if (session?.token) token = session.token as string;
+      }
+
+      const tokenSuffix = token ? `&token=${token}` : "";
+
+      if (tableId && !seat) {
+        // Group customer — seat select
+        navigate(`/menu/${data.id}/select-seat?table=${tableId}${tokenSuffix}`, { replace: true });
       } else {
-        // ✅ Single customer বা token আছে — সরাসরি menu
-        navigate(`/menu/${data.id}${window.location.search}`, { replace: true });
+        // Single customer or returning with token
+        const base = new URLSearchParams(window.location.search);
+        if (token) base.set("token", token);
+        navigate(`/menu/${data.id}?${base.toString()}`, { replace: true });
       }
     };
     lookup();

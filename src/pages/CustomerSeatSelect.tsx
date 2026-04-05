@@ -33,35 +33,18 @@ const CustomerSeatSelect = () => {
       if (tableRes.data) setTableName(tableRes.data.name);
       if (seatsRes.data) setSeats(seatsRes.data);
 
-      // ✅ Find valid token for this table
-      // First check URL token
+      // Validate token via RPC (direct table_sessions SELECT is no longer public).
+      // The token must have arrived from ShortCodeRedirect or CustomerMenu.
       if (tokenParam) {
-        const { data: session } = await supabase
-          .from("table_sessions" as any)
-          .select("token, expires_at")
-          .eq("token", tokenParam)
-          .eq("table_id", tableId)
-          .maybeSingle();
-        if (session && new Date((session as any).expires_at) > new Date()) {
-          setValidToken((session as any).token);
-          setLoading(false);
-          return;
+        const { data: session } = await supabase.rpc(
+          "validate_and_create_session" as any,
+          { p_restaurant_id: restaurantId, p_table_id: tableId, p_token: tokenParam } as any,
+        );
+        if (session) {
+          setValidToken((session as any).token as string);
         }
-      }
-
-      // Fallback: find any valid session for this table
-      const { data: existingSession } = await supabase
-        .from("table_sessions" as any)
-        .select("token, expires_at")
-        .eq("table_id", tableId)
-        .eq("restaurant_id", restaurantId)
-        .gt("expires_at", new Date().toISOString())
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (existingSession) {
-        setValidToken((existingSession as any).token);
+        // No fallback: if token is missing or invalid, validToken stays null
+        // and selectSeat() will navigate without a token → CustomerMenu blocks ordering.
       }
 
       setLoading(false);

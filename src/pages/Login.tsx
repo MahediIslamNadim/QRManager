@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -13,6 +13,8 @@ type Mode = "login" | "signup" | "forgot" | "forgot_sent";
 
 const Login = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const inviteId = searchParams.get("invite");
   const { user, role, loading } = useAuth();
 
   const [mode, setMode] = useState<Mode>("login");
@@ -29,9 +31,11 @@ const Login = () => {
     if (!loading && user && role) {
       if (role === "super_admin") navigate("/super-admin", { replace: true });
       else if (role === "waiter") navigate("/waiter", { replace: true });
+      // If arrived with ?invite=..., forward it to AdminSetup so the acceptance flow completes
+      else if (inviteId) navigate(`/admin/setup?invite=${inviteId}`, { replace: true });
       else navigate("/admin", { replace: true });
     }
-  }, [user, role, loading, navigate]);
+  }, [user, role, loading, navigate, inviteId]);
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,45 +67,38 @@ const Login = () => {
         });
         if (error) throw error;
         if (data.user) {
-          // Always start with basic plan + FREE_TRIAL_DAYS free trial
-          const trialEndsAt = new Date();
-          trialEndsAt.setDate(trialEndsAt.getDate() + FREE_TRIAL_DAYS);
+          // Use server-side RPC: atomically creates restaurant + assigns admin role.
+          // Direct user_roles INSERT is no longer allowed by RLS from the client.
+          const { data: setupData, error: setupError } = await supabase.rpc(
+            "complete_admin_signup" as any,
+            {
+              p_restaurant_name: restaurantName.trim(),
+              p_address: restaurantAddress.trim() || null,
+              p_phone: restaurantPhone.trim() || null,
+              p_trial_days: FREE_TRIAL_DAYS,
+            } as any,
+          );
+          if (setupError) throw new Error("সেটআপ ব্যর্থ: " + setupError.message);
 
-          const { data: restaurant, error: restError } = await supabase
-            .from("restaurants")
-            .insert({
-              name: restaurantName.trim(),
-              address: restaurantAddress.trim() || null,
-              phone: restaurantPhone.trim() || null,
-              plan: "basic",
-              owner_id: data.user.id,
-              status: "active",
-              trial_ends_at: trialEndsAt.toISOString(),
-            })
-            .select().single();
-
-          if (restError) throw new Error("রেস্টুরেন্ট তৈরি করতে ব্যর্থ: " + restError.message);
-          const { error: roleError } = await supabase.from("user_roles").insert({ user_id: data.user.id, role: "admin" });
-          if (roleError) throw new Error("রোল সেট করতে ব্যর্থ: " + roleError.message);
-
-          if (restaurant) {
+          const restaurantId = (setupData as any)?.restaurant_id;
+          if (restaurantId) {
             await supabase.from("menu_items").insert([
-              { restaurant_id: restaurant.id, name: "চিকেন বিরিয়ানি", price: 350, category: "বিরিয়ানি", description: "সুগন্ধি বাসমতি চালে রান্না করা মুরগির বিরিয়ানি" },
-              { restaurant_id: restaurant.id, name: "বটি কাবাব", price: 180, category: "কাবাব", description: "মশলাযুক্ত গরুর মাংসের কাবাব" },
-              { restaurant_id: restaurant.id, name: "মটন বিরিয়ানি", price: 450, category: "বিরিয়ানি", description: "খাসির মাংস দিয়ে তৈরি বিরিয়ানি" },
-              { restaurant_id: restaurant.id, name: "প্লেইন ভাত", price: 60, category: "ভাত", description: "সাদা ভাত" },
-              { restaurant_id: restaurant.id, name: "মাংগো লাচ্ছি", price: 120, category: "পানীয়", description: "তাজা আমের লাচ্ছি" },
-              { restaurant_id: restaurant.id, name: "ফিরনি", price: 100, category: "ডেজার্ট", description: "ঐতিহ্যবাহী দুধের ফিরনি" },
-              { restaurant_id: restaurant.id, name: "শিক কাবাব", price: 220, category: "কাবাব", description: "কাঠকয়লায় ভাজা শিক কাবাব" },
-              { restaurant_id: restaurant.id, name: "বোরহানি", price: 80, category: "পানীয়", description: "ঐতিহ্যবাহী মশলা পানীয়" },
+              { restaurant_id: restaurantId, name: "চিকেন বিরিয়ানি", price: 350, category: "বিরিয়ানি", description: "সুগন্ধি বাসমতি চালে রান্না করা মুরগির বিরিয়ানি" },
+              { restaurant_id: restaurantId, name: "বটি কাবাব", price: 180, category: "কাবাব", description: "মশলাযুক্ত গরুর মাংসের কাবাব" },
+              { restaurant_id: restaurantId, name: "মটন বিরিয়ানি", price: 450, category: "বিরিয়ানি", description: "খাসির মাংস দিয়ে তৈরি বিরিয়ানি" },
+              { restaurant_id: restaurantId, name: "প্লেইন ভাত", price: 60, category: "ভাত", description: "সাদা ভাত" },
+              { restaurant_id: restaurantId, name: "মাংগো লাচ্ছি", price: 120, category: "পানীয়", description: "তাজা আমের লাচ্ছি" },
+              { restaurant_id: restaurantId, name: "ফিরনি", price: 100, category: "ডেজার্ট", description: "ঐতিহ্যবাহী দুধের ফিরনি" },
+              { restaurant_id: restaurantId, name: "শিক কাবাব", price: 220, category: "কাবাব", description: "কাঠকয়লায় ভাজা শিক কাবাব" },
+              { restaurant_id: restaurantId, name: "বোরহানি", price: 80, category: "পানীয়", description: "ঐতিহ্যবাহী মশলা পানীয়" },
             ]);
             await supabase.from("restaurant_tables").insert([
-              { restaurant_id: restaurant.id, name: "T-1", seats: 4 },
-              { restaurant_id: restaurant.id, name: "T-2", seats: 6 },
-              { restaurant_id: restaurant.id, name: "T-3", seats: 2 },
-              { restaurant_id: restaurant.id, name: "T-4", seats: 4 },
-              { restaurant_id: restaurant.id, name: "T-5", seats: 8 },
-              { restaurant_id: restaurant.id, name: "T-6", seats: 4 },
+              { restaurant_id: restaurantId, name: "T-1", seats: 4 },
+              { restaurant_id: restaurantId, name: "T-2", seats: 6 },
+              { restaurant_id: restaurantId, name: "T-3", seats: 2 },
+              { restaurant_id: restaurantId, name: "T-4", seats: 4 },
+              { restaurant_id: restaurantId, name: "T-5", seats: 8 },
+              { restaurant_id: restaurantId, name: "T-6", seats: 4 },
             ]);
           }
           toast.success(`অ্যাকাউন্ট তৈরি হয়েছে! ${FREE_TRIAL_DAYS} দিনের ফ্রি ট্রায়াল (বেসিক) শুরু হয়েছে।`);

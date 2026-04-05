@@ -125,16 +125,20 @@ const CustomerMenu = () => {
     if (isDemo || !tableId || !restaurantId) return;
     setOrdersLoading(true);
     try {
-      const { data: ordersData, error } = await supabase
+      let query = supabase
         .from("orders")
         .select("id, total, status, created_at")
         .eq("restaurant_id", restaurantId)
         .eq("table_id", tableId)
         .in("status", ACTIVE_STATUSES)
-        // ✅ FIX Bug 1: total > 0 filter — waiter call / bill request বাদ
         .gt("total", 0)
         .order("created_at", { ascending: false })
         .limit(10);
+
+      // Scope to seat when available so customers only see their own orders
+      if (seatId) query = query.eq("seat_id", seatId);
+
+      const { data: ordersData, error } = await query;
 
       if (error || !ordersData) return;
 
@@ -237,59 +241,22 @@ const CustomerMenu = () => {
           return;
         }
 
-        if (tokenParam) {
-          const { data: session } = await supabase
-            .from("table_sessions" as any)
-            .select("token, expires_at")
-            .eq("token", tokenParam)
-            .eq("table_id", tableId)
-            .maybeSingle();
+        // Server validates existing token or creates a new session atomically.
+        // Direct table_sessions SELECT/INSERT is no longer allowed by RLS.
+        const { data: sessionResult, error: sessionErr } = await supabase.rpc(
+          "validate_and_create_session" as any,
+          { p_restaurant_id: restaurantId, p_table_id: tableId, p_token: tokenParam ?? null } as any,
+        );
 
-          if (session && new Date((session as any).expires_at) > new Date()) {
-            setSessionToken((session as any).token);
-            setTokenValid(true);
-            setTokenChecking(false);
-            setTableChecked(true);
-            return;
-          }
-        }
-
-        const { data: existing } = await supabase
-          .from("table_sessions" as any)
-          .select("token, expires_at")
-          .eq("table_id", tableId)
-          .eq("restaurant_id", restaurantId)
-          .gt("expires_at", new Date().toISOString())
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (existing) {
-          setSessionToken((existing as any).token);
+        if (!sessionErr && sessionResult) {
+          const token = (sessionResult as any).token as string;
+          setSessionToken(token);
           setTokenValid(true);
           const newUrl = new URL(window.location.href);
-          newUrl.searchParams.set("token", (existing as any).token);
-          window.history.replaceState({}, "", newUrl.toString());
-          setTokenChecking(false);
-          setTableChecked(true);
-          return;
-        }
-
-        const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
-        const { data: newSession, error } = await supabase
-          .from("table_sessions" as any)
-          .insert({ restaurant_id: restaurantId, table_id: tableId, expires_at: expiresAt } as any)
-          .select()
-          .maybeSingle();
-
-        if (!error && newSession) {
-          setSessionToken((newSession as any).token);
-          setTokenValid(true);
-          const newUrl = new URL(window.location.href);
-          newUrl.searchParams.set("token", (newSession as any).token);
+          newUrl.searchParams.set("token", token);
           window.history.replaceState({}, "", newUrl.toString());
         } else {
-          // Session create failed — fail closed, do not allow ordering
+          // RPC failed or table/restaurant mismatch — fail closed
           setTokenValid(false);
         }
       } catch {
@@ -481,36 +448,35 @@ const CustomerMenu = () => {
       return;
     }
 
+    if (!sessionToken) {
+      toast.error("সেশন টোকেন নেই। QR কোড স্ক্যান করুন।");
+      return;
+    }
+
     setSubmitting(true);
     try {
-      const { data: order, error: orderErr } = await supabase
-        .from("orders")
-        .insert({
-          restaurant_id: restaurantId!,
-          table_id: tableId || null,
-          seat_id: seatId || null,
-          total: totalPrice,
-          status: "pending",
-          notes: specialNote.trim() || null,
-        })
-        .select()
-        .single();
+      // Server validates token + creates order+items atomically.
+      // Direct orders INSERT is no longer allowed by RLS from anon clients.
+      const { data: result, error: orderErr } = await supabase.rpc(
+        "insert_order_with_token" as any,
+        {
+          p_restaurant_id: restaurantId,
+          p_table_id: tableId ?? null,
+          p_seat_id: seatId ?? null,
+          p_total: totalPrice,
+          p_notes: specialNote.trim() || null,
+          p_token: sessionToken,
+          p_items: cart.map(c => ({
+            menu_item_id: c.id,
+            name: c.name,
+            price: c.price,
+            quantity: c.quantity,
+          })),
+        } as any,
+      );
 
       if (orderErr) throw orderErr;
-
-      const orderItemsPayload = cart.map(c => ({
-        order_id: order.id,
-        menu_item_id: c.id,
-        name: c.name,
-        price: c.price,
-        quantity: c.quantity,
-      }));
-
-      const { error: itemsErr } = await supabase.from("order_items").insert(orderItemsPayload);
-      if (itemsErr) throw itemsErr;
-
-      // Seat is marked occupied by the mark_seat_occupied DB trigger on order INSERT.
-      // No client-side UPDATE needed (and public UPDATE policy has been removed).
+      const orderId = (result as any)?.order_id as string;
 
       const localItems: OrderItem[] = cart.map(c => ({
         id: c.id,
@@ -520,15 +486,15 @@ const CustomerMenu = () => {
       }));
 
       const newOrder: Order = {
-        id: order.id,
+        id: orderId,
         total: totalPrice,
         status: "pending",
-        created_at: order.created_at,
+        created_at: new Date().toISOString(),
         items: localItems,
       };
       setMyOrders(prev => [newOrder, ...prev]);
 
-      setLastOrderId(order.id.slice(0, 8).toUpperCase());
+      setLastOrderId(orderId.slice(0, 8).toUpperCase());
       setLastOrderTotal(totalPrice);
       setLastOrderItems([...cart]);
       setShowCart(false);
@@ -1202,12 +1168,14 @@ const CustomerMenu = () => {
                 onClick={async () => {
                   if (!ratingValue || !ratingOrderId) return;
                   setRatingSubmitting(true);
-                  const { error } = await supabase
-                    .from("orders")
-                    .update({ rating: ratingValue, rating_comment: ratingComment || null })
-                    .eq("id", ratingOrderId);
+                  // Direct orders UPDATE for customers is blocked by RLS.
+                  // Use server-side RPC that validates session token before writing.
+                  const { data: ok } = await supabase.rpc(
+                    "submit_order_rating" as any,
+                    { p_order_id: ratingOrderId, p_rating: ratingValue, p_comment: ratingComment || null, p_token: sessionToken } as any,
+                  );
                   setRatingSubmitting(false);
-                  if (!error) {
+                  if (ok) {
                     localStorage.setItem(`rated_${ratingOrderId}`, "done");
                     toast("🙏 ধন্যবাদ! আপনার রেটিং পেয়েছি।", { duration: 4000 });
                   }
