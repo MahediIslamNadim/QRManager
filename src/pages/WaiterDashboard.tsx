@@ -289,11 +289,12 @@ const WaiterDashboard = () => {
                   <p className="text-xs text-muted-foreground">{timeAgo(n.created_at)}</p>
                 </div>
                 <button
-                  onClick={() => {
-                    supabase.from("orders").update({ status: "completed" }).eq("id", n.id)
-                      .then(() => queryClient.invalidateQueries({ queryKey: ["waiter-notif-orders", restaurantId] }));
-                  }}
-                  className="text-xs px-2.5 py-1 rounded-lg bg-warning/20 text-warning font-semibold hover:bg-warning/30 transition-colors flex-shrink-0"
+                  onClick={() => updateStatus.mutate(
+                    { id: n.id, status: "completed", restaurantId: restaurantId! },
+                    { onSuccess: () => queryClient.invalidateQueries({ queryKey: ["waiter-notif-orders", restaurantId] }) },
+                  )}
+                  disabled={updateStatus.isPending}
+                  className="text-xs px-2.5 py-1 rounded-lg bg-warning/20 text-warning font-semibold hover:bg-warning/30 transition-colors flex-shrink-0 disabled:opacity-50"
                 >
                   ✓ Done
                 </button>
