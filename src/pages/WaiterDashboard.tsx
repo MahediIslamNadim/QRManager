@@ -230,7 +230,8 @@ const WaiterDashboard = () => {
       const { error } = await supabase
         .from("restaurant_tables")
         .update({ current_customers: newCount })
-        .eq("id", tableId);
+        .eq("id", tableId)
+        .eq("restaurant_id", restaurantId!);
       if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ["waiter-tables", restaurantId] });
     } catch (err: any) {
