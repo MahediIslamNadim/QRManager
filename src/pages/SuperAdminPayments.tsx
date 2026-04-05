@@ -30,15 +30,12 @@ interface PaymentRequest {
   restaurant_name?: string;
 }
 
-// ✅ Calculate expiry based on billing cycle
-const getExpiryDate = (billingCycle?: string) => {
-  const now = new Date();
-  if (billingCycle === "yearly") {
-    now.setFullYear(now.getFullYear() + 1);
-  } else {
-    now.setMonth(now.getMonth() + 1);
-  }
-  return now.toISOString();
+// Invoke the process-payment edge function and throw on any error
+const invokePayment = async (body: Record<string, unknown>) => {
+  const { data, error } = await supabase.functions.invoke("process-payment", { body });
+  if (error) throw new Error(error.message || "Function error");
+  if (data?.error) throw new Error(data.error);
+  return data;
 };
 
 const SuperAdminPayments = () => {
@@ -78,124 +75,41 @@ const SuperAdminPayments = () => {
     (p.phone_number || "").includes(search)
   );
 
-  const approveMutation = useMutation({
-    mutationFn: async ({ paymentId, restaurantId, plan, userId, billingCycle }: {
-      paymentId: string; restaurantId: string; plan: string; userId: string; billingCycle?: string;
-    }) => {
-      // ✅ Update payment status
-      const { error: payError } = await supabase
-        .from("payment_requests" as any)
-        .update({ status: "approved", admin_notes: adminNotes || null, updated_at: new Date().toISOString() } as any)
-        .eq("id", paymentId);
-      if (payError) throw payError;
+  const closeDialog = () => { setDialogOpen(false); setSelectedPayment(null); setAdminNotes(""); };
 
-      // ✅ Update restaurant — plan + status + trial_ends_at extended
-      const expiryDate = getExpiryDate(billingCycle);
-      const { error: restError } = await supabase
-        .from("restaurants")
-        .update({
-          status: "active_paid",
-          plan,
-          trial_ends_at: expiryDate,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", restaurantId);
-      if (restError) throw restError;
-    },
-    onSuccess: () => {
-      toast.success("✅ পেমেন্ট অনুমোদিত! রেস্টুরেন্ট সক্রিয় করা হয়েছে।");
-      setDialogOpen(false);
-      setSelectedPayment(null);
-      setAdminNotes("");
-      queryClient.invalidateQueries({ queryKey: ["all-payments"] });
-    },
+  const approveMutation = useMutation({
+    mutationFn: ({ paymentId, plan, billingCycle }: {
+      paymentId: string; plan: string; billingCycle?: string;
+    }) => invokePayment({ action: "approve", payment_id: paymentId, plan, billing_cycle: billingCycle, admin_notes: adminNotes || null }),
+    onSuccess: () => { toast.success("✅ পেমেন্ট অনুমোদিত! রেস্টুরেন্ট সক্রিয় করা হয়েছে।"); closeDialog(); queryClient.invalidateQueries({ queryKey: ["all-payments"] }); },
     onError: (err: any) => toast.error(err.message),
   });
 
   const rejectMutation = useMutation({
-    mutationFn: async ({ paymentId }: { paymentId: string }) => {
-      const { error } = await supabase
-        .from("payment_requests" as any)
-        .update({ status: "rejected", admin_notes: adminNotes || null, updated_at: new Date().toISOString() } as any)
-        .eq("id", paymentId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("পেমেন্ট প্রত্যাখ্যান করা হয়েছে");
-      setDialogOpen(false);
-      setSelectedPayment(null);
-      setAdminNotes("");
-      queryClient.invalidateQueries({ queryKey: ["all-payments"] });
-    },
+    mutationFn: ({ paymentId }: { paymentId: string }) =>
+      invokePayment({ action: "reject", payment_id: paymentId, admin_notes: adminNotes || null }),
+    onSuccess: () => { toast.success("পেমেন্ট প্রত্যাখ্যান করা হয়েছে"); closeDialog(); queryClient.invalidateQueries({ queryKey: ["all-payments"] }); },
     onError: (err: any) => toast.error(err.message),
   });
 
   const updatePaymentMutation = useMutation({
-    mutationFn: async () => {
-      if (!selectedPayment) return;
-      const { error: paymentError } = await supabase
-        .from("payment_requests" as any)
-        .update({
-          plan: editPlan,
-          amount: editAmount,
-          status: editStatus,
-          admin_notes: adminNotes || null,
-          updated_at: new Date().toISOString(),
-        } as any)
-        .eq("id", selectedPayment.id);
-      if (paymentError) throw paymentError;
-
-      // ✅ If approving via edit — also update restaurant
-      if (editStatus === "approved") {
-        const expiryDate = getExpiryDate(selectedPayment.billing_cycle);
-        const { error: restaurantError } = await supabase
-          .from("restaurants")
-          .update({
-            status: "active_paid",
-            plan: editPlan,
-            trial_ends_at: expiryDate,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", selectedPayment.restaurant_id);
-        if (restaurantError) throw restaurantError;
-      }
+    mutationFn: () => {
+      if (!selectedPayment) return Promise.resolve();
+      return invokePayment({ action: "update", payment_id: selectedPayment.id, plan: editPlan, amount: editAmount, status: editStatus, admin_notes: adminNotes || null });
     },
-    onSuccess: () => {
-      toast.success("পেমেন্ট আপডেট হয়েছে");
-      setDialogOpen(false);
-      setSelectedPayment(null);
-      setAdminNotes("");
-      queryClient.invalidateQueries({ queryKey: ["all-payments"] });
-    },
+    onSuccess: () => { toast.success("পেমেন্ট আপডেট হয়েছে"); closeDialog(); queryClient.invalidateQueries({ queryKey: ["all-payments"] }); },
     onError: (err: any) => toast.error(err.message || "আপডেট করতে সমস্যা হয়েছে"),
   });
 
   const deletePaymentMutation = useMutation({
-    mutationFn: async (paymentId: string) => {
-      const { error } = await supabase
-        .from("payment_requests" as any).delete().eq("id", paymentId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("পেমেন্ট রিকোয়েস্ট মুছে ফেলা হয়েছে");
-      if (dialogOpen) { setDialogOpen(false); setSelectedPayment(null); }
-      queryClient.invalidateQueries({ queryKey: ["all-payments"] });
-    },
+    mutationFn: (paymentId: string) => invokePayment({ action: "delete", payment_id: paymentId }),
+    onSuccess: () => { toast.success("পেমেন্ট রিকোয়েস্ট মুছে ফেলা হয়েছে"); if (dialogOpen) closeDialog(); queryClient.invalidateQueries({ queryKey: ["all-payments"] }); },
     onError: (err: any) => toast.error(err.message || "ডিলিট করতে সমস্যা হয়েছে"),
   });
 
   const reopenMutation = useMutation({
-    mutationFn: async (paymentId: string) => {
-      const { error } = await supabase
-        .from("payment_requests" as any)
-        .update({ status: "pending", updated_at: new Date().toISOString() } as any)
-        .eq("id", paymentId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("পেমেন্ট আবার পেন্ডিং করা হয়েছে");
-      queryClient.invalidateQueries({ queryKey: ["all-payments"] });
-    },
+    mutationFn: (paymentId: string) => invokePayment({ action: "reopen", payment_id: paymentId }),
+    onSuccess: () => { toast.success("পেমেন্ট আবার পেন্ডিং করা হয়েছে"); queryClient.invalidateQueries({ queryKey: ["all-payments"] }); },
     onError: (err: any) => toast.error(err.message),
   });
 
@@ -432,9 +346,7 @@ const SuperAdminPayments = () => {
                   <Button variant="hero" className="h-10"
                     onClick={() => approveMutation.mutate({
                       paymentId: selectedPayment.id,
-                      restaurantId: selectedPayment.restaurant_id,
                       plan: editPlan,
-                      userId: selectedPayment.user_id,
                       billingCycle: selectedPayment.billing_cycle,
                     })}
                     disabled={approveMutation.isPending}>
