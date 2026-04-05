@@ -181,6 +181,7 @@ const KitchenDisplay = () => {
                     colors={statusColor.pending}
                     now={now}
                     primaryAction={{ label: "রান্না শুরু করুন →", onClick: () => markPreparing(order.id) }}
+                    disabled={updateStatus.isPending}
                   />
                 ))}
               </div>
@@ -205,6 +206,7 @@ const KitchenDisplay = () => {
                     colors={statusColor.preparing}
                     now={now}
                     primaryAction={{ label: "✓ সার্ভ করুন", onClick: () => markServed(order.id), green: true }}
+                    disabled={updateStatus.isPending}
                   />
                 ))}
               </div>
@@ -221,9 +223,10 @@ interface OrderCardProps {
   colors: typeof statusColor.pending;
   now: number;
   primaryAction: { label: string; onClick: () => void; green?: boolean };
+  disabled?: boolean;
 }
 
-const OrderCard = ({ order, colors, now: _now, primaryAction }: OrderCardProps) => {
+const OrderCard = ({ order, colors, now: _now, primaryAction, disabled = false }: OrderCardProps) => {
   const mins = elapsed(order.created_at);
   const urgent = mins >= 10;
 
@@ -263,7 +266,8 @@ const OrderCard = ({ order, colors, now: _now, primaryAction }: OrderCardProps) 
       {/* Action button */}
       <button
         onClick={primaryAction.onClick}
-        className={`w-full py-2.5 rounded-xl font-bold text-sm transition-all active:scale-95 ${
+        disabled={disabled}
+        className={`w-full py-2.5 rounded-xl font-bold text-sm transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100 ${
           primaryAction.green
             ? "bg-success hover:bg-success/90 text-white"
             : "bg-warning hover:bg-warning/90 text-warning-foreground"
