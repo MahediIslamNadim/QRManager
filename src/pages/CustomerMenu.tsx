@@ -289,12 +289,12 @@ const CustomerMenu = () => {
           newUrl.searchParams.set("token", (newSession as any).token);
           window.history.replaceState({}, "", newUrl.toString());
         } else {
-          setTokenValid(true);
+          // Session create failed — fail closed, do not allow ordering
+          setTokenValid(false);
         }
-      } catch (err) {
-        // ✅ FIX Bug 3: network error হলেও tokenValid=true রাখো (session check অনুমোদন দেয়)
-        // কিন্তু tableIsOpen এর default (true) পরিবর্তন করো না — table open ধরো
-        setTokenValid(true);
+      } catch {
+        // Network/policy error — fail closed so ordering is blocked, not silently permitted
+        setTokenValid(false);
       }
 
       setTokenChecking(false);
@@ -509,9 +509,8 @@ const CustomerMenu = () => {
       const { error: itemsErr } = await supabase.from("order_items").insert(orderItemsPayload);
       if (itemsErr) throw itemsErr;
 
-      if (seatId) {
-        await supabase.from("table_seats").update({ status: "occupied" }).eq("id", seatId);
-      }
+      // Seat is marked occupied by the mark_seat_occupied DB trigger on order INSERT.
+      // No client-side UPDATE needed (and public UPDATE policy has been removed).
 
       const localItems: OrderItem[] = cart.map(c => ({
         id: c.id,
