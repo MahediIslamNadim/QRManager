@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ShoppingCart, Clock, CheckCircle, ChefHat, Edit, Plus, Minus, X, Banknote, Smartphone, Printer } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useOrderActions } from "@/hooks/useOrderActions";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { printReceipt } from "@/utils/printReceipt";
@@ -15,9 +16,12 @@ const statusMap: Record<string, string> = {
   "সব": "all", "পেন্ডিং": "pending", "প্রস্তুত হচ্ছে": "preparing", "সার্ভ করা হয়েছে": "served", "সম্পন্ন": "completed"
 };
 
+const QUERY_KEY = ["admin-orders"];
+
 const AdminOrders = () => {
   const { restaurantId, user } = useAuth();
   const queryClient = useQueryClient();
+  const { updateStatus, completePayment, saveOrderEdit } = useOrderActions([QUERY_KEY]);
   const [filter, setFilter] = useState("সব");
   const [editOrder, setEditOrder] = useState<any>(null);
   const [editItems, setEditItems] = useState<any[]>([]);
@@ -64,49 +68,6 @@ const AdminOrders = () => {
     return () => { supabase.removeChannel(channel); };
   }, [restaurantId, queryClient]);
 
-  const updateStatus = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await supabase.from("orders").update({ status }).eq("id", id).eq("restaurant_id", restaurantId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
-      toast.success("স্ট্যাটাস আপডেট হয়েছে");
-    },
-    onError: (err: any) => toast.error(err.message),
-  });
-
-  // ✅ Payment mutation
-  const paymentMutation = useMutation({
-    mutationFn: async ({ orderId, method }: { orderId: string; method: string }) => {
-      const staffName = user?.user_metadata?.full_name || user?.email || "Admin";
-      const { error } = await supabase.from("orders").update({
-        status: "completed",
-        payment_status: "paid",
-        payment_method: method,
-        paid_to_staff_id: user?.id,
-        paid_to_staff_name: staffName,
-        paid_at: new Date().toISOString(),
-      }).eq("id", orderId).eq("restaurant_id", restaurantId);
-      if (error) throw error;
-    },
-    onSuccess: (_, vars) => {
-      queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
-      toast.success("✅ পেমেন্ট সম্পন্ন হয়েছে!", {
-        action: {
-          label: "🖨️ রসিদ প্রিন্ট",
-          onClick: () => {
-            const order = orders.find((o: any) => o.id === vars.orderId);
-            if (order) printReceipt({ ...order, payment_status: "paid", payment_method: vars.method, paid_to_staff_name: user?.user_metadata?.full_name || user?.email || "Admin" }, restaurantName);
-          },
-        },
-        duration: 8000,
-      });
-      setPaymentOrder(null);
-    },
-    onError: (err: any) => toast.error(err.message),
-  });
-
   const openEditOrder = (order: any) => {
     setEditOrder(order);
     setEditItems((order.order_items || []).map((i: any) => ({ ...i })));
@@ -118,31 +79,6 @@ const AdminOrders = () => {
       return item;
     }));
   };
-
-  const saveEditMutation = useMutation({
-    mutationFn: async () => {
-      if (!editOrder) return;
-      const toDelete = editItems.filter(i => i.quantity === 0);
-      const toUpdate = editItems.filter(i => i.quantity > 0);
-      for (const item of toDelete) {
-        const { error } = await supabase.from("order_items").delete().eq("id", item.id);
-        if (error) throw new Error(`আইটেম মুছতে সমস্যা: ${error.message}`);
-      }
-      for (const item of toUpdate) {
-        const { error } = await supabase.from("order_items").update({ quantity: item.quantity }).eq("id", item.id);
-        if (error) throw new Error(`আইটেম আপডেট সমস্যা: ${error.message}`);
-      }
-      const newTotal = toUpdate.reduce((s, i) => s + i.price * i.quantity, 0);
-      const { error: totalError } = await supabase.from("orders").update({ total: newTotal }).eq("id", editOrder.id).eq("restaurant_id", restaurantId);
-      if (totalError) throw new Error(`মোট আপডেট সমস্যা: ${totalError.message}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
-      toast.success("অর্ডার আপডেট হয়েছে");
-      setEditOrder(null);
-    },
-    onError: (err: any) => toast.error(err.message),
-  });
 
   const filtered = filter === "সব" ? orders : orders.filter((o: any) => o.status === statusMap[filter]);
 
@@ -254,7 +190,7 @@ const AdminOrders = () => {
                         )}
                         {nextStatus(order.status) && (
                           <Button size="sm" variant="hero"
-                            onClick={() => updateStatus.mutate({ id: order.id, status: nextStatus(order.status)! })}>
+                            onClick={() => updateStatus.mutate({ id: order.id, status: nextStatus(order.status)!, restaurantId: restaurantId! })}>
                             {nextStatus(order.status) === "preparing" ? "গ্রহণ করুন" : "সার্ভ করুন"}
                           </Button>
                         )}
@@ -269,7 +205,7 @@ const AdminOrders = () => {
                         {order.status === "served" && order.payment_status === "paid" && (
                           <Button size="sm" variant="hero"
                             className="bg-success hover:bg-success/90"
-                            onClick={() => updateStatus.mutate({ id: order.id, status: "completed" })}>
+                            onClick={() => updateStatus.mutate({ id: order.id, status: "completed", restaurantId: restaurantId! })}>
                             <CheckCircle className="w-3.5 h-3.5 mr-1" /> সম্পন্ন করুন
                           </Button>
                         )}
@@ -345,9 +281,21 @@ const AdminOrders = () => {
 
             {/* Confirm */}
             <Button variant="hero" className="w-full h-12 text-base"
-              onClick={() => paymentMutation.mutate({ orderId: paymentOrder.id, method: paymentMethod })}
-              disabled={paymentMutation.isPending}>
-              {paymentMutation.isPending ? "প্রসেস হচ্ছে..." : `✅ ${paymentMethod === "bkash" ? "bKash" : "ক্যাশ"} পেমেন্ট কনফার্ম করুন`}
+              onClick={() => completePayment.mutate({
+                orderId: paymentOrder.id,
+                method: paymentMethod,
+                staffId: user?.id ?? "",
+                staffName: user?.user_metadata?.full_name || user?.email || "Admin",
+                restaurantId: restaurantId!,
+              }, {
+                onSuccess: () => {
+                  const order = orders.find((o: any) => o.id === paymentOrder.id);
+                  if (order) printReceipt({ ...order, payment_status: "paid", payment_method: paymentMethod, paid_to_staff_name: user?.user_metadata?.full_name || user?.email || "Admin" }, restaurantName);
+                  setPaymentOrder(null);
+                },
+              })}
+              disabled={completePayment.isPending}>
+              {completePayment.isPending ? "প্রসেস হচ্ছে..." : `✅ ${paymentMethod === "bkash" ? "bKash" : "ক্যাশ"} পেমেন্ট কনফার্ম করুন`}
             </Button>
             <Button variant="outline" className="w-full" onClick={() => printReceipt(paymentOrder, restaurantName)}>
               <Printer className="w-4 h-4 mr-2" /> রসিদ প্রিন্ট করুন (পেমেন্টের আগে)
@@ -382,8 +330,11 @@ const AdminOrders = () => {
           </div>
           <div className="border-t border-border pt-3 flex justify-between items-center">
             <span className="font-bold text-foreground">মোট: ৳{editItems.filter(i => i.quantity > 0).reduce((s, i) => s + i.price * i.quantity, 0)}</span>
-            <Button variant="hero" onClick={() => saveEditMutation.mutate()} disabled={saveEditMutation.isPending}>
-              {saveEditMutation.isPending ? "সেভ হচ্ছে..." : "সেভ করুন"}
+            <Button variant="hero" onClick={() => saveOrderEdit.mutate(
+              { orderId: editOrder.id, restaurantId: restaurantId!, items: editItems },
+              { onSuccess: () => setEditOrder(null) }
+            )} disabled={saveOrderEdit.isPending}>
+              {saveOrderEdit.isPending ? "সেভ হচ্ছে..." : "সেভ করুন"}
             </Button>
           </div>
         </DialogContent>

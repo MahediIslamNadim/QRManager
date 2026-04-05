@@ -11,8 +11,9 @@ import {
   Smartphone, User, Mail, Phone, KeyRound, Save, Bell
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useOrderActions } from "@/hooks/useOrderActions";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 // ✅ FIX Bug 1 + Bug 5: Waiter call / bill request চেনার helper
@@ -25,6 +26,8 @@ const isNotificationOrder = (order: any) =>
 const WaiterDashboard = () => {
   const { restaurantId, user } = useAuth();
   const queryClient = useQueryClient();
+  const waiterQueryKey = ["waiter-orders", restaurantId];
+  const { updateStatus, completePayment, saveOrderEdit } = useOrderActions([waiterQueryKey]);
   const [editOrder, setEditOrder] = useState<any>(null);
   const [editItems, setEditItems] = useState<any[]>([]);
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -175,43 +178,6 @@ const WaiterDashboard = () => {
     return () => { supabase.removeChannel(channel); };
   }, [restaurantId, queryClient]);
 
-  const updateStatus = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await supabase.from("orders").update({ status }).eq("id", id).eq("restaurant_id", restaurantId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["waiter-orders", restaurantId] });
-      toast.success("স্ট্যাটাস আপডেট হয়েছে");
-    },
-    onError: (err: any) => toast.error(err.message),
-  });
-
-  const paymentMutation = useMutation({
-    mutationFn: async ({ orderId, method }: { orderId: string; method: string }) => {
-      const staffName = profileName || user?.email || "Unknown";
-      const { error } = await supabase.from("orders").update({
-        status: "completed",
-        payment_status: "paid",
-        payment_method: method,
-        paid_to_staff_id: user?.id,
-        paid_to_staff_name: staffName,
-        paid_at: new Date().toISOString(),
-      }).eq("id", orderId).eq("restaurant_id", restaurantId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["waiter-orders", restaurantId] });
-      toast.success("✅ পেমেন্ট সম্পন্ন!");
-      setPaymentOrder(null);
-    },
-    onError: (err: any) => toast.error(err.message),
-  });
-
-  // ✅ FIX Bug 2: "served + paid" এর পর আলাদা "সম্পন্ন" button দরকার নেই
-  // paymentMutation এ already "completed" set হয়।
-  // তাই served + paid → শুধু "পেমেন্ট হয়েছে" badge দেখাবে, button না।
-
   const openEditOrder = (order: any) => {
     setEditOrder(order);
     setEditItems((order.order_items || []).map((i: any) => ({ ...i })));
@@ -222,31 +188,6 @@ const WaiterDashboard = () => {
       i === idx ? { ...item, quantity: Math.max(0, item.quantity + delta) } : item
     ));
   };
-
-  const saveEditMutation = useMutation({
-    mutationFn: async () => {
-      if (!editOrder) return;
-      const toDelete = editItems.filter(i => i.quantity === 0);
-      const toUpdate = editItems.filter(i => i.quantity > 0);
-      for (const item of toDelete) {
-        const { error } = await supabase.from("order_items").delete().eq("id", item.id);
-        if (error) throw error;
-      }
-      for (const item of toUpdate) {
-        const { error } = await supabase.from("order_items").update({ quantity: item.quantity }).eq("id", item.id);
-        if (error) throw error;
-      }
-      const newTotal = toUpdate.reduce((s, i) => s + i.price * i.quantity, 0);
-      const { error: totalError } = await supabase.from("orders").update({ total: newTotal }).eq("id", editOrder.id).eq("restaurant_id", restaurantId);
-      if (totalError) throw totalError;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["waiter-orders", restaurantId] });
-      toast.success("অর্ডার আপডেট হয়েছে");
-      setEditOrder(null);
-    },
-    onError: (err: any) => toast.error(err.message),
-  });
 
   const saveProfile = async () => {
     if (!user) return;
@@ -464,13 +405,13 @@ const WaiterDashboard = () => {
                           </Button>
                           {order.status === "pending" && (
                             <Button size="sm" variant="hero" className="h-7 sm:h-8 px-2 sm:px-3 text-xs"
-                              onClick={() => updateStatus.mutate({ id: order.id, status: "preparing" })}>
+                              onClick={() => updateStatus.mutate({ id: order.id, status: "preparing", restaurantId: restaurantId! })}>
                               গ্রহণ
                             </Button>
                           )}
                           {order.status === "preparing" && (
                             <Button size="sm" variant="default" className="h-7 sm:h-8 px-2 sm:px-3 text-xs"
-                              onClick={() => updateStatus.mutate({ id: order.id, status: "served" })}>
+                              onClick={() => updateStatus.mutate({ id: order.id, status: "served", restaurantId: restaurantId! })}>
                               সার্ভ
                             </Button>
                           )}
@@ -647,9 +588,15 @@ const WaiterDashboard = () => {
               <p className="text-sm font-bold">👤 {staffName}</p>
             </div>
             <Button variant="hero" className="w-full h-11"
-              onClick={() => paymentMutation.mutate({ orderId: paymentOrder.id, method: paymentMethod })}
-              disabled={paymentMutation.isPending}>
-              {paymentMutation.isPending ? "প্রসেস হচ্ছে..." : `✅ ${paymentMethod === "bkash" ? "bKash" : "ক্যাশ"} কনফার্ম`}
+              onClick={() => completePayment.mutate({
+                orderId: paymentOrder.id,
+                method: paymentMethod,
+                staffId: user?.id ?? "",
+                staffName: profileName || user?.email || "Unknown",
+                restaurantId: restaurantId!,
+              }, { onSuccess: () => setPaymentOrder(null) })}
+              disabled={completePayment.isPending}>
+              {completePayment.isPending ? "প্রসেস হচ্ছে..." : `✅ ${paymentMethod === "bkash" ? "bKash" : "ক্যাশ"} কনফার্ম`}
             </Button>
           </div>
         </DialogContent>
@@ -683,8 +630,11 @@ const WaiterDashboard = () => {
           </div>
           <div className="border-t border-border pt-3 flex justify-between items-center">
             <span className="font-bold text-sm">মোট: ৳{editItems.filter(i => i.quantity > 0).reduce((s, i) => s + i.price * i.quantity, 0)}</span>
-            <Button variant="hero" size="sm" onClick={() => saveEditMutation.mutate()} disabled={saveEditMutation.isPending}>
-              {saveEditMutation.isPending ? "সেভ হচ্ছে..." : "সেভ করুন"}
+            <Button variant="hero" size="sm" onClick={() => saveOrderEdit.mutate(
+              { orderId: editOrder.id, restaurantId: restaurantId!, items: editItems },
+              { onSuccess: () => setEditOrder(null) }
+            )} disabled={saveOrderEdit.isPending}>
+              {saveOrderEdit.isPending ? "সেভ হচ্ছে..." : "সেভ করুন"}
             </Button>
           </div>
         </DialogContent>

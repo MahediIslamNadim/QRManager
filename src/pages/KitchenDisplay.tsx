@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useOrderActions } from "@/hooks/useOrderActions";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChefHat, Clock, CheckCircle2, RefreshCw } from "lucide-react";
 
@@ -53,6 +54,8 @@ function elapsed(date: string) {
 const KitchenDisplay = () => {
   const { restaurantId } = useAuth();
   const queryClient = useQueryClient();
+  const kitchenQueryKey = ["kitchen-orders", restaurantId];
+  const { updateStatus } = useOrderActions([kitchenQueryKey]);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const [now, setNow] = useState(Date.now());
 
@@ -101,23 +104,11 @@ const KitchenDisplay = () => {
     };
   }, [restaurantId, queryClient]);
 
-  const markPreparing = async (orderId: string) => {
-    await supabase
-      .from("orders")
-      .update({ status: "preparing" })
-      .eq("id", orderId)
-      .eq("restaurant_id", restaurantId);
-    queryClient.invalidateQueries({ queryKey: ["kitchen-orders", restaurantId] });
-  };
+  const markPreparing = (orderId: string) =>
+    updateStatus.mutate({ id: orderId, status: "preparing", restaurantId: restaurantId! });
 
-  const markServed = async (orderId: string) => {
-    await supabase
-      .from("orders")
-      .update({ status: "served" })
-      .eq("id", orderId)
-      .eq("restaurant_id", restaurantId);
-    queryClient.invalidateQueries({ queryKey: ["kitchen-orders", restaurantId] });
-  };
+  const markServed = (orderId: string) =>
+    updateStatus.mutate({ id: orderId, status: "served", restaurantId: restaurantId! });
 
   const pending = orders.filter(o => o.status === "pending");
   const preparing = orders.filter(o => o.status === "preparing");
