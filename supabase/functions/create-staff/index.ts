@@ -65,20 +65,39 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Get caller's restaurant_id if not provided
-    let restId = restaurant_id;
-    if (!restId) {
-      const { data: callerRest } = await callerClient
+    // Resolve caller's own restaurant_id
+    const { data: callerRest } = await callerClient
+      .from("restaurants")
+      .select("id")
+      .eq("owner_id", caller.id)
+      .limit(1)
+      .single();
+
+    // super_admin may pass any restaurant_id; admin must own theirs
+    const isSuperAdmin = callerRoles?.some(r => r.role === "super_admin");
+    let restId: string | undefined;
+
+    if (isSuperAdmin && restaurant_id) {
+      // Verify the target restaurant actually exists
+      const { data: targetRest } = await callerClient
         .from("restaurants")
         .select("id")
-        .eq("owner_id", caller.id)
-        .limit(1)
+        .eq("id", restaurant_id)
         .single();
+      if (!targetRest) {
+        return new Response(JSON.stringify({ error: "Restaurant not found" }), {
+          status: 404,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      restId = restaurant_id;
+    } else {
+      // Regular admin: always use their own restaurant, ignore any provided restaurant_id
       restId = callerRest?.id;
     }
 
     if (!restId) {
-      return new Response(JSON.stringify({ error: "No restaurant found" }), {
+      return new Response(JSON.stringify({ error: "No restaurant found for this user" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

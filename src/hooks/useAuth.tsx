@@ -29,8 +29,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [restaurantPlan, setRestaurantPlan] = useState("basic");
   const [loading, setLoading] = useState(true);
   const [trialExpired, setTrialExpired] = useState(false);
-  const trialUpdateInProgress = useRef(false);
-
   const fetchUserData = useCallback(async (userId: string) => {
     try {
       const { data: roleRow } = await supabase
@@ -104,26 +102,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (restaurant) {
           setRestaurantPlan(restaurant.plan || "basic");
 
+          // Trial expiry is determined server-side by the expire-trials edge function
+          // (scheduled daily). Client only reads the current status — no DB writes here.
           if (bestRole === "admin") {
-            const rawDate = restaurant.trial_ends_at;
-            const trialEndsAt = rawDate ? new Date(rawDate) : null;
-            const isValidDate = trialEndsAt && !isNaN(trialEndsAt.getTime());
-            const now = new Date();
-            if (isValidDate && now > trialEndsAt! && restaurant.status !== "active_paid") {
-              if (!trialUpdateInProgress.current) {
-                trialUpdateInProgress.current = true;
-                supabase.from("restaurants").update({ status: "inactive" }).eq("id", foundRestId)
-                  .then(({ error }) => {
-                    trialUpdateInProgress.current = false;
-                    if (!error) setTrialExpired(true);
-                  })
-                  .catch((e) => { console.warn("Trial update failed:", e); trialUpdateInProgress.current = false; });
-              } else {
-                setTrialExpired(true);
-              }
-            } else {
-              setTrialExpired(false);
-            }
+            const trialEnded = restaurant.status === "inactive" ||
+              (restaurant.trial_ends_at
+                ? new Date() > new Date(restaurant.trial_ends_at) && restaurant.status !== "active_paid"
+                : false);
+            setTrialExpired(trialEnded);
           } else {
             setTrialExpired(false);
           }

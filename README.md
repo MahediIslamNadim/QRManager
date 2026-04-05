@@ -44,9 +44,9 @@
 
 | Plan | Price | Features |
 |------|-------|----------|
-| Basic | ৳১৯৯/মাস | 30 menu items, 5 tables, 2 staff |
-| Premium | ৳২৯৯/মাস | Unlimited menu, 20 tables, 10 staff |
-| Enterprise | ৳৪৯৯/মাস | Everything unlimited |
+| Basic | ৳১৯৯/মাস | 50 menu items, 5 tables, 3 staff |
+| Premium | ৳২৯৯/মাস | 200 menu items, 20 tables, 15 staff |
+| Enterprise | ৳৪৯৯/মাস | Unlimited menu, tables & staff |
 
 **১৪ দিন ফ্রি ট্রায়াল** — no credit card required.
 

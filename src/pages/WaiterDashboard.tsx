@@ -61,7 +61,10 @@ const WaiterDashboard = () => {
       playTone(880, 0, 0.15);
       playTone(1100, 0.15, 0.15);
       playTone(1320, 0.3, 0.2);
-    } catch {}
+    } catch (err) {
+      console.warn("Notification sound failed:", err);
+      toast.error("নোটিফিকেশন সাউন্ড চালু করা যায়নি। Browser permission দেখুন।");
+    }
   }, [soundEnabled]);
 
   // Fetch profile

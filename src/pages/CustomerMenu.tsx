@@ -110,7 +110,7 @@ const CustomerMenu = () => {
     const color = colorPalette[idx];
     setCategoryColors(prev => ({ ...prev, [category]: color }));
     return color;
-  }, []);
+  }, [categoryColors]);
 
   // ✅ FIX Bug 4: fetchOrderItems useCallback এ
   const fetchOrderItems = useCallback(async (orderId: string): Promise<OrderItem[]> => {

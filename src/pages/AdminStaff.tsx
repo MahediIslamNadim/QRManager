@@ -15,6 +15,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { getPlanLimits, formatLimit } from "@/lib/planLimits";
 
 interface StaffMember {
   id: string;
@@ -25,7 +26,8 @@ interface StaffMember {
 }
 
 const AdminStaff = () => {
-  const { restaurantId } = useAuth();
+  const { restaurantId, restaurantPlan } = useAuth();
+  const limits = getPlanLimits(restaurantPlan);
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -85,8 +87,11 @@ const AdminStaff = () => {
     enabled: !!restaurantId,
   });
 
+  const isAtStaffLimit = staff.length >= limits.maxStaff;
+
   const addStaffMutation = useMutation({
     mutationFn: async () => {
+      if (isAtStaffLimit) throw new Error(`আপনার ${limits.label} প্ল্যানে সর্বোচ্চ ${formatLimit(limits.maxStaff)} জন কর্মী যোগ করা যায়। আপগ্রেড করুন।`);
       const { data, error } = await supabase.functions.invoke("create-staff", {
         body: { email, password, full_name: name, role, restaurant_id: restaurantId },
       });
@@ -233,7 +238,7 @@ const AdminStaff = () => {
         {/* ── Stats ── */}
         <div className="grid grid-cols-3 gap-3">
           {[
-            { icon: Users, label: "মোট কর্মী", value: staff.length, color: "text-primary", bg: "bg-primary/10" },
+            { icon: Users, label: "মোট কর্মী", value: `${staff.length}/${formatLimit(limits.maxStaff)}`, color: "text-primary", bg: "bg-primary/10" },
             { icon: ChefHat, label: "ওয়েটার", value: waiterCount, color: "text-success", bg: "bg-success/10" },
             { icon: Shield, label: "অ্যাডমিন", value: adminCount, color: "text-info", bg: "bg-info/10" },
           ].map(({ icon: Icon, label, value, color, bg }) => (
@@ -246,6 +251,12 @@ const AdminStaff = () => {
             </div>
           ))}
         </div>
+        {isAtStaffLimit && (
+          <div className="flex items-center gap-2 p-3 rounded-lg bg-warning/10 border border-warning/20 text-warning text-sm">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            ⚠️ আপনার {limits.label} প্ল্যানের কর্মী লিমিট ({formatLimit(limits.maxStaff)}) পূর্ণ হয়েছে। আরো যোগ করতে প্ল্যান আপগ্রেড করুন।
+          </div>
+        )}
 
         {/* ── Filter + Search ── */}
         <div className="flex gap-2 flex-wrap">
