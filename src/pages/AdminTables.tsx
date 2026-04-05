@@ -355,9 +355,9 @@ const AdminTables = () => {
                       <button
                         onClick={() => {
                           const nc = Math.max(0, (table.current_customers || 0) - 1);
-                          supabase.from("restaurant_tables").update({ current_customers: nc }).eq("id", table.id).eq("restaurant_id", restaurantId)
+                          Promise.resolve(supabase.from("restaurant_tables").update({ current_customers: nc }).eq("id", table.id).eq("restaurant_id", restaurantId))
                             .then(({ error }) => { if (!error) queryClient.invalidateQueries({ queryKey: ["tables", restaurantId] }); else toast.error("আপডেট ব্যর্থ: " + error.message); })
-                            .catch((e) => toast.error("আপডেট ব্যর্থ: " + e.message));
+                            .catch((e: any) => toast.error("আপডেট ব্যর্থ: " + e.message));
                         }}
                         className="w-7 h-7 rounded-lg bg-card border border-border flex items-center justify-center hover:bg-accent active:scale-90 transition-all"
                       >
@@ -367,9 +367,9 @@ const AdminTables = () => {
                       <button
                         onClick={() => {
                           const nc = Math.min(table.seats, (table.current_customers || 0) + 1);
-                          supabase.from("restaurant_tables").update({ current_customers: nc }).eq("id", table.id).eq("restaurant_id", restaurantId)
+                          Promise.resolve(supabase.from("restaurant_tables").update({ current_customers: nc }).eq("id", table.id).eq("restaurant_id", restaurantId))
                             .then(({ error }) => { if (!error) queryClient.invalidateQueries({ queryKey: ["tables", restaurantId] }); else toast.error("আপডেট ব্যর্থ: " + error.message); })
-                            .catch((e) => toast.error("আপডেট ব্যর্থ: " + e.message));
+                            .catch((e: any) => toast.error("আপডেট ব্যর্থ: " + e.message));
                         }}
                         className="w-7 h-7 rounded-lg bg-primary text-primary-foreground flex items-center justify-center active:scale-90 transition-all"
                       >
