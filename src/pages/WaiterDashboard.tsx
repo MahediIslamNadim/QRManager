@@ -34,6 +34,7 @@ const WaiterDashboard = () => {
   const [paymentOrder, setPaymentOrder] = useState<any>(null);
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "bkash">("cash");
   const [activeTab, setActiveTab] = useState<"orders" | "tables" | "profile">("orders");
+  const [handlingRequestId, setHandlingRequestId] = useState<string | null>(null);
 
   // Profile state
   const [profileName, setProfileName] = useState(user?.user_metadata?.full_name || "");
@@ -102,15 +103,14 @@ const WaiterDashboard = () => {
 
   // ✅ FIX Bug 1: Notification orders আলাদা query
   const { data: notifOrders = [] } = useQuery({
-    queryKey: ["waiter-notif-orders", restaurantId],
+    queryKey: ["waiter-service-requests", restaurantId],
     queryFn: async () => {
       if (!restaurantId) return [];
       const { data } = await supabase
-        .from("orders")
-        .select("id, notes, created_at, restaurant_tables(name), table_seats(seat_number)")
+        .from("service_requests")
+        .select("id, note, request_type, status, created_at, restaurant_tables(name), table_seats(seat_number)")
         .eq("restaurant_id", restaurantId)
         .eq("status", "pending")
-        .eq("total", 0)
         .order("created_at", { ascending: false })
         .limit(5);
       return data || [];
@@ -164,7 +164,14 @@ const WaiterDashboard = () => {
         filter: `restaurant_id=eq.${restaurantId}`, // ← multi-tenant fix
       }, () => {
         queryClient.invalidateQueries({ queryKey: ["waiter-orders", restaurantId] });
-        queryClient.invalidateQueries({ queryKey: ["waiter-notif-orders", restaurantId] });
+      })
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "service_requests",
+        filter: `restaurant_id=eq.${restaurantId}`,
+      }, () => {
+        queryClient.invalidateQueries({ queryKey: ["waiter-service-requests", restaurantId] });
       })
       .on("postgres_changes", {
         event: "*",
@@ -187,6 +194,29 @@ const WaiterDashboard = () => {
     setEditItems(prev => prev.map((item, i) =>
       i === idx ? { ...item, quantity: Math.max(0, item.quantity + delta) } : item
     ));
+  };
+
+  const handleServiceRequest = async (requestId: string) => {
+    if (!restaurantId || !user?.id) return;
+    setHandlingRequestId(requestId);
+    try {
+      const { error } = await supabase
+        .from("service_requests")
+        .update({
+          status: "handled",
+          handled_at: new Date().toISOString(),
+          handled_by: user.id,
+        })
+        .eq("id", requestId)
+        .eq("restaurant_id", restaurantId);
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ["waiter-service-requests", restaurantId] });
+      toast.success("Service request handled");
+    } catch (err: any) {
+      toast.error(err.message || "Service request update failed");
+    } finally {
+      setHandlingRequestId(null);
+    }
   };
 
   const saveProfile = async () => {
@@ -286,15 +316,13 @@ const WaiterDashboard = () => {
               <div key={n.id} className="flex items-center gap-3 p-3 rounded-xl bg-warning/10 border border-warning/30 animate-fade-in">
                 <Bell className="w-4 h-4 text-warning flex-shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-foreground truncate">{n.notes}</p>
+                  <p className="text-sm font-semibold text-foreground truncate">{n.note}</p>
+                  <p className="text-xs text-warning/90 capitalize">{n.request_type?.replace("_", " ")}</p>
                   <p className="text-xs text-muted-foreground">{timeAgo(n.created_at)}</p>
                 </div>
                 <button
-                  onClick={() => updateStatus.mutate(
-                    { id: n.id, status: "completed", restaurantId: restaurantId! },
-                    { onSuccess: () => queryClient.invalidateQueries({ queryKey: ["waiter-notif-orders", restaurantId] }) },
-                  )}
-                  disabled={updateStatus.isPending}
+                  onClick={() => handleServiceRequest(n.id)}
+                  disabled={handlingRequestId === n.id}
                   className="text-xs px-2.5 py-1 rounded-lg bg-warning/20 text-warning font-semibold hover:bg-warning/30 transition-colors flex-shrink-0 disabled:opacity-50"
                 >
                   ✓ Done
