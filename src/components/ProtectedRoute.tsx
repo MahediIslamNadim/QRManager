@@ -24,8 +24,8 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
     return <Navigate to="/login" replace />;
   }
 
-  // Admin has no restaurant → force setup (super_admin exempt)
-  if (role === "admin" && !restaurantId && role !== "super_admin") {
+  // Admin has no restaurant → force setup
+  if (role === "admin" && !restaurantId) {
     return <Navigate to="/admin-setup" replace />;
   }
 
@@ -34,10 +34,16 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
     return <Navigate to="/trial-expired" replace />;
   }
 
-  if (allowedRoles && role && !allowedRoles.includes(role)) {
-    if (role === "super_admin") return <Navigate to="/super-admin" replace />;
-    if (role === "waiter") return <Navigate to="/waiter" replace />;
-    return <Navigate to="/admin" replace />;
+  if (allowedRoles) {
+    // Authenticated but no role (e.g. fetchUserData ran before the signup RPC created
+    // the role row). Without this guard, role=null short-circuits the old check and the
+    // user renders a protected page they have no access to.
+    if (!role) return <Navigate to="/login" replace />;
+    if (!allowedRoles.includes(role)) {
+      if (role === "super_admin") return <Navigate to="/super-admin" replace />;
+      if (role === "waiter") return <Navigate to="/waiter" replace />;
+      return <Navigate to="/admin" replace />;
+    }
   }
 
   return <>{children}</>;

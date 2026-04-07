@@ -66,7 +66,8 @@ const Login = () => {
           options: { emailRedirectTo: window.location.origin, data: { full_name: fullName.trim() } },
         });
         if (error) throw error;
-        if (data.user) {
+        if (data.session) {
+          // Session exists — user is immediately active (email auto-confirm or disabled).
           // Use server-side RPC: atomically creates restaurant + assigns admin role.
           // Direct user_roles INSERT is no longer allowed by RLS from the client.
           const { data: setupData, error: setupError } = await supabase.rpc(
@@ -102,6 +103,16 @@ const Login = () => {
             ]);
           }
           toast.success(`অ্যাকাউন্ট তৈরি হয়েছে! ${FREE_TRIAL_DAYS} দিনের ফ্রি ট্রায়াল (বেসিক) শুরু হয়েছে।`);
+          // onAuthStateChange fired during signUp before the RPC created the role row,
+          // so useAuth.fetchUserData ran with an empty user_roles table → role = null.
+          // Refreshing the session fires onAuthStateChange again, causing fetchUserData
+          // to re-run and pick up the newly created role, which then triggers navigation.
+          await supabase.auth.refreshSession();
+        } else {
+          // data.session is null → Supabase email confirmation is enabled.
+          // The user exists in auth but is not yet logged in — they must confirm first.
+          toast.success("ইমেইল নিশ্চিত করুন! আপনার ইমেইলে একটি লিংক পাঠানো হয়েছে। লিংকে ক্লিক করার পর লগইন করুন।");
+          setMode("login");
         }
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
