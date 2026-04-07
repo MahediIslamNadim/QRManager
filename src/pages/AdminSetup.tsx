@@ -26,9 +26,16 @@ const AdminSetup = () => {
     // If user already has a restaurant, redirect
     if (!loading && user && role === "admin") {
       supabase.rpc("get_user_restaurant_id", { _user_id: user.id })
-        .then(({ data, error }) => {
+        .then(async ({ data, error }) => {
           if (error) { console.warn("RPC error:", error); setChecking(false); return; }
           if (data) {
+            // User already has a restaurant — accept invite (if present) then redirect
+            if (inviteId) {
+              await supabase
+                .from("admin_invites" as any)
+                .update({ status: "accepted", accepted_at: new Date().toISOString() } as any)
+                .eq("id", inviteId);
+            }
             navigate("/admin", { replace: true });
           } else {
             setChecking(false);
@@ -53,24 +60,21 @@ const AdminSetup = () => {
     setSubmitting(true);
 
     try {
-      const trialEndsAt = new Date();
-      trialEndsAt.setDate(trialEndsAt.getDate() + FREE_TRIAL_DAYS);
+      // Use the same server-side RPC as the normal signup path.
+      // This atomically creates the restaurant AND assigns the admin role,
+      // preventing a roleless user from ending up with a restaurant but no role.
+      const { data: setupData, error: setupError } = await supabase.rpc(
+        "complete_admin_signup" as any,
+        {
+          p_restaurant_name: restaurantName.trim(),
+          p_address: address.trim() || null,
+          p_phone: phone.trim() || null,
+          p_trial_days: FREE_TRIAL_DAYS,
+        } as any,
+      );
+      if (setupError) throw new Error("সেটআপ ব্যর্থ: " + setupError.message);
 
-      const { error: restError } = await supabase
-        .from("restaurants")
-        .insert({
-          name: restaurantName.trim(),
-          address: address.trim() || null,
-          phone: phone.trim() || null,
-          plan: "basic",
-          owner_id: user.id,
-          status: "active",
-          trial_ends_at: trialEndsAt.toISOString(),
-        });
-
-      if (restError) throw restError;
-
-      // Update invite status if came from invite
+      // Mark invite accepted if this setup came from an invite link
       if (inviteId) {
         await supabase
           .from("admin_invites" as any)

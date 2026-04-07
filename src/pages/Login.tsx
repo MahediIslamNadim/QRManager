@@ -32,7 +32,7 @@ const Login = () => {
       if (role === "super_admin") navigate("/super-admin", { replace: true });
       else if (role === "waiter") navigate("/waiter", { replace: true });
       // If arrived with ?invite=..., forward it to AdminSetup so the acceptance flow completes
-      else if (inviteId) navigate(`/admin/setup?invite=${inviteId}`, { replace: true });
+      else if (inviteId) navigate(`/admin-setup?invite=${inviteId}`, { replace: true });
       else navigate("/admin", { replace: true });
     }
   }, [user, role, loading, navigate, inviteId]);

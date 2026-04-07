@@ -42,7 +42,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const adminCheck = { data: roles.includes("admin") };
       const waiterCheck = { data: roles.includes("waiter") };
 
-      let bestRole = "admin";
+      // Default null — a user with no role in user_roles gets no access.
+      // Previously defaulted to "admin" which allowed roleless users into admin flows.
+      let bestRole: string | null = null;
       if (superCheck.data === true) bestRole = "super_admin";
       else if (adminCheck.data === true) bestRole = "admin";
       else if (waiterCheck.data === true) bestRole = "waiter";

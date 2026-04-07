@@ -57,9 +57,9 @@ const KitchenDisplay = () => {
   const kitchenQueryKey = ["kitchen-orders", restaurantId];
   const { updateStatus } = useOrderActions([kitchenQueryKey]);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
-  const [now, setNow] = useState(Date.now());
+  const [, setNow] = useState(Date.now());
 
-  // Tick every minute to update elapsed times
+  // Tick every minute to re-render elapsed times
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 60000);
     return () => clearInterval(t);
@@ -179,7 +179,6 @@ const KitchenDisplay = () => {
                     key={order.id}
                     order={order}
                     colors={statusColor.pending}
-                    now={now}
                     primaryAction={{ label: "রান্না শুরু করুন →", onClick: () => markPreparing(order.id) }}
                     disabled={updateStatus.isPending}
                   />
@@ -204,7 +203,6 @@ const KitchenDisplay = () => {
                     key={order.id}
                     order={order}
                     colors={statusColor.preparing}
-                    now={now}
                     primaryAction={{ label: "✓ সার্ভ করুন", onClick: () => markServed(order.id), green: true }}
                     disabled={updateStatus.isPending}
                   />
@@ -221,12 +219,11 @@ const KitchenDisplay = () => {
 interface OrderCardProps {
   order: KitchenOrder;
   colors: typeof statusColor.pending;
-  now: number;
   primaryAction: { label: string; onClick: () => void; green?: boolean };
   disabled?: boolean;
 }
 
-const OrderCard = ({ order, colors, now: _now, primaryAction, disabled = false }: OrderCardProps) => {
+const OrderCard = ({ order, colors, primaryAction, disabled = false }: OrderCardProps) => {
   const mins = elapsed(order.created_at);
   const urgent = mins >= 10;
 

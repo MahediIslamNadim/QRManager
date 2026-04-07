@@ -65,16 +65,17 @@ $$;
 -- 2. insert_order_with_token
 --    Single atomic RPC replacing the two-step client INSERT (orders + items).
 --    Validates token possession before writing anything.
---    p_items: '[{"menu_item_id":"uuid","name":"...","price":350,"quantity":2},...]'::jsonb
+--    Price and name are looked up server-side from menu_items; the client
+--    only supplies menu_item_id and quantity — no client-trusted total.
+--    p_items: '[{"menu_item_id":"uuid","quantity":2},...]'::jsonb
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.insert_order_with_token(
   p_restaurant_id uuid,
   p_table_id      uuid,
   p_seat_id       uuid,
-  p_total         numeric,
   p_notes         text,
   p_token         uuid,
-  p_items         jsonb
+  p_items         jsonb   -- [{menu_item_id: "uuid", quantity: N}, ...]
 )
 RETURNS json
 LANGUAGE plpgsql
@@ -82,18 +83,33 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  v_order_id uuid;
-  v_item     jsonb;
+  v_order_id     uuid;
+  v_item         jsonb;
+  v_menu_item    record;
+  v_qty          int;
+  v_total        numeric := 0;
+  v_session_seat uuid;
 BEGIN
-  -- Validate token: must be non-expired and scoped to this table+restaurant
-  IF NOT EXISTS (
-    SELECT 1 FROM public.table_sessions
-    WHERE token         = p_token
-      AND table_id      = p_table_id
-      AND restaurant_id = p_restaurant_id
-      AND expires_at    > now()
-  ) THEN
+  -- Validate items array is non-empty
+  IF p_items IS NULL OR jsonb_array_length(p_items) = 0 THEN
+    RAISE EXCEPTION 'empty_order';
+  END IF;
+
+  -- Validate token and fetch the session's bound seat
+  SELECT seat_id INTO v_session_seat
+  FROM public.table_sessions
+  WHERE token         = p_token
+    AND table_id      = p_table_id
+    AND restaurant_id = p_restaurant_id
+    AND expires_at    > now();
+
+  IF NOT FOUND THEN
     RAISE EXCEPTION 'invalid_token';
+  END IF;
+
+  -- Seat binding: if the session has a seat assigned, the caller must match it
+  IF v_session_seat IS NOT NULL AND v_session_seat IS DISTINCT FROM p_seat_id THEN
+    RAISE EXCEPTION 'seat_mismatch';
   END IF;
 
   -- Validate restaurant is active
@@ -104,30 +120,39 @@ BEGIN
     RAISE EXCEPTION 'restaurant_inactive';
   END IF;
 
-  -- Validate items array is non-empty
-  IF p_items IS NULL OR jsonb_array_length(p_items) = 0 THEN
-    RAISE EXCEPTION 'empty_order';
-  END IF;
-
-  -- Insert order
+  -- Insert order with total = 0; will be updated after items are inserted
   INSERT INTO public.orders (restaurant_id, table_id, seat_id, total, status, notes)
-  VALUES (p_restaurant_id, p_table_id, p_seat_id, p_total, 'pending', NULLIF(p_notes, ''))
+  VALUES (p_restaurant_id, p_table_id, p_seat_id, 0, 'pending', NULLIF(p_notes, ''))
   RETURNING id INTO v_order_id;
 
-  -- Insert order items
-  FOR v_item IN SELECT * FROM jsonb_array_elements(p_items)
-  LOOP
+  -- Insert items using server-side price/name from menu_items
+  FOR v_item IN SELECT * FROM jsonb_array_elements(p_items) LOOP
+    v_qty := (v_item->>'quantity')::int;
+    IF v_qty IS NULL OR v_qty <= 0 THEN
+      RAISE EXCEPTION 'invalid_quantity';
+    END IF;
+
+    -- Authoritative price and name; verify item belongs to this restaurant and is available
+    SELECT id, name, price INTO v_menu_item
+    FROM public.menu_items
+    WHERE id            = (v_item->>'menu_item_id')::uuid
+      AND restaurant_id = p_restaurant_id
+      AND available     = true;
+
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'menu_item_unavailable:%', (v_item->>'menu_item_id');
+    END IF;
+
     INSERT INTO public.order_items (order_id, menu_item_id, name, price, quantity)
-    VALUES (
-      v_order_id,
-      (v_item->>'menu_item_id')::uuid,
-      v_item->>'name',
-      (v_item->>'price')::numeric,
-      (v_item->>'quantity')::int
-    );
+    VALUES (v_order_id, v_menu_item.id, v_menu_item.name, v_menu_item.price, v_qty);
+
+    v_total := v_total + (v_menu_item.price * v_qty);
   END LOOP;
 
-  RETURN json_build_object('order_id', v_order_id);
+  -- Write the server-computed total back to the order row
+  UPDATE public.orders SET total = v_total WHERE id = v_order_id;
+
+  RETURN json_build_object('order_id', v_order_id, 'computed_total', v_total);
 END;
 $$;
 

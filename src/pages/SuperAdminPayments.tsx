@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { CreditCard, CheckCircle, XCircle, Clock, Loader2, Search, Edit, Trash2, MoreHorizontal, RefreshCw, Eye } from "lucide-react";
+import { CreditCard, CheckCircle, XCircle, Clock, Loader2, Search, Edit, Trash2, MoreHorizontal, RefreshCw, Eye, ChevronLeft, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -30,7 +30,6 @@ interface PaymentRequest {
   restaurant_name?: string;
 }
 
-// Invoke the process-payment edge function and throw on any error
 const invokePayment = async (body: Record<string, unknown>) => {
   const { data, error } = await supabase.functions.invoke("process-payment", { body });
   if (error) throw new Error(error.message || "Function error");
@@ -38,9 +37,18 @@ const invokePayment = async (body: Record<string, unknown>) => {
   return data;
 };
 
+const PAGE_SIZE = 20;
+const STATUS_OPTIONS = ["all", "pending", "approved", "rejected"] as const;
+type StatusFilter = typeof STATUS_OPTIONS[number];
+
 const SuperAdminPayments = () => {
   const queryClient = useQueryClient();
+
+  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [page, setPage] = useState(1);
+
   const [selectedPayment, setSelectedPayment] = useState<PaymentRequest | null>(null);
   const [adminNotes, setAdminNotes] = useState("");
   const [editPlan, setEditPlan] = useState<"basic" | "premium" | "enterprise">("basic");
@@ -48,47 +56,84 @@ const SuperAdminPayments = () => {
   const [editStatus, setEditStatus] = useState<"pending" | "approved" | "rejected">("pending");
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  const { data: payments = [], isLoading } = useQuery({
-    queryKey: ["all-payments"],
+  // Debounce search
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInput.trim()), 400);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
+  // Reset page when filters change
+  useEffect(() => { setPage(1); }, [statusFilter, search]);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["all-payments", statusFilter, page, search],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("payment_requests" as any)
-        .select("*")
-        .order("created_at", { ascending: false });
+      const from = (page - 1) * PAGE_SIZE;
+      const to   = from + PAGE_SIZE - 1;
+
+      let q = (supabase.from("payment_requests" as any) as any)
+        .select("*", { count: "exact" })
+        .order("created_at", { ascending: false })
+        .range(from, to);
+
+      if (statusFilter !== "all") q = q.eq("status", statusFilter);
+      if (search) q = q.or(`transaction_id.ilike.%${search}%,phone_number.ilike.%${search}%`);
+
+      const { data: rows, error, count } = await q;
       if (error) throw error;
 
-      const restIds = [...new Set((data || []).map((p: any) => p.restaurant_id))];
-      const { data: restaurants } = await supabase
-        .from("restaurants").select("id, name").in("id", restIds);
+      const restIds = [...new Set((rows || []).map((p: any) => p.restaurant_id))];
+      let restMap = new Map<string, string>();
+      if (restIds.length > 0) {
+        const { data: restaurants } = await supabase
+          .from("restaurants").select("id, name").in("id", restIds);
+        restMap = new Map((restaurants || []).map(r => [r.id, r.name]));
+      }
 
-      const restMap = new Map((restaurants || []).map(r => [r.id, r.name]));
-      return (data || []).map((p: any) => ({
+      const payments = (rows || []).map((p: any) => ({
         ...p,
         restaurant_name: restMap.get(p.restaurant_id) || "অজানা",
       })) as PaymentRequest[];
+
+      return { payments, count: count ?? 0 };
+    },
+    placeholderData: (prev) => prev,
+  });
+
+  const payments: PaymentRequest[] = data?.payments ?? [];
+  const totalCount = data?.count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+
+  // Pending count — separate lightweight query so the badge stays accurate even
+  // when the user has a non-"pending" filter active.
+  const { data: pendingCount = 0 } = useQuery({
+    queryKey: ["payments-pending-count"],
+    queryFn: async () => {
+      const { count } = await (supabase.from("payment_requests" as any) as any)
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pending");
+      return count ?? 0;
     },
   });
 
-  const filtered = payments.filter(p =>
-    p.transaction_id.toLowerCase().includes(search.toLowerCase()) ||
-    (p.restaurant_name || "").toLowerCase().includes(search.toLowerCase()) ||
-    (p.phone_number || "").includes(search)
-  );
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ["all-payments"] });
+    queryClient.invalidateQueries({ queryKey: ["payments-pending-count"] });
+  };
 
   const closeDialog = () => { setDialogOpen(false); setSelectedPayment(null); setAdminNotes(""); };
 
   const approveMutation = useMutation({
-    mutationFn: ({ paymentId, plan, billingCycle }: {
-      paymentId: string; plan: string; billingCycle?: string;
-    }) => invokePayment({ action: "approve", payment_id: paymentId, plan, billing_cycle: billingCycle, admin_notes: adminNotes || null }),
-    onSuccess: () => { toast.success("✅ পেমেন্ট অনুমোদিত! রেস্টুরেন্ট সক্রিয় করা হয়েছে।"); closeDialog(); queryClient.invalidateQueries({ queryKey: ["all-payments"] }); },
+    mutationFn: ({ paymentId, plan, billingCycle }: { paymentId: string; plan: string; billingCycle?: string }) =>
+      invokePayment({ action: "approve", payment_id: paymentId, plan, billing_cycle: billingCycle, admin_notes: adminNotes || null }),
+    onSuccess: () => { toast.success("✅ পেমেন্ট অনুমোদিত! রেস্টুরেন্ট সক্রিয় করা হয়েছে।"); closeDialog(); invalidate(); },
     onError: (err: any) => toast.error(err.message),
   });
 
   const rejectMutation = useMutation({
     mutationFn: ({ paymentId }: { paymentId: string }) =>
       invokePayment({ action: "reject", payment_id: paymentId, admin_notes: adminNotes || null }),
-    onSuccess: () => { toast.success("পেমেন্ট প্রত্যাখ্যান করা হয়েছে"); closeDialog(); queryClient.invalidateQueries({ queryKey: ["all-payments"] }); },
+    onSuccess: () => { toast.success("পেমেন্ট প্রত্যাখ্যান করা হয়েছে"); closeDialog(); invalidate(); },
     onError: (err: any) => toast.error(err.message),
   });
 
@@ -97,19 +142,19 @@ const SuperAdminPayments = () => {
       if (!selectedPayment) return Promise.resolve();
       return invokePayment({ action: "update", payment_id: selectedPayment.id, plan: editPlan, amount: editAmount, status: editStatus, admin_notes: adminNotes || null });
     },
-    onSuccess: () => { toast.success("পেমেন্ট আপডেট হয়েছে"); closeDialog(); queryClient.invalidateQueries({ queryKey: ["all-payments"] }); },
+    onSuccess: () => { toast.success("পেমেন্ট আপডেট হয়েছে"); closeDialog(); invalidate(); },
     onError: (err: any) => toast.error(err.message || "আপডেট করতে সমস্যা হয়েছে"),
   });
 
   const deletePaymentMutation = useMutation({
     mutationFn: (paymentId: string) => invokePayment({ action: "delete", payment_id: paymentId }),
-    onSuccess: () => { toast.success("পেমেন্ট রিকোয়েস্ট মুছে ফেলা হয়েছে"); if (dialogOpen) closeDialog(); queryClient.invalidateQueries({ queryKey: ["all-payments"] }); },
+    onSuccess: () => { toast.success("পেমেন্ট রিকোয়েস্ট মুছে ফেলা হয়েছে"); if (dialogOpen) closeDialog(); invalidate(); },
     onError: (err: any) => toast.error(err.message || "ডিলিট করতে সমস্যা হয়েছে"),
   });
 
   const reopenMutation = useMutation({
     mutationFn: (paymentId: string) => invokePayment({ action: "reopen", payment_id: paymentId }),
-    onSuccess: () => { toast.success("পেমেন্ট আবার পেন্ডিং করা হয়েছে"); queryClient.invalidateQueries({ queryKey: ["all-payments"] }); },
+    onSuccess: () => { toast.success("পেমেন্ট আবার পেন্ডিং করা হয়েছে"); invalidate(); },
     onError: (err: any) => toast.error(err.message),
   });
 
@@ -122,47 +167,62 @@ const SuperAdminPayments = () => {
     setDialogOpen(true);
   };
 
-  const pendingCount = payments.filter(p => p.status === "pending").length;
   const getBillingLabel = (cycle?: string) => cycle === "yearly" ? "বার্ষিক" : "মাসিক";
+
+  const statusFilterLabels: Record<StatusFilter, string> = {
+    all: "সব",
+    pending: "⏳ পেন্ডিং",
+    approved: "✅ অনুমোদিত",
+    rejected: "❌ প্রত্যাখ্যাত",
+  };
 
   return (
     <DashboardLayout role="super_admin" title="পেমেন্ট ম্যানেজমেন্ট">
-      <div className="space-y-6 animate-fade-up">
+      <div className="space-y-5 animate-fade-up">
 
-        {/* ── Header ── */}
-        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-          <div className="flex items-center gap-3 w-full sm:w-auto">
-            <div className="relative flex-1 sm:w-80">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input placeholder="Transaction ID বা রেস্টুরেন্ট..." value={search}
-                onChange={e => setSearch(e.target.value)} className="pl-10 bg-secondary/50 h-9 text-sm" />
-            </div>
-            {pendingCount > 0 && (
-              <span className="px-3 py-1 rounded-full text-xs font-semibold bg-warning/10 text-warning border border-warning/20 whitespace-nowrap">
-                🔔 {pendingCount} পেন্ডিং
-              </span>
-            )}
+        {/* ── Filters row ── */}
+        <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+          {/* Status filter tabs */}
+          <div className="flex gap-1.5 flex-wrap">
+            {STATUS_OPTIONS.map(s => (
+              <Button
+                key={s}
+                size="sm"
+                variant={statusFilter === s ? "default" : "outline"}
+                onClick={() => setStatusFilter(s)}
+                className="h-8 text-xs"
+              >
+                {statusFilterLabels[s]}
+                {s === "pending" && pendingCount > 0 && (
+                  <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-warning text-warning-foreground text-[10px] font-bold">
+                    {pendingCount}
+                  </span>
+                )}
+              </Button>
+            ))}
+          </div>
+
+          {/* Search */}
+          <div className="relative sm:ml-auto sm:w-64">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+            <Input
+              placeholder="Transaction ID বা ফোন..."
+              value={searchInput}
+              onChange={e => setSearchInput(e.target.value)}
+              className="pl-8 h-9 text-sm bg-secondary/50"
+            />
           </div>
         </div>
 
-        {/* ── Stats ── */}
-        <div className="grid grid-cols-3 gap-3">
-          {[
-            { label: "মোট", value: payments.length, color: "text-primary", bg: "bg-primary/10" },
-            { label: "পেন্ডিং", value: pendingCount, color: "text-warning", bg: "bg-warning/10" },
-            { label: "অনুমোদিত", value: payments.filter(p => p.status === "approved").length, color: "text-success", bg: "bg-success/10" },
-          ].map(({ label, value, color, bg }) => (
-            <div key={label} className="stat-card text-center p-3">
-              <p className={`text-xl font-display font-bold ${color}`}>{value}</p>
-              <p className="text-xs text-muted-foreground">{label}</p>
-            </div>
-          ))}
-        </div>
+        {/* ── Count indicator ── */}
+        <p className="text-sm text-muted-foreground">
+          {isLoading ? "লোড হচ্ছে..." : `মোট ${totalCount} টি রিকোয়েস্ট`}
+          {totalPages > 1 && ` · পেজ ${page}/${totalPages}`}
+        </p>
 
         {isLoading && (
           <div className="text-center py-10">
             <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-            <p className="text-sm text-muted-foreground">লোড হচ্ছে...</p>
           </div>
         )}
 
@@ -183,10 +243,10 @@ const SuperAdminPayments = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.length === 0 && !isLoading && (
+                  {!isLoading && payments.length === 0 && (
                     <tr><td colSpan={7} className="p-10 text-center text-muted-foreground">কোনো পেমেন্ট রিকোয়েস্ট নেই</td></tr>
                   )}
-                  {filtered.map(p => (
+                  {payments.map(p => (
                     <tr key={p.id} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
                       <td className="p-4">
                         <div className="flex items-center gap-3">
@@ -266,6 +326,33 @@ const SuperAdminPayments = () => {
             </div>
           </CardContent>
         </Card>
+
+        {/* ── Pagination ── */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1 || isLoading}>
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 2)
+              .reduce<(number | "…")[]>((acc, p, i, arr) => {
+                if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push("…");
+                acc.push(p);
+                return acc;
+              }, [])
+              .map((p, i) =>
+                p === "…" ? (
+                  <span key={`e${i}`} className="px-1 text-muted-foreground text-sm">…</span>
+                ) : (
+                  <Button key={p} variant={p === page ? "default" : "outline"} size="sm" className="w-9"
+                    onClick={() => setPage(p as number)} disabled={isLoading}>{p}</Button>
+                )
+              )}
+            <Button variant="outline" size="sm" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages || isLoading}>
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* ── Review Dialog ── */}
@@ -274,7 +361,6 @@ const SuperAdminPayments = () => {
           <DialogHeader><DialogTitle className="font-display">পেমেন্ট রিভিউ</DialogTitle></DialogHeader>
           {selectedPayment && (
             <div className="space-y-4 pt-2">
-              {/* Info */}
               <div className="bg-secondary/50 rounded-xl p-4 space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">রেস্টুরেন্ট</span>
@@ -340,15 +426,10 @@ const SuperAdminPayments = () => {
                   placeholder="নোট লিখুন..." rows={2} className="text-sm resize-none" />
               </div>
 
-              {/* Quick approve/reject for pending */}
               {selectedPayment.status === "pending" && (
                 <div className="grid grid-cols-2 gap-3">
                   <Button variant="hero" className="h-10"
-                    onClick={() => approveMutation.mutate({
-                      paymentId: selectedPayment.id,
-                      plan: editPlan,
-                      billingCycle: selectedPayment.billing_cycle,
-                    })}
+                    onClick={() => approveMutation.mutate({ paymentId: selectedPayment.id, plan: editPlan, billingCycle: selectedPayment.billing_cycle })}
                     disabled={approveMutation.isPending}>
                     {approveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
                     <span className="ml-1">অনুমোদন</span>

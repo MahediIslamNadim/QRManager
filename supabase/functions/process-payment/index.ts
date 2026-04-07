@@ -5,15 +5,19 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
  *
  * All payment status changes and the resulting restaurant plan/status
  * updates run here under service_role, with super_admin verification.
- * This prevents a browser from directly writing to restaurants or
- * payment_requests and keeps a consistent audit trail in the logs.
  *
  * Actions:
  *   approve  — mark payment approved + activate restaurant plan
- *   reject   — mark payment rejected
- *   update   — edit plan/amount/status/notes; activates restaurant if status→approved
- *   reopen   — reset payment to pending
- *   delete   — delete payment request
+ *   reject   — mark payment rejected; deactivates restaurant ONLY if no
+ *              other approved payment exists for the same restaurant
+ *   update   — edit plan/amount/status/notes; syncs restaurant state
+ *   reopen   — reset payment to pending; same conditional rollback as reject
+ *   delete   — delete payment request; same conditional rollback
+ *
+ * Rollback safety: before deactivating a restaurant, the function checks
+ * whether any OTHER approved payment row exists for that restaurant. If one
+ * does, the restaurant stays active — preventing over-broad deactivation
+ * when multiple payment rows exist for the same restaurant.
  */
 
 const corsHeaders = {
@@ -42,6 +46,27 @@ function getExpiryDate(billingCycle?: string): string {
   if (billingCycle === "yearly") d.setFullYear(d.getFullYear() + 1);
   else d.setMonth(d.getMonth() + 1);
   return d.toISOString();
+}
+
+/**
+ * Returns true if there is at least one OTHER approved payment for the same
+ * restaurant (excluding the payment being acted on). When true, deactivating
+ * the restaurant would be wrong — the restaurant is still paid-up via the
+ * other record.
+ */
+async function hasOtherApprovedPayment(
+  admin: ReturnType<typeof createClient>,
+  restaurantId: string,
+  excludePaymentId: string,
+): Promise<boolean> {
+  const { data } = await admin
+    .from("payment_requests")
+    .select("id")
+    .eq("restaurant_id", restaurantId)
+    .eq("status", "approved")
+    .neq("id", excludePaymentId)
+    .limit(1);
+  return Array.isArray(data) && data.length > 0;
 }
 
 Deno.serve(async (req) => {
@@ -133,11 +158,15 @@ Deno.serve(async (req) => {
         .eq("id", payment_id);
       if (error) throw error;
 
-      // Rollback restaurant to inactive if it was previously approved by this payment
+      // Only deactivate the restaurant if this was the sole approved payment for it.
+      // If another approved payment exists, the restaurant is still legitimately paid-up.
       if (payment.status === "approved") {
-        await admin.from("restaurants")
-          .update({ status: "inactive", updated_at: now })
-          .eq("id", payment.restaurant_id);
+        const otherApproved = await hasOtherApprovedPayment(admin, payment.restaurant_id, payment_id);
+        if (!otherApproved) {
+          await admin.from("restaurants")
+            .update({ status: "inactive", plan: "basic", updated_at: now })
+            .eq("id", payment.restaurant_id);
+        }
       }
 
       console.log(`[process-payment] REJECT payment=${payment_id} by super_admin=${caller.id}`);
@@ -149,7 +178,7 @@ Deno.serve(async (req) => {
       const newStatus = body.status ?? payment.status;
       const newPlan   = body.plan   ?? payment.plan;
 
-      if (!["pending", "approved", "rejected"].includes(newStatus)) {
+      if (!["pending", "approved", "rejected"].includes(newStatus as string)) {
         return json({ error: "Invalid status value" }, 400);
       }
       if (!VALID_PLANS.includes(newPlan as typeof VALID_PLANS[number])) {
@@ -168,7 +197,6 @@ Deno.serve(async (req) => {
         .eq("id", payment_id);
       if (payErr) throw payErr;
 
-      // Sync restaurant status whenever payment status changes
       if (newStatus === "approved") {
         const expiryDate = getExpiryDate(payment.billing_cycle);
         const { error: restErr } = await admin
@@ -177,10 +205,14 @@ Deno.serve(async (req) => {
           .eq("id", payment.restaurant_id);
         if (restErr) throw restErr;
       } else if (payment.status === "approved" && newStatus !== "approved") {
-        // Was approved, now being demoted — roll back restaurant
-        await admin.from("restaurants")
-          .update({ status: "inactive", plan: "basic", updated_at: now })
-          .eq("id", payment.restaurant_id);
+        // This payment was approved but is now being demoted.
+        // Only deactivate if no other approved payment covers this restaurant.
+        const otherApproved = await hasOtherApprovedPayment(admin, payment.restaurant_id, payment_id);
+        if (!otherApproved) {
+          await admin.from("restaurants")
+            .update({ status: "inactive", plan: "basic", updated_at: now })
+            .eq("id", payment.restaurant_id);
+        }
       }
 
       console.log(`[process-payment] UPDATE payment=${payment_id} status=${newStatus} plan=${newPlan} by super_admin=${caller.id}`);
@@ -195,11 +227,13 @@ Deno.serve(async (req) => {
         .eq("id", payment_id);
       if (error) throw error;
 
-      // Rollback restaurant if it was activated by this payment
       if (payment.status === "approved") {
-        await admin.from("restaurants")
-          .update({ status: "inactive", plan: "basic", updated_at: now })
-          .eq("id", payment.restaurant_id);
+        const otherApproved = await hasOtherApprovedPayment(admin, payment.restaurant_id, payment_id);
+        if (!otherApproved) {
+          await admin.from("restaurants")
+            .update({ status: "inactive", plan: "basic", updated_at: now })
+            .eq("id", payment.restaurant_id);
+        }
       }
 
       console.log(`[process-payment] REOPEN payment=${payment_id} by super_admin=${caller.id}`);
@@ -208,11 +242,13 @@ Deno.serve(async (req) => {
 
     // ── DELETE ─────────────────────────────────────────────────────────────────
     if (action === "delete") {
-      // Rollback restaurant before deleting the record
       if (payment.status === "approved") {
-        await admin.from("restaurants")
-          .update({ status: "inactive", plan: "basic", updated_at: now })
-          .eq("id", payment.restaurant_id);
+        const otherApproved = await hasOtherApprovedPayment(admin, payment.restaurant_id, payment_id);
+        if (!otherApproved) {
+          await admin.from("restaurants")
+            .update({ status: "inactive", plan: "basic", updated_at: now })
+            .eq("id", payment.restaurant_id);
+        }
       }
 
       const { error } = await admin

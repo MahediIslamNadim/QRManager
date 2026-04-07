@@ -82,25 +82,14 @@ export function useOrderActions(invalidateKeys: string[][]) {
 
   const saveOrderEdit = useMutation({
     mutationFn: async ({ orderId, restaurantId, items }: SaveEditArgs) => {
-      const toDelete = items.filter(i => i.quantity === 0);
-      const toUpdate = items.filter(i => i.quantity > 0);
-
-      for (const item of toDelete) {
-        const { error } = await supabase.from("order_items").delete().eq("id", item.id);
-        if (error) throw new Error(`আইটেম মুছতে সমস্যা: ${error.message}`);
-      }
-      for (const item of toUpdate) {
-        const { error } = await supabase.from("order_items").update({ quantity: item.quantity }).eq("id", item.id);
-        if (error) throw new Error(`আইটেম আপডেট সমস্যা: ${error.message}`);
-      }
-
-      const newTotal = toUpdate.reduce((sum, i) => sum + i.price * i.quantity, 0);
-      const { error: totalError } = await supabase
-        .from("orders")
-        .update({ total: newTotal })
-        .eq("id", orderId)
-        .eq("restaurant_id", restaurantId);
-      if (totalError) throw new Error(`মোট আপডেট সমস্যা: ${totalError.message}`);
+      // Single atomic RPC: deletes zeroed items, updates quantities, recalculates total.
+      // Replaces the previous three-step sequential approach which could leave partial writes.
+      const { error } = await (supabase.rpc as any)("save_order_edit", {
+        p_order_id: orderId,
+        p_restaurant_id: restaurantId,
+        p_items: items.map(i => ({ id: i.id, quantity: i.quantity })),
+      });
+      if (error) throw new Error(`অর্ডার আপডেট সমস্যা: ${error.message}`);
     },
     onSuccess: () => {
       invalidateAll();

@@ -21,7 +21,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
       return (
         <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6 bg-background">
           <h1 className="text-2xl font-bold text-destructive">কিছু একটা ভুল হয়েছে</h1>
-          <p className="text-sm text-muted-foreground max-w-md text-center">{this.state.error?.message}</p>
+          <p className="text-sm text-muted-foreground max-w-md text-center">অপ্রত্যাশিত সমস্যা হয়েছে। পেজটি রিলোড করুন অথবা হোমে ফিরুন।</p>
           <button onClick={() => window.location.href = "/"} className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm">
             হোমে ফিরুন
           </button>

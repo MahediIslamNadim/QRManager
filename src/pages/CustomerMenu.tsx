@@ -1,9 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
-import { useParams, useSearchParams, useNavigate } from "react-router-dom";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { useParams, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ShoppingCart, Plus, Minus, UtensilsCrossed, X, Send, Image as ImageIcon, Flame, CheckCircle, XCircle, Package, Search, QrCode, Lock, ClipboardList, ChefHat, Bell, Bike, MessageSquare, Phone, Receipt, Clock, ArrowLeft, Star } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useMenuSession } from "@/hooks/useMenuSession";
+import { useMenuOrders, isNotificationOrder } from "@/hooks/useMenuOrders";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const getImageUrl = (path: string | null) => {
@@ -28,23 +30,7 @@ interface CartItem extends MenuItem {
   quantity: number;
 }
 
-interface OrderItem {
-  id: string;
-  name: string;
-  price: number;
-  quantity: number;
-}
-
-interface Order {
-  id: string;
-  total: number;
-  status: string;
-  created_at?: string;
-  items: OrderItem[];
-}
-
-// ✅ FIX Bug 2: colorPalette module-level (immutable) রাখা ঠিক আছে,
-// কিন্তু categoryColors Component এর ভেতরে useState এ রাখতে হবে।
+// Color palette assigned per category — stable index assignment via useMemo
 const colorPalette = [
   { bg: "bg-primary/10", text: "text-primary", border: "border-primary/30", dot: "bg-primary" },
   { bg: "bg-info/10", text: "text-info", border: "border-info/30", dot: "bg-info" },
@@ -54,122 +40,81 @@ const colorPalette = [
   { bg: "bg-accent", text: "text-accent-foreground", border: "border-accent-foreground/20", dot: "bg-accent-foreground" },
 ];
 
-const ACTIVE_STATUSES = ["pending", "confirmed", "preparing", "ready"];
-
-// ✅ FIX Bug 1: Waiter call / bill request আলাদা করতে এই helper দিয়ে চেনা যাবে
-const isNotificationOrder = (order: Order) =>
-  order.total === 0 && order.items.length === 0;
-
 const CustomerMenu = () => {
   const { restaurantId } = useParams();
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
   const tableId = searchParams.get("table");
-  const seatId = searchParams.get("seat");
+  const seatId  = searchParams.get("seat");
   const tokenParam = searchParams.get("token");
   const isDemo = !restaurantId;
 
+  // ── Menu data ──────────────────────────────────────────────────────────────
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [restaurant, setRestaurant] = useState<any>(null);
-  const [tableName, setTableName] = useState<string>("N/A");
-  const [tableIsOpen, setTableIsOpen] = useState<boolean>(true);
-  const [seatNumber, setSeatNumber] = useState<number | null>(null);
   const [categories, setCategories] = useState<string[]>(["সব"]);
   const [activeCategory, setActiveCategory] = useState("সব");
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [showCart, setShowCart] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
-  const [myOrders, setMyOrders] = useState<Order[]>([]);
-  const [showOrderStatus, setShowOrderStatus] = useState(false);
-  const [ordersLoading, setOrdersLoading] = useState(false);
+
+  // ── Cart ───────────────────────────────────────────────────────────────────
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [showCart, setShowCart] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [specialNote, setSpecialNote] = useState("");
+
+  // ── Confirmation ───────────────────────────────────────────────────────────
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [lastOrderId, setLastOrderId] = useState<string | null>(null);
   const [lastOrderTotal, setLastOrderTotal] = useState(0);
   const [lastOrderItems, setLastOrderItems] = useState<CartItem[]>([]);
+
+  // ── Order status drawer ────────────────────────────────────────────────────
+  const [showOrderStatus, setShowOrderStatus] = useState(false);
+
+  // ── Rating ─────────────────────────────────────────────────────────────────
   const [ratingOrderId, setRatingOrderId] = useState<string | null>(null);
   const [ratingValue, setRatingValue] = useState(0);
   const [ratingComment, setRatingComment] = useState("");
   const [ratingSubmitting, setRatingSubmitting] = useState(false);
 
-  const [tokenValid, setTokenValid] = useState<boolean>(true);
-  const [tokenChecking, setTokenChecking] = useState(false);
-  const [sessionToken, setSessionToken] = useState<string | null>(null);
-  const [tableChecked, setTableChecked] = useState(false);
+  // ── Session / token (extracted hook) ──────────────────────────────────────
+  const {
+    tableName, tableIsOpen, seatNumber,
+    tokenValid, tokenChecking, tableChecked, sessionToken,
+  } = useMenuSession({ restaurantId, tableId, seatId, tokenParam, isDemo });
 
-  // ✅ FIX Bug 2: categoryColors Component এর state এ — restaurant বদলালেও reset হবে
-  const [categoryColors, setCategoryColors] = useState<Record<string, { bg: string; text: string; border: string; dot: string }>>({});
+  // ── Orders / realtime (extracted hook) ────────────────────────────────────
+  const onRatingRequest = useCallback((orderId: string) => setRatingOrderId(orderId), []);
 
-  const getCategoryColor = useCallback((category: string) => {
-    if (categoryColors[category]) return categoryColors[category];
-    // নতুন category — index নির্ধারণ করো এবং save করো
-    const idx = Object.keys(categoryColors).length % colorPalette.length;
-    const color = colorPalette[idx];
-    setCategoryColors(prev => ({ ...prev, [category]: color }));
-    return color;
-  }, [categoryColors]);
+  const {
+    myOrders, ordersLoading, activeOrdersCount,
+    submitOrder, callWaiter, requestBill,
+  } = useMenuOrders({
+    restaurantId, tableId, seatId, sessionToken,
+    isDemo, tokenValid, tableChecked,
+    onRatingRequest,
+  });
 
-  // ✅ FIX Bug 4: fetchOrderItems useCallback এ
-  const fetchOrderItems = useCallback(async (orderId: string): Promise<OrderItem[]> => {
-    const { data } = await supabase
-      .from("order_items")
-      .select("id, name, price, quantity")
-      .eq("order_id", orderId);
-    return (data as OrderItem[]) || [];
-  }, []);
+  // ── Category colors: computed once from categories list (no render-time setState) ──
+  const categoryColors = useMemo<Record<string, typeof colorPalette[number]>>(() => {
+    const map: Record<string, typeof colorPalette[number]> = {};
+    categories
+      .filter(c => c !== "সব")
+      .forEach((cat, i) => {
+        map[cat] = colorPalette[i % colorPalette.length];
+      });
+    return map;
+  }, [categories]);
 
-  const fetchExistingOrders = useCallback(async () => {
-    if (isDemo || !tableId || !restaurantId) return;
-    setOrdersLoading(true);
-    try {
-      let query = supabase
-        .from("orders")
-        .select("id, total, status, created_at")
-        .eq("restaurant_id", restaurantId)
-        .eq("table_id", tableId)
-        .in("status", ACTIVE_STATUSES)
-        .gt("total", 0)
-        .order("created_at", { ascending: false })
-        .limit(10);
+  const getCategoryColor = (cat: string) =>
+    categoryColors[cat] ?? colorPalette[0];
 
-      // Scope to seat when available so customers only see their own orders
-      if (seatId) query = query.eq("seat_id", seatId);
-
-      const { data: ordersData, error } = await query;
-
-      if (error || !ordersData) return;
-
-      const orderIds = ordersData.map(o => o.id);
-      const { data: itemsData } = await supabase
-        .from("order_items")
-        .select("id, name, price, quantity, order_id")
-        .in("order_id", orderIds);
-
-      const ordersWithItems: Order[] = ordersData.map(order => ({
-        ...order,
-        items: (itemsData || []).filter((i: any) => i.order_id === order.id) as OrderItem[],
-      }));
-
-      setMyOrders(ordersWithItems);
-    } catch (err) {
-      // silently fail
-    } finally {
-      setOrdersLoading(false);
-    }
-  }, [isDemo, tableId, restaurantId, fetchOrderItems]);
-
-  // ── Fetch menu data ──
+  // ── Fetch menu data ────────────────────────────────────────────────────────
   useEffect(() => {
-    // ✅ FIX Bug 2: restaurant বদলালে categoryColors reset করো
-    setCategoryColors({});
-
     const fetchData = async () => {
       if (isDemo) {
         setRestaurant({ name: "Spice Garden" });
-        setTableName("T-5");
         const demoItems: MenuItem[] = [
           { id: "1", name: "চিকেন বিরিয়ানি", price: 350, category: "বিরিয়ানি", description: "সুগন্ধি বাসমতি চালে রান্না করা মুরগির বিরিয়ানি", available: true },
           { id: "2", name: "বটি কাবাব", price: 180, category: "কাবাব", description: "মশলাযুক্ত গরুর মাংসের কাবাব", available: true },
@@ -196,191 +141,40 @@ const CustomerMenu = () => {
         setMenuItems(menuRes.data as any);
         setCategories(["সব", ...new Set(menuRes.data.map((i: any) => i.category))]);
       }
-
-      if (seatId) {
-        const { data: seatData } = await supabase
-          .from("table_seats").select("seat_number").eq("id", seatId).maybeSingle();
-        if (seatData) setSeatNumber(seatData.seat_number);
-      }
-
       setLoading(false);
     };
     fetchData();
-  }, [restaurantId, seatId, isDemo]);
+  }, [restaurantId, isDemo]);
 
-  // ── Token + Table check ──
-  useEffect(() => {
-    if (isDemo || !tableId || !restaurantId) return;
-
-    const checkTokenAndTable = async () => {
-      setTokenChecking(true);
-      try {
-        const { data: tableData } = await supabase
-          .from("restaurant_tables")
-          .select("name, is_open")
-          .eq("id", tableId)
-          .maybeSingle();
-
-        if (tableData) {
-          setTableName(tableData.name);
-          const isOpen = (tableData as any).is_open !== false;
-          setTableIsOpen(isOpen);
-          if (!isOpen) {
-            setTokenValid(false);
-            setTokenChecking(false);
-            setTableChecked(true);
-            return;
-          }
-        } else {
-          // ✅ FIX Bug 3: tableData না পেলে (error/not found) safe default — closed ধরো না,
-          // কিন্তু tokenValid=false করো যাতে order না দেওয়া যায়
-          setTableIsOpen(false);
-          setTokenValid(false);
-          setTokenChecking(false);
-          setTableChecked(true);
-          return;
-        }
-
-        // Server validates existing token or creates a new session atomically.
-        // Direct table_sessions SELECT/INSERT is no longer allowed by RLS.
-        const { data: sessionResult, error: sessionErr } = await supabase.rpc(
-          "validate_and_create_session" as any,
-          { p_restaurant_id: restaurantId, p_table_id: tableId, p_token: tokenParam ?? null } as any,
-        );
-
-        if (!sessionErr && sessionResult) {
-          const token = (sessionResult as any).token as string;
-          setSessionToken(token);
-          setTokenValid(true);
-          const newUrl = new URL(window.location.href);
-          newUrl.searchParams.set("token", token);
-          window.history.replaceState({}, "", newUrl.toString());
-        } else {
-          // RPC failed or table/restaurant mismatch — fail closed
-          setTokenValid(false);
-        }
-      } catch {
-        // Network/policy error — fail closed so ordering is blocked, not silently permitted
-        setTokenValid(false);
+  // ── Cart helpers ───────────────────────────────────────────────────────────
+  const addToCart = (item: MenuItem) => {
+    if (!item.available) { toast.error("এই আইটেমটি এখন পাওয়া যাচ্ছে না"); return; }
+    setCart(prev => {
+      const existing = prev.find(c => c.id === item.id);
+      if (existing) {
+        if (existing.quantity >= MAX_ITEM_QTY) { toast.error(`সর্বোচ্চ ${MAX_ITEM_QTY}টি যোগ করা যায়`); return prev; }
+        return prev.map(c => c.id === item.id ? { ...c, quantity: c.quantity + 1 } : c);
       }
+      return [...prev, { ...item, quantity: 1 }];
+    });
+    toast.success(`${item.name} যোগ করা হয়েছে`);
+  };
 
-      setTokenChecking(false);
-      setTableChecked(true);
-    };
+  const updateQuantity = (id: string, delta: number) => {
+    setCart(prev => prev.map(c => {
+      if (c.id !== id) return c;
+      const newQty = c.quantity + delta;
+      if (newQty > MAX_ITEM_QTY) { toast.error(`সর্বোচ্চ ${MAX_ITEM_QTY}টি যোগ করা যায়`); return c; }
+      return { ...c, quantity: newQty };
+    }).filter(c => c.quantity > 0));
+  };
 
-    checkTokenAndTable();
-  }, [isDemo, tableId, restaurantId, tokenParam]);
+  const removeFromCart = (id: string) => setCart(prev => prev.filter(c => c.id !== id));
 
-  // ── Seat redirect ──
-  useEffect(() => {
-    if (!isDemo && tableId && !seatId && tableChecked && tokenValid && restaurantId) {
-      const checkSeats = async () => {
-        const { data: seatsData } = await supabase
-          .from("table_seats").select("id").eq("table_id", tableId).limit(1);
-        if (seatsData && seatsData.length > 0) {
-          const tokenQuery = sessionToken ? `&token=${sessionToken}` : "";
-          navigate(`/menu/${restaurantId}/select-seat?table=${tableId}${tokenQuery}`, { replace: true });
-        }
-      };
-      checkSeats();
-    }
-  }, [isDemo, tableId, seatId, tableChecked, tokenValid, restaurantId, sessionToken, navigate]);
+  const totalItems = cart.reduce((sum, c) => sum + c.quantity, 0);
+  const totalPrice = cart.reduce((sum, c) => sum + c.price * c.quantity, 0);
 
-  // ── Fetch existing orders ──
-  useEffect(() => {
-    if (tableChecked && tokenValid) {
-      fetchExistingOrders();
-    }
-  }, [tableChecked, tokenValid, fetchExistingOrders]);
-
-  // ── Realtime ──
-  useEffect(() => {
-    if (!tableId || !restaurantId || isDemo) return;
-
-    const channel = supabase
-      .channel(`orders-realtime-${tableId}`)
-      .on("postgres_changes", {
-        event: "INSERT",
-        schema: "public",
-        table: "orders",
-        filter: `table_id=eq.${tableId}`,
-      }, async (payload) => {
-        const newOrder = payload.new as any;
-        if (!ACTIVE_STATUSES.includes(newOrder.status)) return;
-        // ✅ FIX Bug 1: total=0 order (waiter call / bill request) myOrders এ যোগ করবো না
-        if (newOrder.total === 0) return;
-        const items = await fetchOrderItems(newOrder.id);
-        setMyOrders(prev => {
-          if (prev.find(o => o.id === newOrder.id)) return prev;
-          return [{ ...newOrder, items }, ...prev];
-        });
-      })
-      .on("postgres_changes", {
-        event: "UPDATE",
-        schema: "public",
-        table: "orders",
-        filter: `table_id=eq.${tableId}`,
-      }, async (payload) => {
-        const updated = payload.new as any;
-        // ✅ FIX Bug 1: waiter call / bill request update ও ignore করো
-        if (updated.total === 0) return;
-
-        setMyOrders(prev => {
-          const exists = prev.find(o => o.id === updated.id);
-          if (exists) {
-            return prev.map(o =>
-              o.id === updated.id ? { ...o, status: updated.status } : o
-            );
-          } else if (ACTIVE_STATUSES.includes(updated.status)) {
-            fetchOrderItems(updated.id).then(items => {
-              setMyOrders(p => {
-                if (p.find(o => o.id === updated.id)) return p;
-                return [{ ...updated, items }, ...p];
-              });
-            });
-            return prev;
-          }
-          return prev;
-        });
-
-        const statusMessages: Record<string, string> = {
-          confirmed: "✅ রান্নাঘর অর্ডার accept করেছে!",
-          preparing: "🍳 আপনার খাবার রান্না হচ্ছে...",
-          ready: "🛎️ খাবার ready! ওয়েটার আসছে।",
-          delivered: "🎉 খাবার পৌঁছে গেছে! ধন্যবাদ।",
-          cancelled: "❌ দুঃখিত, অর্ডারটি বাতিল হয়েছে।",
-        };
-        if (statusMessages[updated.status]) {
-          toast(statusMessages[updated.status], { duration: 5000 });
-        }
-
-        if (["confirmed", "preparing", "ready"].includes(updated.status)) {
-          setShowOrderStatus(true);
-        }
-
-        if (["served", "completed"].includes(updated.status)) {
-          const ratedKey = `rated_${updated.id}`;
-          if (!localStorage.getItem(ratedKey)) {
-            setTimeout(() => setRatingOrderId(updated.id), 1500);
-          }
-          setTimeout(() => {
-            setMyOrders(prev => prev.filter(o => o.id !== updated.id));
-          }, 60000);
-        }
-
-        if (["delivered", "cancelled"].includes(updated.status)) {
-          setTimeout(() => {
-            setMyOrders(prev => prev.filter(o => o.id !== updated.id));
-          }, 30000);
-        }
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [tableId, restaurantId, isDemo, fetchOrderItems]);
-
+  // ── Derived menu state ─────────────────────────────────────────────────────
   const filtered = menuItems
     .filter(i => activeCategory === "সব" || i.category === activeCategory)
     .filter(i => !searchQuery || i.name.toLowerCase().includes(searchQuery.toLowerCase()) || i.description?.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -393,45 +187,8 @@ const CustomerMenu = () => {
     return acc;
   }, {});
 
-  const addToCart = (item: MenuItem) => {
-    if (!item.available) { toast.error("এই আইটেমটি এখন পাওয়া যাচ্ছে না"); return; }
-    setCart(prev => {
-      const existing = prev.find(c => c.id === item.id);
-      if (existing) {
-        if (existing.quantity >= MAX_ITEM_QTY) {
-          toast.error(`সর্বোচ্চ ${MAX_ITEM_QTY}টি যোগ করা যায়`);
-          return prev;
-        }
-        return prev.map(c => c.id === item.id ? { ...c, quantity: c.quantity + 1 } : c);
-      }
-      return [...prev, { ...item, quantity: 1 }];
-    });
-    toast.success(`${item.name} যোগ করা হয়েছে`);
-  };
-
-  const updateQuantity = (id: string, delta: number) => {
-    setCart(prev => prev.map(c => {
-      if (c.id !== id) return c;
-      const newQty = c.quantity + delta;
-      if (newQty > MAX_ITEM_QTY) {
-        toast.error(`সর্বোচ্চ ${MAX_ITEM_QTY}টি যোগ করা যায়`);
-        return c;
-      }
-      return { ...c, quantity: newQty };
-    }).filter(c => c.quantity > 0));
-  };
-
-  const removeFromCart = (id: string) => setCart(prev => prev.filter(c => c.id !== id));
-
-  const totalItems = cart.reduce((sum, c) => sum + c.quantity, 0);
-  const totalPrice = cart.reduce((sum, c) => sum + c.price * c.quantity, 0);
-
-  // ✅ FIX Bug 1: notification order (waiter call/bill) বাদ দিয়ে count করো
-  const activeOrdersCount = myOrders.filter(o =>
-    ACTIVE_STATUSES.includes(o.status) && !isNotificationOrder(o)
-  ).length;
-
-  const submitOrder = async () => {
+  // ── Order submit ───────────────────────────────────────────────────────────
+  const handleSubmitOrder = async () => {
     if (isDemo) {
       setLastOrderId("DEMO-001");
       setLastOrderTotal(totalPrice);
@@ -442,60 +199,20 @@ const CustomerMenu = () => {
       setSpecialNote("");
       return;
     }
-
-    if (!tableIsOpen) {
-      toast.error("এই টেবিলটি এখন বন্ধ আছে");
-      return;
-    }
-
-    if (!sessionToken) {
-      toast.error("সেশন টোকেন নেই। QR কোড স্ক্যান করুন।");
-      return;
-    }
+    if (!tableIsOpen) { toast.error("এই টেবিলটি এখন বন্ধ আছে"); return; }
+    if (!sessionToken) { toast.error("সেশন টোকেন নেই। QR কোড স্ক্যান করুন।"); return; }
 
     setSubmitting(true);
     try {
-      // Server validates token + creates order+items atomically.
-      // Direct orders INSERT is no longer allowed by RLS from anon clients.
-      const { data: result, error: orderErr } = await supabase.rpc(
-        "insert_order_with_token" as any,
-        {
-          p_restaurant_id: restaurantId,
-          p_table_id: tableId ?? null,
-          p_seat_id: seatId ?? null,
-          p_total: totalPrice,
-          p_notes: specialNote.trim() || null,
-          p_token: sessionToken,
-          p_items: cart.map(c => ({
-            menu_item_id: c.id,
-            name: c.name,
-            price: c.price,
-            quantity: c.quantity,
-          })),
-        } as any,
-      );
-
-      if (orderErr) throw orderErr;
-      const orderId = (result as any)?.order_id as string;
-
-      const localItems: OrderItem[] = cart.map(c => ({
-        id: c.id,
-        name: c.name,
-        price: c.price,
-        quantity: c.quantity,
-      }));
-
-      const newOrder: Order = {
-        id: orderId,
-        total: totalPrice,
-        status: "pending",
-        created_at: new Date().toISOString(),
-        items: localItems,
-      };
-      setMyOrders(prev => [newOrder, ...prev]);
-
-      setLastOrderId(orderId.slice(0, 8).toUpperCase());
-      setLastOrderTotal(totalPrice);
+      const result = await submitOrder({
+        restaurantId: restaurantId!,
+        tableId, seatId, sessionToken,
+        cart: cart.map(c => ({ id: c.id, quantity: c.quantity, name: c.name, price: c.price })),
+        specialNote,
+      });
+      if (!result) return;
+      setLastOrderId(result.orderId.slice(0, 8).toUpperCase());
+      setLastOrderTotal(result.confirmedTotal);
       setLastOrderItems([...cart]);
       setShowCart(false);
       setShowConfirmation(true);
@@ -508,49 +225,29 @@ const CustomerMenu = () => {
     }
   };
 
-  // ── Call Waiter ──
-  const callWaiter = async () => {
-    if (isDemo) {
-      toast.success("🔔 ওয়েটারকে ডাকা হয়েছে! (ডেমো)");
-      return;
-    }
+  const handleCallWaiter = async () => {
+    if (isDemo) { toast.success("🔔 ওয়েটারকে ডাকা হয়েছে! (ডেমো)"); return; }
+    if (!sessionToken) { toast.error("সেশন টোকেন নেই। QR কোড স্ক্যান করুন।"); return; }
     try {
-      await supabase.from("orders").insert({
-        restaurant_id: restaurantId!,
-        table_id: tableId || null,
-        seat_id: seatId || null,
-        total: 0,
-        status: "pending",
-        notes: `🔔 ওয়েটার ডাকা হয়েছে — টেবিল ${tableName}${seatNumber ? `, সিট ${seatNumber}` : ""}`,
-      });
+      await callWaiter({ restaurantId: restaurantId!, tableId, seatId, sessionToken, tableName, seatNumber });
       toast.success("🔔 ওয়েটারকে ডাকা হয়েছে! একটু অপেক্ষা করুন।");
     } catch {
       toast.error("ওয়েটার ডাকতে সমস্যা হয়েছে");
     }
   };
 
-  // ── Request Bill ──
-  const requestBill = async () => {
-    if (isDemo) {
-      toast.success("🧾 বিলের জন্য অনুরোধ পাঠানো হয়েছে! (ডেমো)");
-      return;
-    }
+  const handleRequestBill = async () => {
+    if (isDemo) { toast.success("🧾 বিলের জন্য অনুরোধ পাঠানো হয়েছে! (ডেমো)"); return; }
+    if (!sessionToken) { toast.error("সেশন টোকেন নেই। QR কোড স্ক্যান করুন।"); return; }
     try {
-      await supabase.from("orders").insert({
-        restaurant_id: restaurantId!,
-        table_id: tableId || null,
-        seat_id: seatId || null,
-        total: 0,
-        status: "pending",
-        notes: `🧾 বিল চাই — টেবিল ${tableName}${seatNumber ? `, সিট ${seatNumber}` : ""}`,
-      });
+      await requestBill({ restaurantId: restaurantId!, tableId, seatId, sessionToken, tableName, seatNumber });
       toast.success("🧾 বিলের জন্য অনুরোধ পাঠানো হয়েছে!");
     } catch {
       toast.error("বিল অনুরোধ পাঠাতে সমস্যা হয়েছে");
     }
   };
 
-  // ── LOADING ──
+  // ── Early returns (gates) ──────────────────────────────────────────────────
   if (loading || tokenChecking) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -562,7 +259,6 @@ const CustomerMenu = () => {
     );
   }
 
-  // ── TABLE CLOSED ──
   if (!isDemo && tableId && !tableIsOpen) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-6">
@@ -571,16 +267,12 @@ const CustomerMenu = () => {
             <Lock className="w-10 h-10 text-destructive" />
           </div>
           <h2 className="font-display font-bold text-2xl text-foreground mb-3">টেবিল বন্ধ আছে</h2>
-          <p className="text-muted-foreground text-sm leading-relaxed">
-            এই টেবিলটি এখন অর্ডারের জন্য খোলা নেই।<br />
-            ওয়েটারকে জানান অথবা একটু অপেক্ষা করুন।
-          </p>
+          <p className="text-muted-foreground text-sm leading-relaxed">এই টেবিলটি এখন অর্ডারের জন্য খোলা নেই।<br />ওয়েটারকে জানান অথবা একটু অপেক্ষা করুন।</p>
         </div>
       </div>
     );
   }
 
-  // ── TOKEN EXPIRED ──
   if (!isDemo && tableId && tableChecked && !tokenValid && tableIsOpen) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-6">
@@ -589,10 +281,7 @@ const CustomerMenu = () => {
             <QrCode className="w-10 h-10 text-warning" />
           </div>
           <h2 className="font-display font-bold text-2xl text-foreground mb-3">সেশন মেয়াদ শেষ</h2>
-          <p className="text-muted-foreground text-sm leading-relaxed mb-6">
-            আপনার অর্ডার সেশনের সময় শেষ হয়ে গেছে।<br />
-            অর্ডার করতে টেবিলের QR কোড আবার স্ক্যান করুন।
-          </p>
+          <p className="text-muted-foreground text-sm leading-relaxed mb-6">আপনার অর্ডার সেশনের সময় শেষ হয়ে গেছে।<br />অর্ডার করতে টেবিলের QR কোড আবার স্ক্যান করুন।</p>
           <div className="flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-primary/10 border border-primary/20">
             <QrCode className="w-5 h-5 text-primary" />
             <span className="text-sm font-semibold text-primary">QR কোড স্ক্যান করুন</span>
@@ -602,21 +291,16 @@ const CustomerMenu = () => {
     );
   }
 
-  // ── ORDER CONFIRMATION SCREEN ──
   if (showConfirmation) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-background via-background to-success/10 flex items-center justify-center p-6">
         <div className="max-w-sm w-full text-center animate-fade-up">
-          {/* Success icon */}
           <div className="w-24 h-24 rounded-full bg-success/10 flex items-center justify-center mx-auto mb-6 relative">
             <CheckCircle className="w-12 h-12 text-success" />
             <div className="absolute inset-0 rounded-full border-2 border-success/30 animate-ping" />
           </div>
-
           <h2 className="font-display font-bold text-2xl text-foreground mb-2">অর্ডার সফল! 🎉</h2>
           <p className="text-muted-foreground text-sm mb-6">আপনার অর্ডার রান্নাঘরে পাঠানো হয়েছে</p>
-
-          {/* Order details card */}
           <div className="bg-card rounded-2xl border border-border/60 p-5 mb-6 text-left">
             <div className="flex items-center justify-between mb-4">
               <div>
@@ -628,7 +312,6 @@ const CustomerMenu = () => {
                 <p className="font-bold text-lg text-primary">৳{lastOrderTotal}</p>
               </div>
             </div>
-
             <div className="border-t border-border/30 pt-3 mb-3">
               <p className="text-xs text-muted-foreground mb-2">আইটেম সমূহ:</p>
               <div className="space-y-1.5">
@@ -640,8 +323,6 @@ const CustomerMenu = () => {
                 ))}
               </div>
             </div>
-
-            {/* Estimated time */}
             <div className="flex items-center gap-3 p-3 rounded-xl bg-warning/10 border border-warning/20">
               <Clock className="w-5 h-5 text-warning flex-shrink-0" />
               <div>
@@ -650,28 +331,14 @@ const CustomerMenu = () => {
               </div>
             </div>
           </div>
-
           <div className="space-y-3">
-            <Button
-              variant="hero"
-              size="lg"
-              className="w-full h-12 rounded-2xl"
-              onClick={() => {
-                setShowConfirmation(false);
-                setShowOrderStatus(true);
-              }}
-            >
-              <ClipboardList className="w-5 h-5" />
-              অর্ডার ট্র্যাক করুন
+            <Button variant="hero" size="lg" className="w-full h-12 rounded-2xl"
+              onClick={() => { setShowConfirmation(false); setShowOrderStatus(true); }}>
+              <ClipboardList className="w-5 h-5" /> অর্ডার ট্র্যাক করুন
             </Button>
-            <Button
-              variant="outline"
-              size="lg"
-              className="w-full h-12 rounded-2xl"
-              onClick={() => setShowConfirmation(false)}
-            >
-              <ArrowLeft className="w-5 h-5" />
-              মেনুতে ফিরুন
+            <Button variant="outline" size="lg" className="w-full h-12 rounded-2xl"
+              onClick={() => setShowConfirmation(false)}>
+              <ArrowLeft className="w-5 h-5" /> মেনুতে ফিরুন
             </Button>
           </div>
         </div>
@@ -679,6 +346,7 @@ const CustomerMenu = () => {
     );
   }
 
+  // ── Main menu UI ───────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gradient-to-b from-background via-background to-accent/20">
       {/* Header */}
@@ -849,15 +517,15 @@ const CustomerMenu = () => {
         })}
       </div>
 
-      {/* Floating Action Buttons — Call Waiter & Bill */}
+      {/* Floating action buttons */}
       {!showCart && !showOrderStatus && (
         <div className="fixed bottom-24 right-4 z-20 flex flex-col gap-2">
-          <button onClick={callWaiter}
+          <button onClick={handleCallWaiter}
             className="w-12 h-12 rounded-full bg-info/90 text-info-foreground shadow-lg shadow-info/30 flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
             title="ওয়েটার ডাকুন">
             <Phone className="w-5 h-5" />
           </button>
-          <button onClick={requestBill}
+          <button onClick={handleRequestBill}
             className="w-12 h-12 rounded-full bg-warning/90 text-warning-foreground shadow-lg shadow-warning/30 flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
             title="বিল চাই">
             <Receipt className="w-5 h-5" />
@@ -865,7 +533,7 @@ const CustomerMenu = () => {
         </div>
       )}
 
-      {/* Floating Cart Button */}
+      {/* Floating cart button */}
       {totalItems > 0 && !showCart && (
         <div className="fixed bottom-6 left-4 right-4 max-w-2xl mx-auto z-30 animate-fade-up">
           <button onClick={() => setShowCart(true)}
@@ -884,15 +552,13 @@ const CustomerMenu = () => {
         </div>
       )}
 
-      {/* ── ORDER STATUS DRAWER ── */}
+      {/* Order status drawer */}
       {showOrderStatus && (
         <div className="fixed inset-0 z-50 bg-foreground/60 backdrop-blur-md" onClick={() => setShowOrderStatus(false)}>
           <div className="absolute bottom-0 left-0 right-0 bg-card rounded-t-3xl max-h-[85vh] overflow-y-auto"
             onClick={e => e.stopPropagation()}
             style={{ animation: "slideUp 0.35s cubic-bezier(0.32, 0.72, 0, 1)" }}>
-            <div className="flex justify-center pt-3 pb-1">
-              <div className="w-10 h-1 rounded-full bg-border" />
-            </div>
+            <div className="flex justify-center pt-3 pb-1"><div className="w-10 h-1 rounded-full bg-border" /></div>
             <div className="p-6 pt-3">
               <div className="flex items-center justify-between mb-6">
                 <div>
@@ -905,39 +571,30 @@ const CustomerMenu = () => {
                   <X className="w-4 h-4 text-foreground" />
                 </button>
               </div>
-
               {ordersLoading && (
                 <div className="flex items-center justify-center py-8">
                   <div className="w-8 h-8 border-3 border-primary border-t-transparent rounded-full animate-spin" />
                 </div>
               )}
-
               {!ordersLoading && myOrders.length === 0 && (
                 <div className="text-center py-10">
                   <ClipboardList className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
                   <p className="text-muted-foreground text-sm">এখনো কোনো অর্ডার নেই</p>
                 </div>
               )}
-
               <div className="space-y-4">
-                {myOrders.map((order, oi) => {
+                {myOrders.filter(o => !isNotificationOrder(o)).map((order, oi) => {
                   const steps = [
-                    { key: "pending",   icon: ClipboardList, label: "অর্ডার দেওয়া হয়েছে",      color: "text-muted-foreground", bg: "bg-muted/30" },
-                    { key: "confirmed", icon: CheckCircle,   label: "রান্নাঘর accept করেছে",  color: "text-info",             bg: "bg-info/10" },
-                    { key: "preparing", icon: ChefHat,       label: "রান্না হচ্ছে",             color: "text-warning",          bg: "bg-warning/10" },
-                    { key: "ready",     icon: Bell,          label: "আসছে!",                   color: "text-success",          bg: "bg-success/10" },
-                    { key: "delivered", icon: Bike,          label: "পৌঁছে গেছে",              color: "text-primary",          bg: "bg-primary/10" },
+                    { key: "pending",   icon: ClipboardList, label: "অর্ডার দেওয়া হয়েছে",     color: "text-muted-foreground", bg: "bg-muted/30" },
+                    { key: "confirmed", icon: CheckCircle,   label: "রান্নাঘর accept করেছে", color: "text-info",             bg: "bg-info/10" },
+                    { key: "preparing", icon: ChefHat,       label: "রান্না হচ্ছে",            color: "text-warning",          bg: "bg-warning/10" },
+                    { key: "ready",     icon: Bell,          label: "আসছে!",                  color: "text-success",          bg: "bg-success/10" },
+                    { key: "delivered", icon: Bike,          label: "পৌঁছে গেছে",             color: "text-primary",          bg: "bg-primary/10" },
                   ];
                   const currentIdx = steps.findIndex(s => s.key === order.status);
                   const isCancelled = order.status === "cancelled";
-                  const isDelivered = order.status === "delivered";
-
                   return (
-                    <div key={order.id} className={`rounded-2xl p-4 border ${
-                      isCancelled ? "bg-destructive/5 border-destructive/20"
-                      : isDelivered ? "bg-success/5 border-success/20"
-                      : "bg-secondary/30 border-border/50"
-                    }`}>
+                    <div key={order.id} className={`rounded-2xl p-4 border ${isCancelled ? "bg-destructive/5 border-destructive/20" : order.status === "delivered" ? "bg-success/5 border-success/20" : "bg-secondary/30 border-border/50"}`}>
                       <div className="flex items-center justify-between mb-4">
                         <div>
                           <p className="font-semibold text-sm text-foreground">অর্ডার #{oi + 1}</p>
@@ -949,7 +606,6 @@ const CustomerMenu = () => {
                         </div>
                         <span className="text-sm font-bold text-foreground">৳{order.total}</span>
                       </div>
-
                       {isCancelled ? (
                         <div className="flex items-center gap-3 p-3 rounded-xl bg-destructive/10 border border-destructive/20">
                           <XCircle className="w-5 h-5 text-destructive flex-shrink-0" />
@@ -963,28 +619,18 @@ const CustomerMenu = () => {
                             const isActive = si === currentIdx;
                             return (
                               <div key={step.key}
-                                className={`flex items-center gap-3 p-2.5 rounded-xl transition-all ${
-                                  isActive ? `${step.bg} border border-current/20`
-                                  : isDone ? "opacity-60"
-                                  : "opacity-25"
-                                }`}>
+                                className={`flex items-center gap-3 p-2.5 rounded-xl transition-all ${isActive ? `${step.bg} border border-current/20` : isDone ? "opacity-60" : "opacity-25"}`}>
                                 <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${isActive ? step.bg : "bg-muted/20"}`}>
                                   <Icon className={`w-4 h-4 ${isActive ? step.color : isDone ? "text-muted-foreground" : "text-muted-foreground/40"}`} />
                                 </div>
-                                <p className={`text-sm font-semibold flex-1 ${isActive ? step.color : isDone ? "text-foreground" : "text-muted-foreground/40"}`}>
-                                  {step.label}
-                                </p>
+                                <p className={`text-sm font-semibold flex-1 ${isActive ? step.color : isDone ? "text-foreground" : "text-muted-foreground/40"}`}>{step.label}</p>
                                 {isDone && !isActive && <CheckCircle className="w-4 h-4 text-success flex-shrink-0" />}
-                                {isActive && (
-                                  <div className="w-2 h-2 rounded-full animate-pulse flex-shrink-0"
-                                    style={{ background: "currentColor" }} />
-                                )}
+                                {isActive && <div className="w-2 h-2 rounded-full animate-pulse flex-shrink-0" style={{ background: "currentColor" }} />}
                               </div>
                             );
                           })}
                         </div>
                       )}
-
                       {order.items && order.items.length > 0 && (
                         <div className="mt-3 pt-3 border-t border-border/30">
                           <p className="text-xs text-muted-foreground mb-1.5">আইটেম:</p>
@@ -1006,15 +652,13 @@ const CustomerMenu = () => {
         </div>
       )}
 
-      {/* ── CART DRAWER ── */}
+      {/* Cart drawer */}
       {showCart && (
         <div className="fixed inset-0 z-50 bg-foreground/60 backdrop-blur-md" onClick={() => setShowCart(false)}>
           <div className="absolute bottom-0 left-0 right-0 bg-card rounded-t-3xl max-h-[85vh] overflow-y-auto"
             onClick={e => e.stopPropagation()}
             style={{ animation: "slideUp 0.35s cubic-bezier(0.32, 0.72, 0, 1)" }}>
-            <div className="flex justify-center pt-3 pb-1">
-              <div className="w-10 h-1 rounded-full bg-border" />
-            </div>
+            <div className="flex justify-center pt-3 pb-1"><div className="w-10 h-1 rounded-full bg-border" /></div>
             <div className="p-6 pt-3">
               <div className="flex items-center justify-between mb-6">
                 <div>
@@ -1029,13 +673,8 @@ const CustomerMenu = () => {
                 <div className="text-center py-12">
                   <ShoppingCart className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
                   <p className="text-muted-foreground font-medium mb-4">কার্ট খালি</p>
-                  <Button
-                    variant="outline"
-                    className="rounded-xl"
-                    onClick={() => setShowCart(false)}
-                  >
-                    <UtensilsCrossed className="w-4 h-4" />
-                    মেনু থেকে আইটেম যোগ করুন
+                  <Button variant="outline" className="rounded-xl" onClick={() => setShowCart(false)}>
+                    <UtensilsCrossed className="w-4 h-4" /> মেনু থেকে আইটেম যোগ করুন
                   </Button>
                 </div>
               ) : (
@@ -1071,24 +710,15 @@ const CustomerMenu = () => {
                       );
                     })}
                   </div>
-
-                  {/* Special Instructions */}
                   <div className="mb-4">
                     <label className="flex items-center gap-2 text-sm font-semibold text-foreground mb-2">
-                      <MessageSquare className="w-4 h-4 text-primary" />
-                      বিশেষ নির্দেশনা
+                      <MessageSquare className="w-4 h-4 text-primary" /> বিশেষ নির্দেশনা
                     </label>
-                    <textarea
-                      value={specialNote}
-                      onChange={e => setSpecialNote(e.target.value)}
-                      placeholder="যেমন: কম ঝাল দিন, Extra sauce, পেঁয়াজ ছাড়া..."
-                      maxLength={200}
-                      rows={2}
-                      className="w-full rounded-xl bg-secondary/50 border border-border/50 px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
-                    />
+                    <textarea value={specialNote} onChange={e => setSpecialNote(e.target.value)}
+                      placeholder="যেমন: কম ঝাল দিন, Extra sauce, পেঁয়াজ ছাড়া..." maxLength={200} rows={2}
+                      className="w-full rounded-xl bg-secondary/50 border border-border/50 px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none" />
                     <p className="text-xs text-muted-foreground mt-1 text-right">{specialNote.length}/200</p>
                   </div>
-
                   <div className="border-t border-border pt-4 mb-6 space-y-2">
                     <div className="flex justify-between text-sm text-muted-foreground">
                       <span>সাবটোটাল</span><span>৳{totalPrice}</span>
@@ -1097,7 +727,8 @@ const CustomerMenu = () => {
                       <span>মোট</span><span className="text-gradient">৳{totalPrice}</span>
                     </div>
                   </div>
-                  <Button variant="hero" size="lg" className="w-full h-14 text-base rounded-2xl shadow-lg shadow-primary/20" onClick={submitOrder} disabled={submitting}>
+                  <Button variant="hero" size="lg" className="w-full h-14 text-base rounded-2xl shadow-lg shadow-primary/20"
+                    onClick={handleSubmitOrder} disabled={submitting}>
                     <Send className="w-5 h-5" />
                     {submitting ? "পাঠানো হচ্ছে..." : "অর্ডার পাঠান"}
                   </Button>
@@ -1108,7 +739,7 @@ const CustomerMenu = () => {
         </div>
       )}
 
-      {/* ── RATING MODAL ── */}
+      {/* Rating modal */}
       {ratingOrderId && (
         <div className="fixed inset-0 z-[60] bg-foreground/70 backdrop-blur-md flex items-end sm:items-center justify-center p-4">
           <div className="w-full max-w-sm bg-card rounded-3xl p-6 shadow-2xl animate-fade-up">
@@ -1119,20 +750,10 @@ const CustomerMenu = () => {
               <h2 className="font-display font-bold text-xl text-foreground">আপনার অভিজ্ঞতা কেমন ছিল?</h2>
               <p className="text-sm text-muted-foreground mt-1">আপনার রেটিং আমাদের আরো ভালো করতে সাহায্য করবে</p>
             </div>
-
-            {/* Stars */}
             <div className="flex justify-center gap-3 mb-4">
               {[1, 2, 3, 4, 5].map(star => (
-                <button
-                  key={star}
-                  onClick={() => setRatingValue(star)}
-                  className="transition-transform active:scale-90"
-                >
-                  <Star
-                    className={`w-10 h-10 transition-colors ${
-                      star <= ratingValue ? "text-warning fill-warning" : "text-muted-foreground/30"
-                    }`}
-                  />
+                <button key={star} onClick={() => setRatingValue(star)} className="transition-transform active:scale-90">
+                  <Star className={`w-10 h-10 transition-colors ${star <= ratingValue ? "text-warning fill-warning" : "text-muted-foreground/30"}`} />
                 </button>
               ))}
             </div>
@@ -1141,26 +762,14 @@ const CustomerMenu = () => {
                 {ratingValue === 1 ? "😞 খুব খারাপ" : ratingValue === 2 ? "😕 খারাপ" : ratingValue === 3 ? "😐 মোটামুটি" : ratingValue === 4 ? "😊 ভালো" : "😍 অসাধারণ!"}
               </p>
             )}
-
-            {/* Comment */}
             <textarea
               className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/50 mb-4"
-              rows={2}
-              placeholder="কিছু বলতে চাইলে লিখুন... (ঐচ্ছিক)"
-              value={ratingComment}
-              onChange={e => setRatingComment(e.target.value)}
-            />
-
+              rows={2} placeholder="কিছু বলতে চাইলে লিখুন... (ঐচ্ছিক)"
+              value={ratingComment} onChange={e => setRatingComment(e.target.value)} />
             <div className="flex gap-2">
               <button
-                onClick={() => {
-                  localStorage.setItem(`rated_${ratingOrderId}`, "skipped");
-                  setRatingOrderId(null);
-                  setRatingValue(0);
-                  setRatingComment("");
-                }}
-                className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:bg-secondary transition-colors"
-              >
+                onClick={() => { localStorage.setItem(`rated_${ratingOrderId}`, "skipped"); setRatingOrderId(null); setRatingValue(0); setRatingComment(""); }}
+                className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:bg-secondary transition-colors">
                 এড়িয়ে যান
               </button>
               <button
@@ -1168,23 +777,15 @@ const CustomerMenu = () => {
                 onClick={async () => {
                   if (!ratingValue || !ratingOrderId) return;
                   setRatingSubmitting(true);
-                  // Direct orders UPDATE for customers is blocked by RLS.
-                  // Use server-side RPC that validates session token before writing.
                   const { data: ok } = await supabase.rpc(
                     "submit_order_rating" as any,
                     { p_order_id: ratingOrderId, p_rating: ratingValue, p_comment: ratingComment || null, p_token: sessionToken } as any,
                   );
                   setRatingSubmitting(false);
-                  if (ok) {
-                    localStorage.setItem(`rated_${ratingOrderId}`, "done");
-                    toast("🙏 ধন্যবাদ! আপনার রেটিং পেয়েছি।", { duration: 4000 });
-                  }
-                  setRatingOrderId(null);
-                  setRatingValue(0);
-                  setRatingComment("");
+                  if (ok) { localStorage.setItem(`rated_${ratingOrderId}`, "done"); toast("🙏 ধন্যবাদ! আপনার রেটিং পেয়েছি।", { duration: 4000 }); }
+                  setRatingOrderId(null); setRatingValue(0); setRatingComment("");
                 }}
-                className="flex-1 py-2.5 rounded-xl gradient-primary text-primary-foreground font-semibold text-sm disabled:opacity-50 transition-opacity"
-              >
+                className="flex-1 py-2.5 rounded-xl gradient-primary text-primary-foreground font-semibold text-sm disabled:opacity-50 transition-opacity">
                 {ratingSubmitting ? "পাঠানো হচ্ছে..." : "রেটিং দিন"}
               </button>
             </div>
@@ -1195,7 +796,7 @@ const CustomerMenu = () => {
       <style>{`
         @keyframes slideUp {
           from { transform: translateY(100%); }
-          to { transform: translateY(0); }
+          to   { transform: translateY(0); }
         }
       `}</style>
     </div>

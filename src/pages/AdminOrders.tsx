@@ -2,12 +2,12 @@ import { useEffect, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ShoppingCart, Clock, CheckCircle, ChefHat, Edit, Plus, Minus, X, Banknote, Smartphone, Printer } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { ShoppingCart, Clock, CheckCircle, ChefHat, Edit, Plus, Minus, X, Banknote, Smartphone, Printer, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrderActions } from "@/hooks/useOrderActions";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { printReceipt } from "@/utils/printReceipt";
 
@@ -16,17 +16,34 @@ const statusMap: Record<string, string> = {
   "সব": "all", "পেন্ডিং": "pending", "প্রস্তুত হচ্ছে": "preparing", "সার্ভ করা হয়েছে": "served", "সম্পন্ন": "completed"
 };
 
-const QUERY_KEY = ["admin-orders"];
+const PAGE_SIZE = 25;
+const QUERY_KEY_PREFIX = "admin-orders";
 
 const AdminOrders = () => {
   const { restaurantId, user } = useAuth();
   const queryClient = useQueryClient();
-  const { updateStatus, completePayment, saveOrderEdit } = useOrderActions([QUERY_KEY]);
+  const { updateStatus, completePayment, saveOrderEdit } = useOrderActions([[QUERY_KEY_PREFIX]]);
+
   const [filter, setFilter] = useState("সব");
+  const [page, setPage] = useState(1);
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
+
   const [editOrder, setEditOrder] = useState<any>(null);
   const [editItems, setEditItems] = useState<any[]>([]);
   const [paymentOrder, setPaymentOrder] = useState<any>(null);
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "bkash">("cash");
+
+  // Debounce search input
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInput.trim()), 400);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
+  // Reset to page 1 when filter or search changes
+  useEffect(() => { setPage(1); }, [filter, search]);
+
+  const statusFilter = statusMap[filter];
 
   const { data: restaurantData } = useQuery({
     queryKey: ["restaurant-name", restaurantId],
@@ -39,21 +56,39 @@ const AdminOrders = () => {
   });
   const restaurantName = restaurantData?.name || "রেস্টুরেন্ট";
 
-  const { data: orders = [] } = useQuery({
-    queryKey: ["admin-orders", restaurantId],
+  const { data, isLoading } = useQuery({
+    queryKey: [QUERY_KEY_PREFIX, restaurantId, statusFilter, page, search],
     queryFn: async () => {
-      if (!restaurantId) return [];
-      const { data } = await supabase
+      if (!restaurantId) return { orders: [], count: 0 };
+      const from = (page - 1) * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+
+      let q = supabase
         .from("orders")
-        .select("*, restaurant_tables(name), table_seats(seat_number), order_items(id, name, quantity, price, menu_item_id)")
+        .select(
+          "*, restaurant_tables(name), table_seats(seat_number), order_items(id, name, quantity, price, menu_item_id)",
+          { count: "exact" }
+        )
         .eq("restaurant_id", restaurantId)
-        .order("created_at", { ascending: false });
-      return data || [];
+        .order("created_at", { ascending: false })
+        .range(from, to);
+
+      if (statusFilter !== "all") q = q.eq("status", statusFilter);
+      if (search) q = (q as any).filter("id::text", "ilike", `%${search}%`);
+
+      const { data: rows, error, count } = await q;
+      if (error) throw error;
+      return { orders: rows || [], count: count ?? 0 };
     },
     enabled: !!restaurantId,
+    placeholderData: (prev) => prev,
   });
 
-  // Realtime
+  const orders: any[] = data?.orders ?? [];
+  const totalCount = data?.count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+
+  // Realtime — partial key invalidation covers all page/filter variants
   useEffect(() => {
     if (!restaurantId) return;
     const channel = supabase
@@ -62,7 +97,7 @@ const AdminOrders = () => {
         event: "*", schema: "public", table: "orders",
         filter: `restaurant_id=eq.${restaurantId}`,
       }, () => {
-        queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
+        queryClient.invalidateQueries({ queryKey: [QUERY_KEY_PREFIX, restaurantId] });
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -79,8 +114,6 @@ const AdminOrders = () => {
       return item;
     }));
   };
-
-  const filtered = filter === "সব" ? orders : orders.filter((o: any) => o.status === statusMap[filter]);
 
   const getStatusIcon = (status: string) => {
     switch(status) {
@@ -123,18 +156,39 @@ const AdminOrders = () => {
 
   return (
     <DashboardLayout role="admin" title="অর্ডার ম্যানেজমেন্ট">
-      <div className="space-y-6 animate-fade-up">
-        <div className="flex flex-wrap gap-2">
-          {statusFilters.map((s) => (
-            <Button key={s} variant={filter === s ? "default" : "outline"} size="sm" onClick={() => setFilter(s)}>{s}</Button>
-          ))}
+      <div className="space-y-4 animate-fade-up">
+
+        {/* Filters + Search */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex flex-wrap gap-2">
+            {statusFilters.map((s) => (
+              <Button key={s} variant={filter === s ? "default" : "outline"} size="sm" onClick={() => setFilter(s)}>{s}</Button>
+            ))}
+          </div>
+          <div className="relative sm:ml-auto sm:w-56">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+            <Input
+              placeholder="অর্ডার ID খুঁজুন..."
+              value={searchInput}
+              onChange={e => setSearchInput(e.target.value)}
+              className="pl-8 h-9 text-sm"
+            />
+          </div>
         </div>
 
-        {filtered.length === 0 ? (
+        {/* Count indicator */}
+        <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <span>
+            {isLoading ? "লোড হচ্ছে..." : `মোট ${totalCount} টি অর্ডার`}
+            {totalPages > 1 && ` · পেজ ${page}/${totalPages}`}
+          </span>
+        </div>
+
+        {!isLoading && orders.length === 0 ? (
           <p className="text-center text-muted-foreground py-12">কোনো অর্ডার নেই</p>
         ) : (
           <div className="space-y-4">
-            {filtered.map((order: any) => (
+            {orders.map((order: any) => (
               <Card key={order.id} className="hover:shadow-md transition-shadow">
                 <CardContent className="p-6">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -151,7 +205,6 @@ const AdminOrders = () => {
                               সিট {order.table_seats.seat_number}
                             </span>
                           )}
-                          {/* ✅ Payment badge */}
                           {order.payment_status === "paid" && (
                             <span className="text-xs px-2 py-0.5 rounded-full bg-success/10 text-success font-medium flex items-center gap-1">
                               ✅ পেইড • {order.payment_method === "bkash" ? "bKash" : "Cash"}
@@ -167,7 +220,6 @@ const AdminOrders = () => {
                         </div>
                         <div className="flex items-center gap-3 flex-wrap">
                           <p className="text-xs text-muted-foreground">{timeAgo(order.created_at)}</p>
-                          {/* ✅ Paid to staff — ছোট করে */}
                           {order.paid_to_staff_name && (
                             <span className="text-[10px] text-muted-foreground bg-secondary px-2 py-0.5 rounded-full flex items-center gap-1">
                               💰 {order.paid_to_staff_name}
@@ -190,11 +242,11 @@ const AdminOrders = () => {
                         )}
                         {nextStatus(order.status) && (
                           <Button size="sm" variant="hero"
+                            disabled={updateStatus.isPending}
                             onClick={() => updateStatus.mutate({ id: order.id, status: nextStatus(order.status)!, restaurantId: restaurantId! })}>
                             {nextStatus(order.status) === "preparing" ? "গ্রহণ করুন" : "সার্ভ করুন"}
                           </Button>
                         )}
-                        {/* ✅ Bill button — served হলে */}
                         {order.status === "served" && order.payment_status !== "paid" && (
                           <Button size="sm" variant="hero"
                             className="bg-success hover:bg-success/90"
@@ -205,6 +257,7 @@ const AdminOrders = () => {
                         {order.status === "served" && order.payment_status === "paid" && (
                           <Button size="sm" variant="hero"
                             className="bg-success hover:bg-success/90"
+                            disabled={updateStatus.isPending}
                             onClick={() => updateStatus.mutate({ id: order.id, status: "completed", restaurantId: restaurantId! })}>
                             <CheckCircle className="w-3.5 h-3.5 mr-1" /> সম্পন্ন করুন
                           </Button>
@@ -223,16 +276,61 @@ const AdminOrders = () => {
             ))}
           </div>
         )}
+
+        {/* Pagination controls */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center gap-2 pt-2">
+            <Button
+              variant="outline" size="sm"
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1 || isLoading}
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+
+            {/* Page number buttons — show up to 5 around current */}
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 2)
+              .reduce<(number | "…")[]>((acc, p, i, arr) => {
+                if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push("…");
+                acc.push(p);
+                return acc;
+              }, [])
+              .map((p, i) =>
+                p === "…" ? (
+                  <span key={`ellipsis-${i}`} className="px-1 text-muted-foreground text-sm">…</span>
+                ) : (
+                  <Button
+                    key={p}
+                    variant={p === page ? "default" : "outline"}
+                    size="sm"
+                    className="w-9"
+                    onClick={() => setPage(p as number)}
+                    disabled={isLoading}
+                  >
+                    {p}
+                  </Button>
+                )
+              )}
+
+            <Button
+              variant="outline" size="sm"
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages || isLoading}
+            >
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          </div>
+        )}
       </div>
 
-      {/* ✅ Payment Dialog */}
+      {/* Payment Dialog */}
       <Dialog open={!!paymentOrder} onOpenChange={() => setPaymentOrder(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="font-display">💰 বিল পরিশোধ</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            {/* Order summary */}
             <div className="bg-secondary/50 rounded-xl p-4 space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">অর্ডার</span>
@@ -254,7 +352,6 @@ const AdminOrders = () => {
               </div>
             </div>
 
-            {/* Payment method */}
             <div>
               <p className="text-sm font-medium text-foreground mb-2">পেমেন্ট পদ্ধতি:</p>
               <div className="grid grid-cols-2 gap-3">
@@ -273,13 +370,11 @@ const AdminOrders = () => {
               </div>
             </div>
 
-            {/* Staff info */}
             <div className="bg-primary/5 border border-primary/20 rounded-xl p-3">
               <p className="text-xs text-muted-foreground">পেমেন্ট গ্রহণকারী:</p>
               <p className="text-sm font-bold text-foreground">👤 {staffName}</p>
             </div>
 
-            {/* Confirm */}
             <Button variant="hero" className="w-full h-12 text-base"
               onClick={() => completePayment.mutate({
                 orderId: paymentOrder.id,

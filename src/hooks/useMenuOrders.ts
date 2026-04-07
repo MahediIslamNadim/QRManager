@@ -80,6 +80,12 @@ export function useMenuOrders({
   const [myOrders, setMyOrders] = useState<Order[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
 
+  // Clear stale orders immediately when the customer's seat changes so they
+  // never see orders belonging to a different seat during the re-fetch window.
+  useEffect(() => {
+    if (!isDemo) setMyOrders([]);
+  }, [seatId, isDemo]);
+
   const fetchOrderItems = useCallback(async (orderId: string): Promise<OrderItem[]> => {
     const { data } = await supabase
       .from("order_items")
