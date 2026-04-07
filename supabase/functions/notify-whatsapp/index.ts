@@ -12,10 +12,25 @@ serve(async (req) => {
   }
 
   try {
-    const payload = await req.json();
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseUrl || !serviceRoleKey) {
+      console.error("notify-whatsapp: missing required env vars");
+      return new Response(JSON.stringify({ error: "Server misconfiguration" }), { status: 500 });
+    }
+
+    let payload: unknown;
+    try {
+      payload = await req.json();
+    } catch {
+      return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Supabase Database Webhook payload format
-    const record = payload.record;
+    const record = (payload as any)?.record;
     if (!record) {
       return new Response(JSON.stringify({ error: "no record" }), { status: 400 });
     }
@@ -25,10 +40,7 @@ serve(async (req) => {
     const total: number = record.total;
 
     // Create admin supabase client
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 
     // Fetch restaurant phone + whatsapp_api_key + notify setting
     const { data: restaurant, error: restError } = await supabaseAdmin

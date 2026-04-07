@@ -42,20 +42,18 @@ const TrialExpired = () => {
     if (!user || !restaurantId) return;
     setActivatingTrial(true);
     try {
-      const trialEndsAt = new Date();
-      trialEndsAt.setDate(trialEndsAt.getDate() + FREE_TRIAL_DAYS);
-
-      const { error } = await supabase
-        .from("restaurants")
-        .update({
-          plan: "basic",
-          status: "active",
-          trial_ends_at: trialEndsAt.toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", restaurantId);
-
-      if (error) throw error;
+      // Call backend edge function to enforce one-trial-per-restaurant rule.
+      // Direct client-side writes to restaurants table are intentionally removed
+      // to prevent unlimited trial re-activation bypasses.
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await supabase.functions.invoke("activate-trial", {
+        body: { restaurant_id: restaurantId },
+        headers: session?.access_token
+          ? { Authorization: `Bearer ${session.access_token}` }
+          : undefined,
+      });
+      if (res.error) throw res.error;
+      if (res.data?.error) throw new Error(res.data.error);
       toast.success(`${FREE_TRIAL_DAYS} দিনের ফ্রি ট্রায়াল সক্রিয় হয়েছে!`);
       navigate("/admin", { replace: true });
     } catch (err: any) {

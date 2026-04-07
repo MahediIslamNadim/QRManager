@@ -382,6 +382,7 @@ export type Database = {
           id: string
           name: string
           notify_daily_report: boolean | null
+          notify_new_order: boolean | null
           owner_id: string | null
           phone: string | null
           plan: string
@@ -389,6 +390,7 @@ export type Database = {
           status: string
           trial_ends_at: string | null
           updated_at: string
+          whatsapp_api_key: string | null
         }
         Insert: {
           address?: string | null
@@ -396,6 +398,7 @@ export type Database = {
           id?: string
           name: string
           notify_daily_report?: boolean | null
+          notify_new_order?: boolean | null
           owner_id?: string | null
           phone?: string | null
           plan?: string
@@ -403,6 +406,7 @@ export type Database = {
           status?: string
           trial_ends_at?: string | null
           updated_at?: string
+          whatsapp_api_key?: string | null
         }
         Update: {
           address?: string | null
@@ -410,6 +414,7 @@ export type Database = {
           id?: string
           name?: string
           notify_daily_report?: boolean | null
+          notify_new_order?: boolean | null
           owner_id?: string | null
           phone?: string | null
           plan?: string
@@ -417,6 +422,7 @@ export type Database = {
           status?: string
           trial_ends_at?: string | null
           updated_at?: string
+          whatsapp_api_key?: string | null
         }
         Relationships: []
       }
