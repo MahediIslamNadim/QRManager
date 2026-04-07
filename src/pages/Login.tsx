@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -15,7 +15,7 @@ const Login = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const inviteId = searchParams.get("invite");
-  const { user, role, loading } = useAuth();
+  const { user, role, loading, refetchUserData } = useAuth();
 
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
@@ -28,13 +28,14 @@ const Login = () => {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!loading && user && role) {
-      if (role === "super_admin") navigate("/super-admin", { replace: true });
-      else if (role === "waiter") navigate("/waiter", { replace: true });
-      // If arrived with ?invite=..., forward it to AdminSetup so the acceptance flow completes
-      else if (inviteId) navigate(`/admin-setup?invite=${inviteId}`, { replace: true });
-      else navigate("/admin", { replace: true });
-    }
+    // Wait until auth is fully resolved AND a role has been assigned.
+    // role=null means fetchUserData either hasn't finished or found no role row yet —
+    // navigating early would send the user to /login in an infinite loop.
+    if (loading || !user || !role) return;
+    if (role === "super_admin") navigate("/super-admin", { replace: true });
+    else if (role === "waiter") navigate("/waiter", { replace: true });
+    else if (inviteId) navigate(`/admin-setup?invite=${inviteId}`, { replace: true });
+    else navigate("/admin", { replace: true });
   }, [user, role, loading, navigate, inviteId]);
 
   const handleForgotPassword = async (e: React.FormEvent) => {
@@ -103,11 +104,11 @@ const Login = () => {
             ]);
           }
           toast.success(`অ্যাকাউন্ট তৈরি হয়েছে! ${FREE_TRIAL_DAYS} দিনের ফ্রি ট্রায়াল (বেসিক) শুরু হয়েছে।`);
-          // onAuthStateChange fired during signUp before the RPC created the role row,
-          // so useAuth.fetchUserData ran with an empty user_roles table → role = null.
-          // Refreshing the session fires onAuthStateChange again, causing fetchUserData
-          // to re-run and pick up the newly created role, which then triggers navigation.
-          await supabase.auth.refreshSession();
+          // onAuthStateChange fired during signUp BEFORE the RPC created the role row,
+          // so fetchUserData ran against an empty user_roles table → role stayed null.
+          // Explicitly re-fetch user data now that the role row exists; this updates
+          // role in context which triggers the navigation useEffect above.
+          if (data.user) await refetchUserData(data.user.id);
         } else {
           // data.session is null → Supabase email confirmation is enabled.
           // The user exists in auth but is not yet logged in — they must confirm first.

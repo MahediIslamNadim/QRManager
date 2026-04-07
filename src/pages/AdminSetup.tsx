@@ -72,7 +72,11 @@ const AdminSetup = () => {
           p_trial_days: FREE_TRIAL_DAYS,
         } as any,
       );
-      if (setupError) throw new Error("সেটআপ ব্যর্থ: " + setupError.message);
+      // already_setup means the user somehow already has a role (e.g. double-submit).
+      // Treat it as success — the restaurant exists, just navigate forward.
+      if (setupError && !setupError.message.includes("already_setup")) {
+        throw new Error("সেটআপ ব্যর্থ: " + setupError.message);
+      }
 
       // Mark invite accepted if this setup came from an invite link
       if (inviteId) {

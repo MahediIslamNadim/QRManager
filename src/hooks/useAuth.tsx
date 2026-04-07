@@ -10,6 +10,7 @@ interface AuthContextType {
   loading: boolean;
   trialExpired: boolean;
   signOut: () => Promise<void>;
+  refetchUserData: (userId: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -20,6 +21,7 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   trialExpired: false,
   signOut: async () => {},
+  refetchUserData: async () => {},
 });
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -172,7 +174,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, role, restaurantId, restaurantPlan, loading, trialExpired, signOut }}>
+    <AuthContext.Provider value={{ user, role, restaurantId, restaurantPlan, loading, trialExpired, signOut, refetchUserData: fetchUserData }}>
       {children}
     </AuthContext.Provider>
   );
