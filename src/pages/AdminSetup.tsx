@@ -41,7 +41,7 @@ const AdminSetup = () => {
             setChecking(false);
           }
         })
-        .catch((err) => {
+        .then(undefined, (err: any) => {
           console.warn("Restaurant ID check failed:", err);
           setChecking(false);
         });
@@ -83,7 +83,9 @@ const AdminSetup = () => {
         await supabase
           .from("admin_invites" as any)
           .update({ status: "accepted", accepted_at: new Date().toISOString(), restaurant_name: restaurantName.trim() } as any)
-          .eq("id", inviteId);
+          .eq("id", inviteId)
+          .eq("email", user.email)   // only mark invites belonging to the signed-in user's email
+          .eq("status", "pending");  // only mark invites that haven't already been accepted/revoked
       }
 
       toast.success("রেস্টুরেন্ট সেটআপ সম্পন্ন!");

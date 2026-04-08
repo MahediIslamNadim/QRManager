@@ -107,7 +107,12 @@ Deno.serve(async (req) => {
     if (!roleRow) return json({ error: "Forbidden: super_admin only" }, 403);
 
     // Parse and validate request body
-    const body: RequestBody = await req.json();
+    let body: RequestBody;
+    try {
+      body = await req.json();
+    } catch {
+      return json({ error: "Invalid JSON body" }, 400);
+    }
     const { action, payment_id } = body;
 
     if (!action || !VALID_ACTIONS.includes(action)) {
@@ -137,14 +142,14 @@ Deno.serve(async (req) => {
         .from("payment_requests")
         .update({ status: "approved", admin_notes: body.admin_notes ?? null, updated_at: now })
         .eq("id", payment_id);
-      if (payErr) throw payErr;
+      if (payErr) { console.error("[process-payment] DB error (approve payment):", payErr); return json({ error: "Internal server error" }, 500); }
 
       const expiryDate = getExpiryDate(body.billing_cycle ?? payment.billing_cycle);
       const { error: restErr } = await admin
         .from("restaurants")
         .update({ status: "active_paid", plan, trial_ends_at: expiryDate, updated_at: now })
         .eq("id", payment.restaurant_id);
-      if (restErr) throw restErr;
+      if (restErr) { console.error("[process-payment] DB error (approve restaurant):", restErr); return json({ error: "Internal server error" }, 500); }
 
       console.log(`[process-payment] APPROVE payment=${payment_id} restaurant=${payment.restaurant_id} plan=${plan} by super_admin=${caller.id}`);
       return json({ success: true, action: "approve" });
@@ -156,7 +161,7 @@ Deno.serve(async (req) => {
         .from("payment_requests")
         .update({ status: "rejected", admin_notes: body.admin_notes ?? null, updated_at: now })
         .eq("id", payment_id);
-      if (error) throw error;
+      if (error) { console.error("[process-payment] DB error (reject):", error); return json({ error: "Internal server error" }, 500); }
 
       // Only deactivate the restaurant if this was the sole approved payment for it.
       // If another approved payment exists, the restaurant is still legitimately paid-up.
@@ -195,7 +200,7 @@ Deno.serve(async (req) => {
           updated_at: now,
         })
         .eq("id", payment_id);
-      if (payErr) throw payErr;
+      if (payErr) { console.error("[process-payment] DB error (update payment):", payErr); return json({ error: "Internal server error" }, 500); }
 
       if (newStatus === "approved") {
         const expiryDate = getExpiryDate(payment.billing_cycle);
@@ -203,7 +208,7 @@ Deno.serve(async (req) => {
           .from("restaurants")
           .update({ status: "active_paid", plan: newPlan, trial_ends_at: expiryDate, updated_at: now })
           .eq("id", payment.restaurant_id);
-        if (restErr) throw restErr;
+        if (restErr) { console.error("[process-payment] DB error (update restaurant):", restErr); return json({ error: "Internal server error" }, 500); }
       } else if (payment.status === "approved" && newStatus !== "approved") {
         // This payment was approved but is now being demoted.
         // Only deactivate if no other approved payment covers this restaurant.
@@ -225,7 +230,7 @@ Deno.serve(async (req) => {
         .from("payment_requests")
         .update({ status: "pending", updated_at: now })
         .eq("id", payment_id);
-      if (error) throw error;
+      if (error) { console.error("[process-payment] DB error (reopen):", error); return json({ error: "Internal server error" }, 500); }
 
       if (payment.status === "approved") {
         const otherApproved = await hasOtherApprovedPayment(admin, payment.restaurant_id, payment_id);
@@ -255,7 +260,7 @@ Deno.serve(async (req) => {
         .from("payment_requests")
         .delete()
         .eq("id", payment_id);
-      if (error) throw error;
+      if (error) { console.error("[process-payment] DB error (delete):", error); return json({ error: "Internal server error" }, 500); }
 
       console.log(`[process-payment] DELETE payment=${payment_id} by super_admin=${caller.id}`);
       return json({ success: true, action: "delete" });

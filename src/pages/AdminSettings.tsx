@@ -52,7 +52,7 @@ const AdminSettings = () => {
 
   useEffect(() => {
     if (!user) return;
-    supabase.from("profiles").select("*").eq("id", user.id).maybeSingle().then(({ data }) => {
+    Promise.resolve(supabase.from("profiles").select("*").eq("id", user.id).maybeSingle()).then(({ data }) => {
       if (data) {
         setProfileName(data.full_name || "");
         setProfileEmail(data.email || "");
@@ -60,7 +60,7 @@ const AdminSettings = () => {
       }
     }).catch(console.error);
     if (restaurantId) {
-      supabase.from("restaurants").select("*").eq("id", restaurantId).maybeSingle().then(({ data }) => {
+      Promise.resolve(supabase.from("restaurants").select("*").eq("id", restaurantId).maybeSingle()).then(({ data }) => {
         if (data) {
           setRestName(data.name || "");
           setRestAddress(data.address || "");

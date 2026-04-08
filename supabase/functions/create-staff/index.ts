@@ -49,7 +49,16 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { email, password, full_name, role, restaurant_id } = await req.json();
+    let parsed: { email?: unknown; password?: unknown; full_name?: unknown; role?: unknown; restaurant_id?: unknown };
+    try {
+      parsed = await req.json();
+    } catch {
+      return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const { email, password, full_name, role, restaurant_id } = parsed;
 
     if (!email || !password || !role) {
       return new Response(JSON.stringify({ error: "Missing required fields" }), {

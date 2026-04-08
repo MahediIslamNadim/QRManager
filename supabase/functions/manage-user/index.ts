@@ -116,16 +116,47 @@ Deno.serve(async (req) => {
         const profileUpdates: any = {};
         if (updates.full_name) profileUpdates.full_name = updates.full_name;
         if (updates.phone) profileUpdates.phone = updates.phone;
-        
-        await adminClient.from("profiles").update(profileUpdates).eq("id", user_id);
+
+        const { error: profileErr } = await adminClient.from("profiles").update(profileUpdates).eq("id", user_id);
+        if (profileErr) {
+          console.error("Profile update failed:", profileErr.message);
+          return new Response(JSON.stringify({ error: profileErr.message }), {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
       }
 
       // Update role if provided
       if (updates?.role) {
+        // Whitelist permitted roles — super_admin cannot be assigned through this function
+        const ALLOWED_ROLES = ["admin", "waiter"];
+        if (!ALLOWED_ROLES.includes(updates.role)) {
+          return new Response(JSON.stringify({ error: "Invalid role" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        // Prevent caller from changing their own role
+        if (user_id === caller.id) {
+          return new Response(JSON.stringify({ error: "Cannot change your own role" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
         // First delete existing role
         await adminClient.from("user_roles").delete().eq("user_id", user_id);
         // Insert new role
-        await adminClient.from("user_roles").insert({ user_id, role: updates.role });
+        const { error: roleErr } = await adminClient.from("user_roles").insert({ user_id, role: updates.role });
+        if (roleErr) {
+          console.error("Role update failed:", roleErr.message);
+          return new Response(JSON.stringify({ error: roleErr.message }), {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
       }
 
       return new Response(

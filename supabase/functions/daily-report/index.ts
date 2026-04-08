@@ -12,10 +12,13 @@ serve(async (req) => {
   }
 
   try {
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseUrl || !serviceRoleKey) {
+      console.error("daily-report: missing required env vars");
+      return new Response(JSON.stringify({ error: "Server misconfiguration" }), { status: 500 });
+    }
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 
     // Get target restaurant_id from body (manual trigger) or process ALL active restaurants (cron)
     let targetRestaurantId: string | null = null;
@@ -32,11 +35,11 @@ serve(async (req) => {
       .not("whatsapp_api_key", "is", null)
       .not("phone", "is", null);
 
-    if (targetRestaurantId) {
-      query.eq("id", targetRestaurantId);
-    }
+    const finalQuery = targetRestaurantId
+      ? query.eq("id", targetRestaurantId)
+      : query;
 
-    const { data: restaurants, error: restError } = await query;
+    const { data: restaurants, error: restError } = await finalQuery;
     if (restError) throw restError;
 
     const results: { id: string; success: boolean; error?: string }[] = [];
