@@ -11,6 +11,22 @@ import { APP_NAME, COMPANY_NAME, FREE_TRIAL_DAYS } from "@/constants/app";
 
 type Mode = "login" | "signup" | "forgot" | "forgot_sent";
 
+/**
+ * Wait for session to be fully propagated in Supabase client
+ * This ensures auth.uid() will work in RPC functions
+ */
+const waitForSession = async (maxAttempts = 5): Promise<boolean> => {
+  for (let i = 0; i < maxAttempts; i++) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) {
+      return true;
+    }
+    // Wait 200ms before retry
+    await new Promise(resolve => setTimeout(resolve, 200));
+  }
+  return false;
+};
+
 const Login = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -72,14 +88,28 @@ const Login = () => {
           // client's internal store before we call the next RPC. setSession() forces
           // the access token to be attached so auth.uid() is non-null in the DB function.
           await supabase.auth.setSession({
-            access_token: data.session.access_token,
-            refresh_token: data.session.refresh_token,
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
           });
 
-          // Session exists — user is immediately active (email auto-confirm or disabled).
-          // Use server-side RPC: atomically creates restaurant + assigns admin role.
-          // Direct user_roles INSERT is no longer allowed by RLS from the client.
-          const { data: setupData, error: setupError } = await supabase.rpc(
+          // 🔧 CRITICAL FIX - Wait for session to propagate
+          const sessionReady = await waitForSession();
+          if (!sessionReady) {
+            throw new Error("Session setup failed. Please try logging in.");
+        }
+        
+        // Verify session is actually set
+        const { data: { session: currentSession } } = await supabase.auth.getSession();
+        if (!currentSession) {
+          throw new Error("Authentication session not found. Please try again.");
+        }
+        
+        console.log("✅ Session verified, user ID:", currentSession.user.id);
+
+        // Session exists — user is immediately active (email auto-confirm or disabled).
+        // Use server-side RPC: atomically creates restaurant + assigns admin role.
+        // Direct user_roles INSERT is no longer allowed by RLS from the client.
+        const { data: setupData, error: setupError } = await supabase.rpc(
             "complete_admin_signup" as any,
             {
               p_restaurant_name: restaurantName.trim(),
@@ -129,6 +159,7 @@ const Login = () => {
         toast.success("স্বাগতম!");
       }
     } catch (err: any) {
+      console.error("Auth error:", err);
       toast.error(err.message || "প্রমাণীকরণ ব্যর্থ");
     } finally {
       setSubmitting(false);
