@@ -68,6 +68,14 @@ const Login = () => {
         });
         if (error) throw error;
         if (data.session) {
+          // signUp() returns the session in data but may not have flushed it to the
+          // client's internal store before we call the next RPC. setSession() forces
+          // the access token to be attached so auth.uid() is non-null in the DB function.
+          await supabase.auth.setSession({
+            access_token: data.session.access_token,
+            refresh_token: data.session.refresh_token,
+          });
+
           // Session exists — user is immediately active (email auto-confirm or disabled).
           // Use server-side RPC: atomically creates restaurant + assigns admin role.
           // Direct user_roles INSERT is no longer allowed by RLS from the client.
