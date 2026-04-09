@@ -9,7 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Check, Zap, Crown, ArrowRight, Clock, Shield } from 'lucide-react';
-import { TIERS, TierName, BillingCycle, formatPrice, getPricingDisplay } from '@/constants/tiers';
+import { TIERS, TierName, BillingCycle, formatPrice } from '@/constants/tiers';
 import TierSelection from '@/components/TierSelection';
 
 const UpgradePage = () => {
@@ -73,8 +73,8 @@ const UpgradePage = () => {
       // Also create a subscription record
       const tierConfig = TIERS[selectedTier];
       const amount = selectedBillingCycle === 'monthly' 
-        ? tierConfig.priceMonthly 
-        : tierConfig.priceYearly;
+        ? tierConfig.price_monthly 
+        : tierConfig.price_yearly;
 
       await supabase
         .from('subscriptions')
@@ -95,7 +95,7 @@ const UpgradePage = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['restaurant-subscription', restaurantId] });
       queryClient.invalidateQueries({ queryKey: ['restaurants'] });
-      toast.success('Subscription activated! Welcome to ' + TIERS[selectedTier].displayName + '! 🎉');
+      toast.success('Subscription activated! Welcome to ' + TIERS[selectedTier].name + '! 🎉');
       setShowPaymentForm(false);
     },
     onError: (err: any) => {
@@ -112,7 +112,7 @@ const UpgradePage = () => {
   const handleConfirmPayment = () => {
     // TODO: Show actual payment form (bKash, Nagad, Stripe, etc.)
     // For now, just confirm
-    if (confirm(`Confirm upgrade to ${TIERS[selectedTier].displayName} (${selectedBillingCycle})?`)) {
+    if (confirm(`Confirm upgrade to ${TIERS[selectedTier].name} (${selectedBillingCycle})?`)) {
       upgradeMutation.mutate();
     }
   };
@@ -149,7 +149,7 @@ const UpgradePage = () => {
                   <div>
                     <h3 className="font-bold text-lg">
                       {subscriptionStatus === 'trial' && 'Free Trial'}
-                      {subscriptionStatus === 'active' && TIERS[currentTier as TierName]?.displayName}
+                      {subscriptionStatus === 'active' && TIERS[currentTier as TierName]?.name}
                       {subscriptionStatus === 'expired' && 'Trial Expired'}
                     </h3>
                     <p className="text-sm text-muted-foreground">
@@ -182,7 +182,7 @@ const UpgradePage = () => {
               <div className="bg-muted rounded-lg p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <h3 className="font-bold text-xl">{TIERS[selectedTier].displayName}</h3>
+                    <h3 className="font-bold text-xl">{TIERS[selectedTier].name}</h3>
                     <p className="text-sm text-muted-foreground">
                       {selectedBillingCycle === 'monthly' ? 'Monthly billing' : 'Annual billing (Save 20%)'}
                     </p>
@@ -191,8 +191,8 @@ const UpgradePage = () => {
                     <div className="text-3xl font-bold">
                       {formatPrice(
                         selectedBillingCycle === 'monthly' 
-                          ? TIERS[selectedTier].priceMonthly 
-                          : TIERS[selectedTier].priceYearly
+                          ? TIERS[selectedTier].price_monthly 
+                          : TIERS[selectedTier].price_yearly
                       )}
                     </div>
                     <p className="text-sm text-muted-foreground">
@@ -203,7 +203,7 @@ const UpgradePage = () => {
 
                 {selectedBillingCycle === 'yearly' && (
                   <div className="bg-success/10 border border-success/30 rounded-lg p-3 text-sm text-success">
-                    🎉 You're saving {formatPrice(TIERS[selectedTier].priceMonthly * 12 - TIERS[selectedTier].priceYearly)} per year!
+                    🎉 You're saving {formatPrice(TIERS[selectedTier].price_monthly * 12 - TIERS[selectedTier].price_yearly)} per year!
                     (2 months FREE)
                   </div>
                 )}

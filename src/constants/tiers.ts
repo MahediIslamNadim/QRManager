@@ -170,6 +170,36 @@ export const TRIAL_CONFIG = {
   features_included: TIERS.medium_smart.features
 };
 
+// Type aliases and additional types
+export type TierName = TierType;
+export type SubscriptionStatus = 'trial' | 'active' | 'expired' | 'cancelled';
+
+// Formatting helpers
+export const formatPrice = (amount: number): string => {
+  return `৳${amount.toLocaleString('en-BD')}`;
+};
+
+export const getPricingDisplay = (tier: TierType, cycle: BillingCycle) => {
+  const config = TIERS[tier];
+  const price = cycle === 'monthly' ? config.price_monthly : config.price_yearly;
+  return {
+    price,
+    formatted: formatPrice(price),
+    monthly_equivalent: cycle === 'yearly' ? Math.round(config.price_yearly / 12) : config.price_monthly
+  };
+};
+
+// Trial helper functions
+export const getDaysRemainingInTrial = (trialEndDate: Date): number => {
+  const now = new Date();
+  const diff = trialEndDate.getTime() - now.getTime();
+  return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+};
+
+export const isTrialExpired = (trialEndDate: Date): boolean => {
+  return new Date() > trialEndDate;
+};
+
 // Launch offer (first 50 customers)
 export const LAUNCH_OFFER = {
   enabled: true,

@@ -2,9 +2,8 @@
 // Usage: Monitor trial status and show warnings/blocks
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
-import { getDaysRemainingInTrial, isTrialExpired } from '@/constants/tiers';
-import { TierName, SubscriptionStatus } from '@/constants/tiers';
+import { supabase } from '@/integrations/supabase/client';
+import { getDaysRemainingInTrial, isTrialExpired, TierName, SubscriptionStatus } from '@/constants/tiers';
 
 interface TrialStatusResult {
   isExpired: boolean;
