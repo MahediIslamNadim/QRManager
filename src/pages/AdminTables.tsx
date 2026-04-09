@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { QrCode, Plus, Edit, Users, Trash2, ShoppingCart, UserPlus, UserMinus, Armchair, LockOpen, Lock } from "lucide-react";
 import SeatManagement from "@/components/SeatManagement";
 import { useAuth } from "@/hooks/useAuth";
-import { getPlanLimits, formatLimit } from "@/lib/planLimits";
+import { useCanCreateTable } from "@/hooks/useTableLimit";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -15,8 +15,19 @@ import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const AdminTables = () => {
-  const { restaurantId, restaurantPlan } = useAuth();
-  const limits = getPlanLimits(restaurantPlan);
+  const { restaurantId } = useAuth();
+  
+  // ✅ New tier-based table limit system
+  const { 
+    canAdd: canAddTable, 
+    currentCount: tableCount, 
+    maxTables, 
+    tier,
+    isAtLimit: isAtTableLimit, 
+    upgradeMessage,
+    loading: limitLoading,
+    checkBeforeCreate 
+  } = useCanCreateTable(restaurantId);
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [editingTable, setEditingTable] = useState<any>(null);
@@ -110,13 +121,19 @@ const AdminTables = () => {
     return () => { supabase.removeChannel(channel); };
   }, [restaurantId, queryClient]);
 
-  const isAtTableLimit = tables.length >= limits.maxTables;
+  // isAtTableLimit is now from useCanCreateTable hook
 
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!restaurantId) throw new Error("No restaurant");
       const payload = { restaurant_id: restaurantId, name: form.name, seats: Number(form.seats) };
-      if (!editingTable && isAtTableLimit) throw new Error(`আপনার ${limits.label} প্ল্যানে সর্বোচ্চ ${formatLimit(limits.maxTables)} টি টেবিল যোগ করা যায়। আপগ্রেড করুন।`);
+      // ✅ Check table limit before creating
+      if (!editingTable) {
+        const check = checkBeforeCreate();
+        if (!check.allowed) {
+          throw new Error(upgradeMessage || 'Table limit reached. Please upgrade to add more tables.');
+        }
+      }
       if (editingTable) {
         const { error } = await supabase.from("restaurant_tables").update(payload).eq("id", editingTable.id).eq("restaurant_id", restaurantId);
         if (error) throw error;
@@ -217,17 +234,36 @@ const AdminTables = () => {
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs text-muted-foreground bg-secondary px-3 py-1.5 rounded-full">
-              {tables.length}/{formatLimit(limits.maxTables)} টেবিল
+              {tableCount}/{maxTables} টেবিল
             </span>
-            <Button variant="hero" onClick={() => { setForm({ name: "", seats: "4" }); setEditingTable(null); setShowForm(true); }} disabled={isAtTableLimit}>
+            <Button variant="hero" onClick={() => { setForm({ name: "", seats: "4" }); setEditingTable(null); setShowForm(true); }} disabled={!canAddTable || limitLoading}>
               <Plus className="w-4 h-4" /> টেবিল যোগ করুন
             </Button>
           </div>
         </div>
 
         {isAtTableLimit && (
-          <div className="bg-warning/10 border border-warning/30 rounded-xl p-3 text-sm text-warning flex items-center gap-2">
-            ⚠️ আপনার {limits.label} প্ল্যানের টেবিল লিমিট ({formatLimit(limits.maxTables)}) পূর্ণ হয়েছে। আরো যোগ করতে প্ল্যান আপগ্রেড করুন।
+          <div className="bg-warning/10 border border-warning/30 rounded-xl p-4 text-sm">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-warning text-lg">⚠️</span>
+              <span className="font-semibold text-warning">Table Limit Reached!</span>
+            </div>
+            <p className="text-muted-foreground mb-3">
+              {upgradeMessage || `You've reached the maximum of ${maxTables} tables for your current tier.`}
+            </p>
+            {tier === 'medium_smart' && (
+              <Button 
+                variant="default" 
+                size="sm" 
+                className="bg-purple-600 hover:bg-purple-700 text-white"
+                onClick={() => {
+                  // TODO: Navigate to upgrade page
+                  toast.info('Upgrade feature coming soon!');
+                }}
+              >
+                Upgrade to High Smart → Unlimited Tables
+              </Button>
+            )}
           </div>
         )}
 

@@ -1,0 +1,180 @@
+// QR Manager - Tier Definitions
+// Created: April 8, 2026
+
+export type TierType = 'medium_smart' | 'high_smart';
+export type BillingCycle = 'monthly' | 'yearly';
+
+export interface TierConfig {
+  name: string;
+  name_bn: string; // Bangla name
+  description: string;
+  description_bn: string;
+  price_monthly: number;
+  price_yearly: number;
+  maxTables: number; // -1 means unlimited
+  maxStaff: number;  // -1 means unlimited
+  features: string[];
+  color: string; // For UI badges
+}
+
+export const TIERS: Record<TierType, TierConfig> = {
+  medium_smart: {
+    name: 'Medium Smart',
+    name_bn: 'মিডিয়াম স্মার্ট',
+    description: 'Complete QR ordering system with analytics and payments',
+    description_bn: 'সম্পূর্ণ QR ordering সিস্টেম analytics এবং payments সহ',
+    price_monthly: 1500,
+    price_yearly: 14400, // 20% discount (2 months free)
+    maxTables: 20,
+    maxStaff: 5,
+    features: [
+      'qr_ordering',
+      'menu_management',
+      'table_management',
+      'order_management',
+      'kitchen_display',
+      'analytics_dashboard',
+      'sales_reports',
+      'whatsapp_notifications',
+      'email_notifications',
+      'online_payments', // bKash, Nagad
+      'cash_tracking',
+      'basic_inventory',
+      'customer_feedback',
+      'multi_staff'
+    ],
+    color: 'blue'
+  },
+  
+  high_smart: {
+    name: 'High Smart',
+    name_bn: 'হাই স্মার্ট',
+    description: 'Premium features with unlimited tables, AI, and multi-location',
+    description_bn: 'প্রিমিয়াম features unlimited tables, AI এবং multi-location সহ',
+    price_monthly: 3500,
+    price_yearly: 33600, // 20% discount (2 months free)
+    maxTables: -1, // unlimited
+    maxStaff: -1,  // unlimited
+    features: [
+      'all_medium_features', // Includes all Medium Smart features
+      'unlimited_tables',
+      'unlimited_staff',
+      'multi_location',
+      'ai_recommendations',
+      'predictive_analytics',
+      'custom_branding',
+      'api_access',
+      'advanced_analytics',
+      'custom_reports',
+      'priority_support',
+      'dedicated_manager'
+    ],
+    color: 'purple'
+  }
+};
+
+// Feature descriptions for UI
+export const FEATURE_DESCRIPTIONS: Record<string, { name: string; name_bn: string; description: string }> = {
+  qr_ordering: {
+    name: 'QR Code Ordering',
+    name_bn: 'QR কোড অর্ডারিং',
+    description: 'Customers scan QR to order directly'
+  },
+  analytics_dashboard: {
+    name: 'Analytics Dashboard',
+    name_bn: 'Analytics Dashboard',
+    description: 'Sales insights and business metrics'
+  },
+  whatsapp_notifications: {
+    name: 'WhatsApp Notifications',
+    name_bn: 'WhatsApp Notifications',
+    description: 'Real-time order alerts via WhatsApp'
+  },
+  online_payments: {
+    name: 'Online Payments',
+    name_bn: 'Online Payments',
+    description: 'bKash and Nagad integration'
+  },
+  multi_location: {
+    name: 'Multi-Location Support',
+    name_bn: 'মাল্টি-লোকেশন সাপোর্ট',
+    description: 'Manage multiple restaurant locations'
+  },
+  ai_recommendations: {
+    name: 'AI Recommendations',
+    name_bn: 'AI সুপারিশ',
+    description: 'Smart menu suggestions for customers'
+  },
+  custom_branding: {
+    name: 'Custom Branding',
+    name_bn: 'কাস্টম ব্র্যান্ডিং',
+    description: 'Your logo and colors'
+  }
+};
+
+// Helper functions
+export const getTierConfig = (tier: TierType): TierConfig => {
+  return TIERS[tier];
+};
+
+export const getTierPrice = (tier: TierType, cycle: BillingCycle): number => {
+  const config = TIERS[tier];
+  return cycle === 'monthly' ? config.price_monthly : config.price_yearly;
+};
+
+export const getMonthlyEquivalent = (tier: TierType, cycle: BillingCycle): number => {
+  const config = TIERS[tier];
+  if (cycle === 'monthly') return config.price_monthly;
+  return Math.round(config.price_yearly / 12);
+};
+
+export const getSavings = (tier: TierType): number => {
+  const config = TIERS[tier];
+  const monthlyTotal = config.price_monthly * 12;
+  return monthlyTotal - config.price_yearly;
+};
+
+export const getSavingsPercentage = (tier: TierType): number => {
+  const config = TIERS[tier];
+  const monthlyTotal = config.price_monthly * 12;
+  return Math.round(((monthlyTotal - config.price_yearly) / monthlyTotal) * 100);
+};
+
+export const canAddTable = (currentCount: number, tier: TierType): boolean => {
+  const config = TIERS[tier];
+  if (config.maxTables === -1) return true; // unlimited
+  return currentCount < config.maxTables;
+};
+
+export const canAddStaff = (currentCount: number, tier: TierType): boolean => {
+  const config = TIERS[tier];
+  if (config.maxStaff === -1) return true; // unlimited
+  return currentCount < config.maxStaff;
+};
+
+export const hasFeature = (tier: TierType, feature: string): boolean => {
+  const config = TIERS[tier];
+  
+  // High Smart has all Medium Smart features
+  if (tier === 'high_smart' && TIERS.medium_smart.features.includes(feature)) {
+    return true;
+  }
+  
+  return config.features.includes(feature);
+};
+
+// Trial configuration
+export const TRIAL_CONFIG = {
+  duration_days: 30, // Sylhet special: 30 days
+  tier: 'medium_smart' as TierType, // Trial gives Medium Smart features
+  features_included: TIERS.medium_smart.features
+};
+
+// Launch offer (first 50 customers)
+export const LAUNCH_OFFER = {
+  enabled: true,
+  max_customers: 50,
+  discount_percentage: 33, // 4 months free
+  medium_yearly_price: 12000, // Original: 14400
+  high_yearly_price: 28000    // Original: 33600
+};
