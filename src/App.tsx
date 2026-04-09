@@ -62,6 +62,9 @@ import Pricing from "./pages/Pricing";
 import Features from "./pages/Features";
 import Demo from "./pages/Demo";
 import KitchenDisplay from "./pages/KitchenDisplay";
+import UpgradePage from "./pages/UpgradePage";
+import BillingPage from "./pages/BillingPage";
+import AIInsights from "./pages/AIInsights";
 
 const queryClient = new QueryClient();
 
@@ -99,6 +102,9 @@ const App = () => (
             <Route path="/admin/analytics" element={<ProtectedRoute allowedRoles={["admin", "super_admin"]}><AdminAnalytics /></ProtectedRoute>} />
             <Route path="/admin/settings" element={<ProtectedRoute allowedRoles={["admin", "super_admin"]}><AdminSettings /></ProtectedRoute>} />
             <Route path="/admin/kitchen" element={<ProtectedRoute allowedRoles={["admin", "super_admin", "waiter"]}><KitchenDisplay /></ProtectedRoute>} />
+            <Route path="/admin/ai-insights" element={<ProtectedRoute allowedRoles={["admin", "super_admin"]}><AIInsights /></ProtectedRoute>} />
+            <Route path="/upgrade" element={<ProtectedRoute allowedRoles={["admin", "super_admin"]}><UpgradePage /></ProtectedRoute>} />
+            <Route path="/billing" element={<ProtectedRoute allowedRoles={["admin", "super_admin"]}><BillingPage /></ProtectedRoute>} />
 
             {/* Waiter */}
             <Route path="/waiter" element={<ProtectedRoute allowedRoles={["waiter", "admin", "super_admin"]}><WaiterDashboard /></ProtectedRoute>} />
