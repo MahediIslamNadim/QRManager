@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Sparkles, TrendingUp } from 'lucide-react';
-import { getBusinessInsights } from '@/lib/ai/openaiClient';
+import { getBusinessInsights } from '@/lib/ai/geminiClient';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import FeatureGate from '@/components/FeatureGate';

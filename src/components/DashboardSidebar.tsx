@@ -3,7 +3,7 @@ import { APP_NAME } from "@/constants/app";
 import {
   LayoutDashboard, UtensilsCrossed, Store, Users, BarChart3,
   CreditCard, Menu, QrCode, ShoppingCart, UserCheck, Bell,
-  Settings, LogOut, ChevronLeft, X, ChefHat,
+  Settings, LogOut, ChevronLeft, X, ChefHat, Sparkles, Zap, Receipt
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -34,6 +34,9 @@ const navItems: Record<Role, { title: string; href: string; icon: any }[]> = {
     { title: "কিচেন ডিসপ্লে", href: "/admin/kitchen", icon: ChefHat },
     { title: "কর্মী ম্যানেজমেন্ট", href: "/admin/staff", icon: UserCheck },
     { title: "অ্যানালিটিক্স", href: "/admin/analytics", icon: BarChart3 },
+    { title: "AI Insights", href: "/admin/ai-insights", icon: Sparkles },
+    { title: "Billing", href: "/billing", icon: Receipt },
+    { title: "Upgrade", href: "/upgrade", icon: Zap },
     { title: "সেটিংস", href: "/admin/settings", icon: Settings },
   ],
   waiter: [

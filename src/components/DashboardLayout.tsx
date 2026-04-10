@@ -2,6 +2,12 @@ import { ReactNode, useState } from "react";
 import DashboardSidebar from "./DashboardSidebar";
 import NotificationBell from "./NotificationBell";
 import { Menu } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { useTrialStatus } from "@/hooks/useTrialStatus";
+import TrialWarningBanner from "@/components/TrialWarningBanner";
+import TrialExpiredModal from "@/components/TrialExpiredModal";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -11,9 +17,47 @@ interface DashboardLayoutProps {
 
 const DashboardLayout = ({ children, role, title }: DashboardLayoutProps) => {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const navigate = useNavigate();
+  const { restaurantId } = useAuth();
+  
+  // Trial status check
+  const {
+    isExpired,
+    daysRemaining,
+    showWarning,
+    showCriticalWarning,
+    tier,
+    loading: trialLoading
+  } = useTrialStatus(restaurantId);
+
+  const handleUpgradeClick = () => {
+    navigate('/upgrade');
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate('/login');
+  };
 
   return (
     <div className="flex min-h-screen bg-background">
+      {/* Trial Warning Banner */}
+      {showWarning && !isExpired && (
+        <TrialWarningBanner
+          daysRemaining={daysRemaining}
+          isCritical={showCriticalWarning}
+          tier={tier}
+          onUpgradeClick={handleUpgradeClick}
+        />
+      )}
+
+      {/* Trial Expired Modal */}
+      <TrialExpiredModal
+        open={isExpired && !trialLoading}
+        tier={tier as any}
+        onUpgradeClick={handleUpgradeClick}
+        onLogoutClick={handleLogout}
+      />
       <DashboardSidebar
         role={role}
         mobileOpen={mobileOpen}
