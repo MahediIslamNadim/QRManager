@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useOrderActions } from "@/hooks/useOrderActions";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChefHat, Clock, CheckCircle2, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 
 interface OrderItem {
   name: string;
@@ -58,6 +59,18 @@ const KitchenDisplay = () => {
   const { updateStatus } = useOrderActions([kitchenQueryKey]);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const [, setNow] = useState(Date.now());
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [lastUpdate, setLastUpdate] = useState<string>("");
+
+  // Auto refresh every 30 seconds
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const interval = setInterval(() => {
+      queryClient.invalidateQueries({ queryKey: kitchenQueryKey });
+      setLastUpdate(new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+    }, 30000); // 30 seconds
+    return () => clearInterval(interval);
+  }, [autoRefresh, queryClient, kitchenQueryKey]);
 
   // Tick every minute to re-render elapsed times
   useEffect(() => {
@@ -127,15 +140,37 @@ const KitchenDisplay = () => {
           </div>
         </div>
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 text-sm text-white/60">
-            <span className="w-2 h-2 rounded-full bg-warning animate-pulse" />
-            <span>{pending.length} নতুন</span>
-            <span className="mx-1 text-white/20">·</span>
-            <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-            <span>{preparing.length} রান্না হচ্ছে</span>
+          {lastUpdate && (
+            <div className="text-xs text-white/40">
+              শেষ আপডেট: {lastUpdate}
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setAutoRefresh(!autoRefresh)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                autoRefresh 
+                  ? 'bg-success/20 text-success border border-success/30' 
+                  : 'bg-white/10 text-white/50 border border-white/10'
+              }`}
+              title="অটো রিফ্রেশ চালু/বন্ধ"
+            >
+              {autoRefresh ? '✓ অটো' : 'অটো বন্ধ'}
+            </button>
+            <div className="flex items-center gap-2 text-sm text-white/60">
+              <span className="w-2 h-2 rounded-full bg-warning animate-pulse" />
+              <span>{pending.length} নতুন</span>
+              <span className="mx-1 text-white/20">·</span>
+              <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+              <span>{preparing.length} রান্না হচ্ছে</span>
+            </div>
           </div>
           <button
-            onClick={() => queryClient.invalidateQueries({ queryKey: ["kitchen-orders", restaurantId] })}
+            onClick={() => {
+              queryClient.invalidateQueries({ queryKey: kitchenQueryKey });
+              setLastUpdate(new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+              toast.success('রিফ্রেশ করা হয়েছে!');
+            }}
             className="p-2 rounded-lg hover:bg-white/10 transition-colors"
             title="রিফ্রেশ"
           >

@@ -35,18 +35,35 @@ const AdminMenu = () => {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { data: menuItems = [], isLoading } = useQuery({
+  const [sortBy, setSortBy] = useState<'default' | 'popular' | 'price'>('default');
+
+  const { data: menuItemsRaw = [], isLoading } = useQuery({
     queryKey: ["menu-items", restaurantId],
     queryFn: async () => {
       if (!restaurantId) return [];
       const { data } = await supabase
         .from("menu_items")
-        .select("*")
-        .eq("restaurant_id", restaurantId)
-        .order("sort_order");
+        .select(`
+          *,
+          menu_item_metrics(order_count, view_count)
+        `)
+        .eq("restaurant_id", restaurantId);
       return data || [];
     },
     enabled: !!restaurantId,
+  });
+
+  // Sort menu items
+  const menuItems = [...menuItemsRaw].sort((a: any, b: any) => {
+    if (sortBy === 'popular') {
+      const aOrders = a.menu_item_metrics?.[0]?.order_count || 0;
+      const bOrders = b.menu_item_metrics?.[0]?.order_count || 0;
+      return bOrders - aOrders; // Most popular first
+    }
+    if (sortBy === 'price') {
+      return a.price - b.price; // Lowest price first
+    }
+    return a.sort_order - b.sort_order; // Default sorting
   });
 
   const filtered = activeCategory === "সব" ? menuItems : menuItems.filter((i: any) => i.category === activeCategory);
@@ -170,6 +187,15 @@ const AdminMenu = () => {
             ))}
           </div>
           <div className="flex items-center gap-3">
+            <select
+              value={sortBy}
+              onChange={e => setSortBy(e.target.value as any)}
+              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+            >
+              <option value="default">সাজানো ক্রম</option>
+              <option value="popular">🔥 জনপ্রিয়তা</option>
+              <option value="price">মূল্য অনুযায়ী</option>
+            </select>
             <span className="text-xs text-muted-foreground bg-secondary px-3 py-1.5 rounded-full">
               {menuItems.length}/{formatLimit(limits.maxMenuItems)} আইটেম
             </span>
@@ -255,6 +281,8 @@ const AdminMenu = () => {
             {filtered.map((item: any) => {
               const imgUrl = getImageUrl(item.image_url);
               const isAvailable = item.available;
+              const orderCount = item.menu_item_metrics?.[0]?.order_count || 0;
+              const isPopular = orderCount > 10;
               return (
                 <div key={item.id} className={`menu-item-card relative ${!isAvailable ? "opacity-80" : ""}`}>
                   <div className={`h-40 bg-gradient-to-br from-accent to-secondary flex items-center justify-center overflow-hidden relative ${!isAvailable ? "grayscale" : ""}`}>
@@ -272,6 +300,12 @@ const AdminMenu = () => {
                       {isAvailable ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
                       {isAvailable ? "ইন স্টক" : "স্টক আউট"}
                     </div>
+                    {/* Popular badge */}
+                    {isPopular && (
+                      <div className="absolute top-2 right-2 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-gradient-to-r from-orange-500 to-red-500 text-white flex items-center gap-1">
+                        🔥 জনপ্রিয়
+                      </div>
+                    )}
                   </div>
                   <div className="p-5">
                     <h3 className="font-display font-semibold text-foreground text-lg">{item.name}</h3>
