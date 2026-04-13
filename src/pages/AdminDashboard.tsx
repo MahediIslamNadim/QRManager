@@ -1,18 +1,22 @@
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
 import StatCard from "@/components/StatCard";
-import { ShoppingCart, DollarSign, Users, TrendingUp, Clock, Crown, ArrowRight, Banknote, Smartphone, TrendingDown, Star } from "lucide-react";
+import { ShoppingCart, DollarSign, Users, TrendingUp, Clock, Crown, ArrowRight, Banknote, Smartphone, TrendingDown, Star, Zap, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { getPlanLimits, formatLimit } from "@/lib/planLimits";
+import { useTrialStatus } from "@/hooks/useTrialStatus";
+import { TIERS } from "@/constants/tiers";
 
 const AdminDashboard = () => {
   const { user, restaurantId, restaurantPlan } = useAuth();
   const navigate = useNavigate();
   const limits = getPlanLimits(restaurantPlan);
+  const trialStatus = useTrialStatus(restaurantId ?? undefined);
 
   const { data: stats } = useQuery({
     queryKey: ["admin-stats", restaurantId],
@@ -178,37 +182,84 @@ const AdminDashboard = () => {
           </div>
         )}
 
-        {/* ✅ Upgrade Banner — stacked on mobile */}
-        {restaurantPlan !== "enterprise" && (
-          <Card className="border-primary/30 bg-gradient-to-r from-primary/5 via-primary/10 to-accent/5 overflow-hidden">
-            <CardContent className="p-4 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="flex items-start sm:items-center gap-3 sm:gap-4">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-primary/15 flex items-center justify-center flex-shrink-0">
-                  <Crown className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
-                </div>
-                <div className="min-w-0">
-                  <h3 className="font-display font-bold text-foreground text-base sm:text-lg leading-tight">
-                    {restaurantPlan === "basic" ? "প্রিমিয়ামে আপগ্রেড করুন" : "এন্টারপ্রাইজে আপগ্রেড করুন"}
-                  </h3>
-                  <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 leading-relaxed">
-                    বর্তমান প্ল্যান: <span className="font-semibold text-foreground capitalize">{limits.label}</span> —
-                    {restaurantPlan === "basic"
-                      ? ` আনলিমিটেড মেনু, রিয়েলটাইম অর্ডার পান`
-                      : ` মাল্টি-ব্রাঞ্চ সাপোর্ট পান`}
-                  </p>
-                  <div className="flex gap-2 sm:gap-3 mt-1.5 text-[10px] sm:text-xs text-muted-foreground flex-wrap">
-                    <span>মেনু: {formatLimit(limits.maxMenuItems)}</span>
-                    <span>টেবিল: {formatLimit(limits.maxTables)}</span>
-                    <span>কর্মী: {formatLimit(limits.maxStaff)}</span>
+        {/* Tier & Subscription Status Card */}
+        {!trialStatus.loading && (() => {
+          const tierCfg = TIERS[trialStatus.tier] ?? TIERS.medium_smart;
+          const isHighSmart = trialStatus.tier === "high_smart";
+          const isActive = trialStatus.subscriptionStatus === "active";
+          const isTrial = trialStatus.subscriptionStatus === "trial";
+          return (
+            <Card className={`overflow-hidden ${isHighSmart ? "border-purple-500/30 bg-gradient-to-r from-purple-500/5 via-purple-500/10 to-accent/5" : "border-primary/30 bg-gradient-to-r from-primary/5 via-primary/10 to-accent/5"}`}>
+              <CardContent className="p-4 sm:p-6">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="flex items-start sm:items-center gap-3 sm:gap-4">
+                    <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center flex-shrink-0 ${isHighSmart ? "bg-purple-500/15" : "bg-primary/15"}`}>
+                      {isHighSmart ? <Crown className={`w-5 h-5 sm:w-6 sm:h-6 text-purple-500`} /> : <Zap className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-display font-bold text-foreground text-base sm:text-lg leading-tight">
+                          {tierCfg.name_bn}
+                        </h3>
+                        <Badge variant="outline" className={`text-[10px] font-bold ${isHighSmart ? "border-purple-500/40 text-purple-600" : "border-primary/40 text-primary"}`}>
+                          {isHighSmart ? "হাই স্মার্ট" : "মিডিয়াম স্মার্ট"}
+                        </Badge>
+                      </div>
+
+                      {/* Subscription status */}
+                      <div className="flex items-center gap-1.5 mt-1">
+                        {isActive ? (
+                          <>
+                            <CheckCircle2 className="w-3.5 h-3.5 text-success" />
+                            <span className="text-xs text-success font-semibold">সক্রিয় সাবস্ক্রিপশন</span>
+                          </>
+                        ) : isTrial ? (
+                          <>
+                            <AlertTriangle className={`w-3.5 h-3.5 ${trialStatus.showCriticalWarning ? "text-destructive" : "text-warning"}`} />
+                            <span className={`text-xs font-semibold ${trialStatus.showCriticalWarning ? "text-destructive" : "text-warning"}`}>
+                              ট্রায়াল — {trialStatus.daysRemaining} দিন বাকি
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <AlertTriangle className="w-3.5 h-3.5 text-destructive" />
+                            <span className="text-xs text-destructive font-semibold">মেয়াদ শেষ</span>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Tier limits usage */}
+                      <div className="flex gap-3 mt-2 text-[10px] sm:text-xs text-muted-foreground flex-wrap">
+                        <span className="flex items-center gap-1">
+                          <span className="font-medium text-foreground">টেবিল:</span>
+                          {stats?.totalTables ?? 0} / {tierCfg.maxTables === -1 ? "∞" : tierCfg.maxTables}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <span className="font-medium text-foreground">কর্মী সীমা:</span>
+                          {tierCfg.maxStaff === -1 ? "আনলিমিটেড" : `সর্বোচ্চ ${tierCfg.maxStaff}`}
+                        </span>
+                        {!isHighSmart && (
+                          <span className="flex items-center gap-1 text-muted-foreground/70">AI: লক 🔒</span>
+                        )}
+                      </div>
+                    </div>
                   </div>
+
+                  {!isActive && (
+                    <Button
+                      variant="hero"
+                      size="sm"
+                      onClick={() => navigate("/upgrade")}
+                      className="w-full sm:w-auto flex-shrink-0"
+                    >
+                      আপগ্রেড <ArrowRight className="w-4 h-4" />
+                    </Button>
+                  )}
                 </div>
-              </div>
-              <Button variant="hero" size="sm" onClick={() => navigate("/admin/settings")} className="w-full sm:w-auto flex-shrink-0">
-                আপগ্রেড <ArrowRight className="w-4 h-4" />
-              </Button>
-            </CardContent>
-          </Card>
-        )}
+              </CardContent>
+            </Card>
+          );
+        })()}
 
         {/* ✅ Recent Orders — mobile friendly */}
         <Card>

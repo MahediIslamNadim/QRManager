@@ -1,11 +1,12 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ShoppingCart, Plus, Minus, UtensilsCrossed, X, Send, Image as ImageIcon, Flame, CheckCircle, XCircle, Package, Search, QrCode, Lock, ClipboardList, ChefHat, Bell, Bike, MessageSquare, Phone, Receipt, Clock, ArrowLeft, Star } from "lucide-react";
+import { ShoppingCart, Plus, Minus, UtensilsCrossed, X, Send, Image as ImageIcon, Flame, CheckCircle, XCircle, Package, Search, QrCode, Lock, ClipboardList, ChefHat, Bell, Bike, MessageSquare, Phone, Receipt, Clock, ArrowLeft, Star, Sparkles, Bot } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useMenuSession } from "@/hooks/useMenuSession";
 import { useMenuOrders, isNotificationOrder } from "@/hooks/useMenuOrders";
+import { useAIRecommendations } from "@/hooks/useAIRecommendations";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const getImageUrl = (path: string | null) => {
@@ -94,6 +95,18 @@ const CustomerMenu = () => {
     restaurantId, tableId, seatId, sessionToken,
     isDemo, tokenValid, tableChecked,
     onRatingRequest,
+  });
+
+  // ── AI Recommendations ─────────────────────────────────────────────────────
+  const {
+    recommendations: aiRecs,
+    explanations: aiExplanations,
+    loading: aiLoading,
+    trackClick: trackAIClick,
+  } = useAIRecommendations({
+    restaurantId: restaurantId || "demo",
+    menuItems,
+    strategy: "balanced",
   });
 
   // ── Category colors: computed once from categories list (no render-time setState) ──
@@ -413,6 +426,74 @@ const CustomerMenu = () => {
           </div>
         </div>
       </div>
+
+      {/* AI Recommendations */}
+      {(aiLoading || aiRecs.length > 0) && (
+        <div className="max-w-2xl mx-auto px-4 pt-4">
+          <div className="rounded-2xl border border-primary/20 bg-gradient-to-r from-primary/5 via-accent/10 to-primary/5 overflow-hidden">
+            <div className="px-4 py-3 flex items-center gap-2 border-b border-primary/10">
+              <div className="w-7 h-7 rounded-xl gradient-primary flex items-center justify-center flex-shrink-0">
+                <Sparkles className="w-3.5 h-3.5 text-primary-foreground" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-foreground">আপনার জন্য AI সুপারিশ</p>
+                <p className="text-[10px] text-muted-foreground">AI বিশ্লেষণ করে সেরা আইটেম বেছেছে</p>
+              </div>
+              <div className="ml-auto flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 border border-primary/20">
+                <Bot className="w-3 h-3 text-primary" />
+                <span className="text-[10px] font-semibold text-primary">AI</span>
+              </div>
+            </div>
+            {aiLoading ? (
+              <div className="flex gap-3 p-4 overflow-x-auto scrollbar-hide">
+                {[1,2,3,4].map(i => (
+                  <div key={i} className="flex-shrink-0 w-36 h-24 rounded-xl bg-muted/40 animate-pulse" />
+                ))}
+              </div>
+            ) : (
+              <div className="flex gap-3 p-4 overflow-x-auto scrollbar-hide">
+                {aiRecs.slice(0, 6).map(item => {
+                  const inCart = cart.find(c => c.id === item.id);
+                  const catColor = getCategoryColor(item.category);
+                  return (
+                    <div key={item.id}
+                      className={`flex-shrink-0 w-40 rounded-xl border bg-card overflow-hidden transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md hover:shadow-primary/10 cursor-pointer ${
+                        !item.available ? "opacity-60" : "border-primary/20"
+                      }`}
+                      onClick={() => { if (item.available) { addToCart(item); trackAIClick(item.id); } }}>
+                      {/* Item image or placeholder */}
+                      <div className="h-20 w-full bg-gradient-to-br from-accent via-secondary to-accent overflow-hidden relative">
+                        {getImageUrl(item.image_url || null) ? (
+                          <img src={getImageUrl(item.image_url || null)!} alt={item.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <UtensilsCrossed className="w-6 h-6 text-muted-foreground/30" />
+                          </div>
+                        )}
+                        {/* AI badge */}
+                        <div className="absolute top-1 left-1 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-primary/90 backdrop-blur-sm">
+                          <Sparkles className="w-2.5 h-2.5 text-primary-foreground" />
+                          <span className="text-[9px] font-bold text-primary-foreground">AI</span>
+                        </div>
+                      </div>
+                      <div className="p-2">
+                        <p className="text-xs font-semibold text-foreground line-clamp-1">{item.name}</p>
+                        <p className="text-xs font-bold text-primary mt-0.5">৳{item.price}</p>
+                        {aiExplanations[item.id] && (
+                          <p className="text-[10px] text-muted-foreground line-clamp-1 mt-0.5">{aiExplanations[item.id]}</p>
+                        )}
+                        <div className={`mt-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full inline-block ${catColor.bg} ${catColor.text}`}>
+                          {item.category}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Categories */}
       <div className="sticky top-[73px] z-10 bg-background/80 backdrop-blur-xl border-b border-border/30">
