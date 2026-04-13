@@ -314,7 +314,7 @@ export async function getAdvancedRecommendations(
       .from('menu_items')
       .select('*')
       .eq('restaurant_id', restaurantId)
-      .eq('is_available', true);
+      .eq('available', true);
 
     if (!menuItems?.length) {
       return { items: [], explanations: {}, strategy: 'none' };

@@ -183,7 +183,7 @@ BEGIN
   LEFT JOIN user_categories uc ON mi.category = uc.category
   LEFT JOIN menu_item_metrics mim ON mi.id = mim.menu_item_id
   WHERE mi.restaurant_id = p_restaurant_id
-    AND mi.is_available = true
+    AND mi.available = true
     AND mi.id NOT IN (SELECT menu_item_id FROM ordered_items)
   ORDER BY recommendation_score DESC
   LIMIT p_limit;

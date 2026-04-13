@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useMenuSession } from "@/hooks/useMenuSession";
 import { useMenuOrders, isNotificationOrder } from "@/hooks/useMenuOrders";
+import { useAIRecommendations } from "@/hooks/useAIRecommendations";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const getImageUrl = (path: string | null) => {
@@ -72,6 +73,18 @@ const CustomerMenu = () => {
   // ── Order status drawer ────────────────────────────────────────────────────
   const [showOrderStatus, setShowOrderStatus] = useState(false);
 
+  // ── AI Recommendations ────────────────────────────────────────────────
+  const {
+    recommendations: aiRecommendations,
+    explanations: aiExplanations,
+    loading: aiLoading,
+    trackClick: trackAIClick
+  } = useAIRecommendations({
+    restaurantId: restaurantId || 'demo',
+    menuItems,
+    strategy: 'balanced'
+  });
+
   // ── Rating ─────────────────────────────────────────────────────────────────
   const [ratingOrderId, setRatingOrderId] = useState<string | null>(null);
   const [ratingValue, setRatingValue] = useState(0);
@@ -95,6 +108,17 @@ const CustomerMenu = () => {
     isDemo, tokenValid, tableChecked,
     onRatingRequest,
   });
+
+  // ── Branding (custom colors/logo from DB) ──────────────────────────────
+  const brandPrimary   = restaurant?.brand_primary   || null;
+  const brandSecondary = restaurant?.brand_secondary || null;
+  const brandFont      = restaurant?.brand_font      || 'default';
+  const brandLogo      = restaurant?.logo_url        || null;
+
+  const fontStyle = brandFont === 'serif'   ? { fontFamily: 'Georgia, serif' }
+                  : brandFont === 'mono'    ? { fontFamily: 'monospace' }
+                  : brandFont === 'rounded' ? { fontFamily: 'system-ui, sans-serif', fontWeight: 700 }
+                  : {};
 
   // ── Category colors: computed once from categories list (no render-time setState) ──
   const categoryColors = useMemo<Record<string, typeof colorPalette[number]>>(() => {
@@ -353,11 +377,17 @@ const CustomerMenu = () => {
       <header className="sticky top-0 z-20 bg-card/80 backdrop-blur-2xl border-b border-border/50 shadow-sm">
         <div className="max-w-2xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl gradient-primary flex items-center justify-center shadow-lg shadow-primary/20">
-              <UtensilsCrossed className="w-5 h-5 text-primary-foreground" />
+            <div
+              className={`w-11 h-11 rounded-2xl flex items-center justify-center shadow-lg overflow-hidden flex-shrink-0 ${!brandPrimary ? 'gradient-primary shadow-primary/20' : ''}`}
+              style={brandPrimary
+                ? { background: `linear-gradient(135deg, ${brandPrimary}, ${brandSecondary || brandPrimary})`, boxShadow: `0 4px 14px ${brandPrimary}40` }
+                : undefined}>
+              {brandLogo
+                ? <img src={brandLogo} alt="logo" className="w-full h-full object-contain p-1" />
+                : <UtensilsCrossed className="w-5 h-5 text-primary-foreground" />}
             </div>
             <div>
-              <h1 className="font-display font-bold text-foreground text-lg leading-tight">{restaurant?.name || "Restaurant"}</h1>
+              <h1 className="font-bold text-foreground text-lg leading-tight" style={fontStyle}>{restaurant?.name || "Restaurant"}</h1>
               <p className="text-xs text-muted-foreground flex items-center gap-1.5">
                 <span className="inline-block w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
                 টেবিল {tableName}{seatNumber ? ` • সিট ${seatNumber}` : ""} • লাইভ মেনু
@@ -398,6 +428,69 @@ const CustomerMenu = () => {
           </div>
         )}
       </header>
+
+      {/* AI Recommendations Section */}
+      {aiRecommendations.length > 0 && (
+        <div className="max-w-2xl mx-auto px-4 pt-4">
+          <div className="bg-gradient-to-r from-purple-500/10 via-pink-500/10 to-blue-500/10 rounded-2xl border border-purple-500/20 p-4 mb-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                  <Flame className="w-4 h-4 text-purple-500" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-foreground text-sm">🤖 AI Recommended for You</h3>
+                  <p className="text-xs text-muted-foreground">আপনার পছন্দ অনুযায়ী বাছাই করা</p>
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3 overflow-x-auto scrollbar-hide">
+              {aiRecommendations.slice(0, 4).map((item) => {
+                const explanation = aiExplanations[item.id] || '⭐ জনপ্রিয়';
+                const cartItem = cart.find(c => c.id === item.id);
+                return (
+                  <div
+                    key={item.id}
+                    onClick={() => {
+                      trackAIClick(item.id);
+                      if (item.available && !cartItem) addToCart(item);
+                    }}
+                    className="flex-shrink-0 w-36 bg-card/50 backdrop-blur-sm rounded-xl border border-border/30 overflow-hidden cursor-pointer hover:shadow-lg transition-all hover:-translate-y-1"
+                  >
+                    <div className="h-24 relative overflow-hidden bg-gradient-to-br from-accent to-secondary">
+                      {getImageUrl(item.image_url || null) ? (
+                        <img
+                          src={getImageUrl(item.image_url || null)!}
+                          alt={item.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <ImageIcon className="w-8 h-8 text-muted-foreground/30" />
+                        </div>
+                      )}
+                      <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-primary/90 text-primary-foreground text-xs font-bold">
+                        ৳{item.price}
+                      </div>
+                      <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-purple-500/90 text-white text-[10px] font-bold">
+                        {explanation}
+                      </div>
+                    </div>
+                    <div className="p-2">
+                      <p className="font-semibold text-xs text-foreground truncate">{item.name}</p>
+                      {cartItem ? (
+                        <span className="text-[10px] text-success font-medium">✓ Added</span>
+                      ) : (
+                        <span className="text-[10px] text-primary font-medium">+ Add</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Stats bar */}
       <div className="max-w-2xl mx-auto px-4 pt-4">

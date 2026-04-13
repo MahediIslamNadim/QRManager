@@ -129,7 +129,7 @@ const BillingPage = () => {
               <div>
                 <p className="text-sm text-muted-foreground mb-1">Current Plan</p>
                 <p className="text-2xl font-bold">
-                  {TIERS[subscription?.tier as keyof typeof TIERS]?.displayName || 'Trial'}
+                  {TIERS[subscription?.tier as keyof typeof TIERS]?.name_bn || 'Trial'}
                 </p>
                 <p className="text-sm text-muted-foreground mt-1">
                   {subscription?.billing_cycle === 'monthly' ? 'Billed monthly' : 'Billed annually'}
@@ -142,8 +142,8 @@ const BillingPage = () => {
                   <p className="text-2xl font-bold">
                     {formatPrice(
                       subscription.billing_cycle === 'monthly'
-                        ? TIERS[subscription.tier as keyof typeof TIERS]?.priceMonthly || 0
-                        : TIERS[subscription.tier as keyof typeof TIERS]?.priceYearly || 0
+                        ? TIERS[subscription.tier as keyof typeof TIERS]?.price_monthly || 0
+                        : TIERS[subscription.tier as keyof typeof TIERS]?.price_yearly || 0
                     )}
                   </p>
                   <p className="text-sm text-muted-foreground mt-1">
@@ -173,8 +173,8 @@ const BillingPage = () => {
                   <span className="font-semibold">
                     {formatPrice(
                       subscription.billing_cycle === 'monthly'
-                        ? TIERS[subscription.tier as keyof typeof TIERS]?.priceMonthly || 0
-                        : TIERS[subscription.tier as keyof typeof TIERS]?.priceYearly || 0
+                        ? TIERS[subscription.tier as keyof typeof TIERS]?.price_monthly || 0
+                        : TIERS[subscription.tier as keyof typeof TIERS]?.price_yearly || 0
                     )}
                   </span>
                 </div>
@@ -265,7 +265,7 @@ const BillingPage = () => {
                       </div>
                       <div>
                         <p className="font-medium">
-                          {TIERS[invoice.tier as keyof typeof TIERS]?.displayName} - {' '}
+                          {TIERS[invoice.tier as keyof typeof TIERS]?.name_bn} - {' '}
                           {invoice.billing_cycle === 'monthly' ? 'Monthly' : 'Annual'}
                         </p>
                         <p className="text-sm text-muted-foreground">

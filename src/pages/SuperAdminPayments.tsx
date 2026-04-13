@@ -392,13 +392,12 @@ const SuperAdminPayments = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">প্ল্যান</Label>
+                  <Label className="text-xs text-muted-foreground">টিয়ার</Label>
                   <Select value={editPlan} onValueChange={v => setEditPlan(v as any)}>
                     <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="basic">Basic</SelectItem>
-                      <SelectItem value="premium">Premium</SelectItem>
-                      <SelectItem value="enterprise">Enterprise</SelectItem>
+                      <SelectItem value="medium_smart">⚡ মিডিয়াম স্মার্ট</SelectItem>
+                      <SelectItem value="high_smart">👑 হাই স্মার্ট</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

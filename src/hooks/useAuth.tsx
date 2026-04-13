@@ -31,7 +31,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [restaurantPlan, setRestaurantPlan] = useState("basic");
   const [loading, setLoading] = useState(true);
   const [trialExpired, setTrialExpired] = useState(false);
+  // Prevent double-fetch: track the userId currently being fetched
+  const fetchingRef = useRef<string | null>(null);
   const fetchUserData = useCallback(async (userId: string) => {
+    // Skip if already fetching for this user
+    if (fetchingRef.current === userId) return;
+    fetchingRef.current = userId;
     try {
       const { data: roleRow } = await supabase
         .from("user_roles")
@@ -98,20 +103,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (foundRestId) {
         const { data: restaurant, error: restError } = await supabase
           .from("restaurants")
-          .select("trial_ends_at, status, plan")
+          .select("trial_ends_at, status, plan, subscription_status, tier")
           .eq("id", foundRestId)
           .single();
         if (restError) console.warn("Restaurant fetch error:", restError.message);
 
         if (restaurant) {
-          setRestaurantPlan(restaurant.plan || "basic");
+          setRestaurantPlan(restaurant.tier || restaurant.plan || "basic");
 
-          // Trial expiry is determined server-side by the expire-trials edge function
-          // (scheduled daily). Client only reads the current status — no DB writes here.
           if (bestRole === "admin") {
-            const trialEnded = restaurant.status === "inactive" ||
+            const subStatus = restaurant.subscription_status || "trial";
+            const trialEnded = subStatus === "expired" || subStatus === "cancelled" ||
               (restaurant.trial_ends_at
-                ? new Date() > new Date(restaurant.trial_ends_at) && restaurant.status !== "active_paid"
+                ? new Date() > new Date(restaurant.trial_ends_at) && subStatus !== "active"
                 : false);
             setTrialExpired(trialEnded);
           } else {
@@ -123,6 +127,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     } catch (err) {
       console.error("fetchUserData error:", err);
+    } finally {
+      // Clear fetching lock after done
+      if (fetchingRef.current === userId) fetchingRef.current = null;
     }
   }, []);
 
@@ -136,21 +143,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setTrialExpired(false);
     };
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        if (!mounted) return;
-        if (session?.user) {
-          setUser(session.user);
-          fetchUserData(session.user.id).then(() => {
-            if (mounted) setLoading(false);
-          });
-        } else {
-          clearUser();
-          setLoading(false);
-        }
-      }
-    );
-
+    // Use getSession() as the single source of truth on mount.
+    // onAuthStateChange handles subsequent sign-in/sign-out events only.
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!mounted) return;
       if (session?.user) {
@@ -162,6 +156,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (mounted) setLoading(false);
       }
     });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (!mounted) return;
+        // SIGNED_IN after initial load or TOKEN_REFRESHED — re-fetch user data
+        if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+          if (session?.user) {
+            setUser(session.user);
+            fetchUserData(session.user.id).then(() => {
+              if (mounted) setLoading(false);
+            });
+          }
+        } else if (event === "SIGNED_OUT") {
+          clearUser();
+          setLoading(false);
+        }
+      }
+    );
 
     return () => {
       mounted = false;

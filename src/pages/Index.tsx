@@ -1,7 +1,7 @@
 import { UtensilsCrossed, ArrowRight, Star, Menu, X } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import { APP_NAME, COMPANY_NAME, COMPANY_URL, FREE_TRIAL_DAYS } from "@/constants/app";
-import { PLANS_LIST } from "@/constants/pricing";
+import { TIERS } from "@/constants/tiers";
 
 const floatingEmojis = ["🍛","🍕","🍜","🥘","🍱","🥗","🍔","🍣","🧁","🍝","🌮","🥩"];
 interface FE { id:number; emoji:string; left:number; delay:number; duration:number; size:number; }
@@ -33,6 +33,7 @@ export default function Index() {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [billingCycle, setBillingCycle] = useState<"monthly"|"yearly">("monthly");
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -55,6 +56,31 @@ export default function Index() {
   const gold = "linear-gradient(135deg, #c9a84c, #f5d780, #b8860b)";
   const goldText = { background: gold, WebkitBackgroundClip: "text" as const, WebkitTextFillColor: "transparent" as const };
   const navLinks: [string, string][] = [["ফিচার","#features"],["প্রাইসিং","#pricing"],["ডেমো","/menu/demo"],["যোগাযোগ","#contact"]];
+
+  const plans = [
+    {
+      key: "medium_smart" as const,
+      icon: "⚡",
+      name: TIERS.medium_smart.name_bn,
+      desc: "মাঝারি রেস্টুরেন্টের জন্য সেরা চয়েস",
+      price_monthly: TIERS.medium_smart.price_monthly,
+      price_yearly: TIERS.medium_smart.price_yearly,
+      hot: true,
+      color: "#3b82f6",
+      features: ["QR কোড অর্ডারিং","মেনু ম্যানেজমেন্ট","২০টি টেবিল ম্যানেজমেন্ট","রিয়েলটাইম অর্ডার + কিচেন ডিসপ্লে","অ্যানালিটিক্স + সেলস রিপোর্ট","WhatsApp + ইমেইল নোটিফিকেশন","bKash/Nagad পেমেন্ট","৫ জন স্টাফ"],
+    },
+    {
+      key: "high_smart" as const,
+      icon: "👑",
+      name: TIERS.high_smart.name_bn,
+      desc: "বড় রেস্টুরেন্ট বা মাল্টি-ব্র্যান্চের জন্য",
+      price_monthly: TIERS.high_smart.price_monthly,
+      price_yearly: TIERS.high_smart.price_yearly,
+      hot: false,
+      color: "#a855f7",
+      features: ["মিডিয়াম স্মার্টের সব ফিচার","আনলিমিটেড টেবিল ও স্টাফ","মাল্টি-লোকেশন সাপোর্ট","AI রেকমেন্ডেশন (Gemini)","প্রেডিক্টিভ অ্যানালিটিক্স","কাস্টম ব্র্যান্ডিং (লোগো + রং)","প্রায়োরিটি সাপোর্ট ২৪/৭","ডেডিকেটেড ম্যানেজার"],
+    },
+  ];
 
   return (
     <div style={{ fontFamily:"'Cormorant Garamond', 'DM Sans', serif", backgroundColor:"#0a0a0a", color:"#e8dcc8", minHeight:"100vh" }}>

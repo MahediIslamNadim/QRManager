@@ -22,9 +22,19 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
         <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6 bg-background">
           <h1 className="text-2xl font-bold text-destructive">কিছু একটা ভুল হয়েছে</h1>
           <p className="text-sm text-muted-foreground max-w-md text-center">অপ্রত্যাশিত সমস্যা হয়েছে। পেজটি রিলোড করুন অথবা হোমে ফিরুন।</p>
-          <button onClick={() => window.location.href = "/"} className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm">
-            হোমে ফিরুন
-          </button>
+          {this.state.error && (
+            <pre className="text-xs text-red-400 bg-red-950/30 border border-red-800 rounded-lg p-3 max-w-lg w-full overflow-auto">
+              {this.state.error.message}\n{this.state.error.stack}
+            </pre>
+          )}
+          <div className="flex gap-3">
+            <button onClick={() => window.location.reload()} className="px-4 py-2 rounded-lg bg-secondary text-secondary-foreground text-sm">
+              রিলোড করুন
+            </button>
+            <button onClick={() => window.location.href = "/"} className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm">
+              হোমে ফিরুন
+            </button>
+          </div>
         </div>
       );
     }

@@ -23,8 +23,8 @@ export const TIERS: Record<TierType, TierConfig> = {
     name_bn: 'মিডিয়াম স্মার্ট',
     description: 'Complete QR ordering system with analytics and payments',
     description_bn: 'সম্পূর্ণ QR ordering সিস্টেম analytics এবং payments সহ',
-    price_monthly: 1500,
-    price_yearly: 14400, // 20% discount (2 months free)
+    price_monthly: 999,
+    price_yearly: 9590, // ~20% discount (2 months free)
     maxTables: 20,
     maxStaff: 5,
     features: [
@@ -51,8 +51,8 @@ export const TIERS: Record<TierType, TierConfig> = {
     name_bn: 'হাই স্মার্ট',
     description: 'Premium features with unlimited tables, AI, and multi-location',
     description_bn: 'প্রিমিয়াম features unlimited tables, AI এবং multi-location সহ',
-    price_monthly: 3500,
-    price_yearly: 33600, // 20% discount (2 months free)
+    price_monthly: 1999,
+    price_yearly: 19190, // ~20% discount (2 months free)
     maxTables: -1, // unlimited
     maxStaff: -1,  // unlimited
     features: [
@@ -204,7 +204,7 @@ export const isTrialExpired = (trialEndDate: Date): boolean => {
 export const LAUNCH_OFFER = {
   enabled: true,
   max_customers: 50,
-  discount_percentage: 33, // 4 months free
-  medium_yearly_price: 12000, // Original: 14400
-  high_yearly_price: 28000    // Original: 33600
+  discount_percentage: 20, // 2 months free
+  medium_yearly_price: 9590,  // Original: 999 * 12 = 11988
+  high_yearly_price: 19190    // Original: 1999 * 12 = 23988
 };

@@ -6,22 +6,63 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { User, Store, Save, Loader2, CreditCard, Check, Crown, Copy, AlertCircle, Smartphone, MessageSquare, Bell } from "lucide-react";
+import { User, Store, Save, Loader2, CreditCard, Check, Crown, Copy, AlertCircle, Smartphone, MessageSquare, Bell, Palette, Upload, X, Eye } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { PRICING, PLANS_LIST } from "@/constants/pricing";
+import { TIERS, formatPrice, type TierName, type BillingCycle } from "@/constants/tiers";
 
 const BKASH_NUMBER = import.meta.env.VITE_BKASH_NUMBER || "01786130439";
 
-const plans = PLANS_LIST.map(p => ({
-  id: p.id,
-  name: p.name,
-  monthlyPrice: p.monthlyPrice,
-  yearlyPrice: p.yearlyPrice,
-  popular: "popular" in p ? (p as any).popular : false,
-  features: [...p.features],
-}));
+const plans = [
+  {
+    id: 'medium_smart' as TierName,
+    name: TIERS.medium_smart.name_bn,
+    monthlyPrice: TIERS.medium_smart.price_monthly,
+    yearlyPrice: TIERS.medium_smart.price_yearly,
+    popular: true,
+    maxTables: TIERS.medium_smart.maxTables,
+    maxStaff: TIERS.medium_smart.maxStaff,
+    features: [
+      'QR কোড অর্ডারিং',
+      'মেনু ম্যানেজমেন্ট',
+      'টেবিল ম্যানেজমেন্ট (২০টি)',
+      'অর্ডার ম্যানেজমেন্ট',
+      'কিচেন ডিসপ্লে',
+      'অ্যানালিটিক্স ড্যাশবোর্ড',
+      'সেলস রিপোর্ট',
+      'WhatsApp নোটিফিকেশন',
+      'ইমেইল নোটিফিকেশন',
+      'bKash/Nagad পেমেন্ট',
+      'ক্যাশ ট্র্যাকিং',
+      'বেসিক ইনভেন্টরি',
+      'কাস্টমার ফিডব্যাক',
+      '৫ জন স্টাফ',
+    ],
+  },
+  {
+    id: 'high_smart' as TierName,
+    name: TIERS.high_smart.name_bn,
+    monthlyPrice: TIERS.high_smart.price_monthly,
+    yearlyPrice: TIERS.high_smart.price_yearly,
+    popular: false,
+    maxTables: -1,
+    maxStaff: -1,
+    features: [
+      'মিডিয়াম স্মার্টের সব ফিচার',
+      'আনলিমিটেড টেবিল',
+      'আনলিমিটেড স্টাফ',
+      'মাল্টি-লোকেশন সাপোর্ট',
+      'AI রেকমেন্ডেশন (Gemini)',
+      'প্রেডিক্টিভ অ্যানালিটিক্স',
+      'কাস্টম ব্র্যান্ডিং',
+      'অ্যাডভান্সড অ্যানালিটিক্স',
+      'কাস্টম রিপোর্ট',
+      'প্রায়োরিটি সাপোর্ট ২৪/৭',
+      'ডেডিকেটেড ম্যানেজার',
+    ],
+  },
+];
 
 const AdminSettings = () => {
   const { user, restaurantId } = useAuth();
@@ -34,8 +75,17 @@ const AdminSettings = () => {
   const [restName, setRestName] = useState("");
   const [restAddress, setRestAddress] = useState("");
   const [restPhone, setRestPhone] = useState("");
-  const [currentPlan, setCurrentPlan] = useState("basic");
+  const [currentPlan, setCurrentPlan] = useState<string>("medium_smart");
   const [restSaving, setRestSaving] = useState(false);
+
+  // ── Branding state ──
+  const [brandLogo, setBrandLogo] = useState<string | null>(null);
+  const [brandLogoFile, setBrandLogoFile] = useState<File | null>(null);
+  const [brandPrimary, setBrandPrimary] = useState("#f97316");
+  const [brandSecondary, setBrandSecondary] = useState("#fb923c");
+  const [brandFont, setBrandFont] = useState("default");
+  const [brandSaving, setBrandSaving] = useState(false);
+  const [showBrandPreview, setShowBrandPreview] = useState(false);
 
   const [wapiKey, setWapiKey] = useState("");
   const [notifyNewOrder, setNotifyNewOrder] = useState(false);
@@ -65,10 +115,14 @@ const AdminSettings = () => {
           setRestName(data.name || "");
           setRestAddress(data.address || "");
           setRestPhone(data.phone || "");
-          setCurrentPlan(data.plan || "basic");
-          setWapiKey((data as any).whatsapp_api_key || "");
-          setNotifyNewOrder(!!(data as any).notify_new_order);
-          setNotifyDailyReport(!!(data as any).notify_daily_report);
+          setCurrentPlan(data.plan || "medium_smart");
+          setBrandLogo(data.logo_url || null);
+          setBrandPrimary(data.brand_primary || "#f97316");
+          setBrandSecondary(data.brand_secondary || "#fb923c");
+          setBrandFont(data.brand_font || "default");
+          setWapiKey(data.whatsapp_api_key || "");
+          setNotifyNewOrder(!!data.notify_new_order);
+          setNotifyDailyReport(!!data.notify_daily_report);
         }
       }).catch(console.error);
     }
@@ -114,7 +168,7 @@ const AdminSettings = () => {
     try {
       const { error } = await supabase
         .from("restaurants")
-        .update({ whatsapp_api_key: wapiKey.trim() || null, notify_new_order: notifyNewOrder, notify_daily_report: notifyDailyReport } as any)
+        .update({ whatsapp_api_key: wapiKey.trim() || null, notify_new_order: notifyNewOrder, notify_daily_report: notifyDailyReport })
         .eq("id", restaurantId);
       if (error) throw error;
       toast.success("WhatsApp সেটিংস সেভ হয়েছে ✅");
@@ -131,6 +185,48 @@ const AdminSettings = () => {
     setPayPhone("");
     setPayStep(1);
     setPayDialog(true);
+  };
+
+  const handleLogoUpload = async (file: File) => {
+    if (!restaurantId) return;
+    const ext = file.name.split('.').pop();
+    const path = `${restaurantId}/logo.${ext}`;
+    const { error } = await supabase.storage
+      .from('restaurant-logos')
+      .upload(path, file, { upsert: true });
+    if (error) { toast.error('লোগো আপলোড হয়নি: ' + error.message); return null; }
+    const { data: { publicUrl } } = supabase.storage
+      .from('restaurant-logos')
+      .getPublicUrl(path);
+    return publicUrl;
+  };
+
+  const saveBranding = async () => {
+    if (!restaurantId) return;
+    setBrandSaving(true);
+    try {
+      let logoUrl = brandLogo;
+      if (brandLogoFile) {
+        const uploaded = await handleLogoUpload(brandLogoFile);
+        if (uploaded) { logoUrl = uploaded; setBrandLogo(uploaded); setBrandLogoFile(null); }
+      }
+      const { error } = await supabase
+        .from('restaurants')
+        .update({
+          logo_url: logoUrl,
+          brand_primary: brandPrimary,
+          brand_secondary: brandSecondary,
+          brand_font: brandFont,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', restaurantId);
+      if (error) throw error;
+      toast.success('ব্র্যান্ডিং সেভ হয়েছে ✅');
+    } catch (err: any) {
+      toast.error(err.message || 'সেভ করতে সমস্যা হয়েছে');
+    } finally {
+      setBrandSaving(false);
+    }
   };
 
   const copyBkashNumber = () => {
@@ -175,10 +271,11 @@ const AdminSettings = () => {
     <DashboardLayout role="admin" title="সেটিংস">
       <div className="max-w-4xl space-y-6 animate-fade-up">
         <Tabs defaultValue="profile">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="profile" className="flex items-center gap-2"><User className="w-4 h-4" /><span className="hidden sm:inline">প্রোফাইল</span></TabsTrigger>
             <TabsTrigger value="restaurant" className="flex items-center gap-2"><Store className="w-4 h-4" /><span className="hidden sm:inline">রেস্টুরেন্ট</span></TabsTrigger>
             <TabsTrigger value="plan" className="flex items-center gap-2"><Crown className="w-4 h-4" /><span className="hidden sm:inline">প্ল্যান</span></TabsTrigger>
+            <TabsTrigger value="branding" className="flex items-center gap-2"><Palette className="w-4 h-4" /><span className="hidden sm:inline">ব্র্যান্ডিং</span></TabsTrigger>
             <TabsTrigger value="notifications" className="flex items-center gap-2"><Bell className="w-4 h-4" /><span className="hidden sm:inline">নোটিফিকেশন</span></TabsTrigger>
           </TabsList>
 
@@ -281,6 +378,216 @@ const AdminSettings = () => {
                 </div>
               </div>
             </div>
+          </TabsContent>
+
+          {/* ── Custom Branding Tab ── */}
+          <TabsContent value="branding" className="space-y-4 mt-4">
+            {/* Feature Gate Notice */}
+            <Card className="border-purple-500/30 bg-purple-500/5">
+              <CardContent className="p-4 flex items-center gap-3">
+                <Crown className="w-5 h-5 text-purple-500 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold text-purple-600">হাই স্মার্ট এক্সক্লুসিভ ফিচার</p>
+                  <p className="text-xs text-muted-foreground">আপনার রেস্টুরেন্টের লোগো, রং এবং ফন্ট কাস্টমাইজ করুন। কাস্টমার মেনুতে আপনার ব্র্যান্ড দেখাবে।</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Logo Upload */}
+            <Card>
+              <CardHeader><CardTitle className="font-display text-lg flex items-center gap-2"><Upload className="w-5 h-5 text-primary" /> রেস্টুরেন্ট লোগো</CardTitle></CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center gap-4">
+                  {/* Preview */}
+                  <div className="w-24 h-24 rounded-2xl border-2 border-dashed border-border flex items-center justify-center bg-secondary/30 overflow-hidden flex-shrink-0">
+                    {brandLogo || brandLogoFile ? (
+                      <img
+                        src={brandLogoFile ? URL.createObjectURL(brandLogoFile) : brandLogo!}
+                        alt="Logo" className="w-full h-full object-contain p-1"
+                      />
+                    ) : (
+                      <div className="text-center">
+                        <Upload className="w-6 h-6 text-muted-foreground/40 mx-auto mb-1" />
+                        <p className="text-[10px] text-muted-foreground">লোগো নেই</p>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 space-y-2">
+                    <Label htmlFor="logo-upload" className="cursor-pointer">
+                      <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border bg-secondary/40 hover:bg-secondary transition-colors text-sm font-medium">
+                        <Upload className="w-4 h-4" /> লোগো আপলোড করুন
+                      </div>
+                    </Label>
+                    <input id="logo-upload" type="file" accept="image/*" className="hidden"
+                      onChange={e => { const f = e.target.files?.[0]; if (f) setBrandLogoFile(f); }} />
+                    {(brandLogo || brandLogoFile) && (
+                      <button onClick={() => { setBrandLogo(null); setBrandLogoFile(null); }}
+                        className="flex items-center gap-1.5 text-xs text-destructive hover:text-destructive/80">
+                        <X className="w-3.5 h-3.5" /> লোগো মুছুন
+                      </button>
+                    )}
+                    <p className="text-xs text-muted-foreground">PNG, JPG, SVG — সর্বোচ্চ ২MB</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Color Pickers */}
+            <Card>
+              <CardHeader><CardTitle className="font-display text-lg flex items-center gap-2"><Palette className="w-5 h-5 text-primary" /> ব্র্যান্ড রং</CardTitle></CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>প্রাইমারি রং</Label>
+                    <div className="flex items-center gap-3">
+                      <input type="color" value={brandPrimary}
+                        onChange={e => setBrandPrimary(e.target.value)}
+                        className="w-12 h-10 rounded-lg border border-border cursor-pointer p-0.5 bg-background" />
+                      <Input value={brandPrimary} onChange={e => setBrandPrimary(e.target.value)}
+                        placeholder="#f97316" className="font-mono text-sm" />
+                    </div>
+                    <p className="text-xs text-muted-foreground">বাটন, হাইলাইট রং</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>সেকেন্ডারি রং</Label>
+                    <div className="flex items-center gap-3">
+                      <input type="color" value={brandSecondary}
+                        onChange={e => setBrandSecondary(e.target.value)}
+                        className="w-12 h-10 rounded-lg border border-border cursor-pointer p-0.5 bg-background" />
+                      <Input value={brandSecondary} onChange={e => setBrandSecondary(e.target.value)}
+                        placeholder="#fb923c" className="font-mono text-sm" />
+                    </div>
+                    <p className="text-xs text-muted-foreground">গ্রেডিয়েন্ট, accent রং</p>
+                  </div>
+                </div>
+
+                {/* Quick color presets */}
+                <div>
+                  <p className="text-xs text-muted-foreground mb-2 font-medium">দ্রুত রং বেছে নিন:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { label: 'অরেঞ্জ', p: '#f97316', s: '#fb923c' },
+                      { label: 'গ্রিন',  p: '#22c55e', s: '#4ade80' },
+                      { label: 'ব্লু',   p: '#3b82f6', s: '#60a5fa' },
+                      { label: 'পার্পল', p: '#a855f7', s: '#c084fc' },
+                      { label: 'রেড',    p: '#ef4444', s: '#f87171' },
+                      { label: 'টিল',    p: '#14b8a6', s: '#2dd4bf' },
+                    ].map(preset => (
+                      <button key={preset.label}
+                        onClick={() => { setBrandPrimary(preset.p); setBrandSecondary(preset.s); }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border hover:border-primary/50 bg-secondary/30 hover:bg-secondary transition-all text-xs font-medium">
+                        <span className="w-4 h-4 rounded-full border border-border/50 flex-shrink-0" style={{ background: preset.p }} />
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Font Family */}
+            <Card>
+              <CardHeader><CardTitle className="font-display text-lg">ফন্ট স্টাইল</CardTitle></CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { id: 'default', label: 'ডিফল্ট',    sample: 'আমাদের মেনু', style: {} },
+                    { id: 'serif',   label: 'ক্লাসিক',   sample: 'আমাদের মেনু', style: { fontFamily: 'Georgia, serif' } },
+                    { id: 'mono',    label: 'মডার্ন',    sample: 'আমাদের মেনু', style: { fontFamily: 'monospace' } },
+                    { id: 'rounded', label: 'রাউন্ডেড', sample: 'আমাদের মেনু', style: { fontFamily: 'system-ui, sans-serif', fontWeight: 700 } },
+                  ].map(font => (
+                    <button key={font.id}
+                      onClick={() => setBrandFont(font.id)}
+                      className={`p-4 rounded-xl border-2 transition-all text-left ${
+                        brandFont === font.id
+                          ? 'border-primary bg-primary/5'
+                          : 'border-border bg-secondary/30 hover:border-primary/30'
+                      }`}>
+                      <p className="text-xs text-muted-foreground mb-1">{font.label}</p>
+                      <p className="text-base font-semibold" style={font.style}>{font.sample}</p>
+                    </button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Live Preview */}
+            <Card className="overflow-hidden">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="font-display text-lg flex items-center gap-2">
+                  <Eye className="w-5 h-5 text-primary" /> লাইভ প্রিভিউ
+                </CardTitle>
+                <button onClick={() => setShowBrandPreview(v => !v)}
+                  className="text-xs text-primary font-medium">
+                  {showBrandPreview ? 'লুকান' : 'দেখান'}
+                </button>
+              </CardHeader>
+              {showBrandPreview && (
+                <CardContent className="p-0">
+                  <div className="bg-background border-t border-border">
+                    {/* Mock menu header */}
+                    <div className="p-4 flex items-center gap-3"
+                      style={{ background: `linear-gradient(135deg, ${brandPrimary}15, ${brandSecondary}10)` }}>
+                      <div className="w-12 h-12 rounded-2xl flex items-center justify-center overflow-hidden border-2"
+                        style={{ borderColor: brandPrimary, background: `${brandPrimary}20` }}>
+                        {brandLogo || brandLogoFile ? (
+                          <img src={brandLogoFile ? URL.createObjectURL(brandLogoFile) : brandLogo!}
+                            alt="logo" className="w-full h-full object-contain p-0.5" />
+                        ) : (
+                          <span style={{ color: brandPrimary, fontSize: 20 }}>🍽️</span>
+                        )}
+                      </div>
+                      <div>
+                        <p className="font-bold text-foreground"
+                          style={{
+                            fontFamily: brandFont === 'serif' ? 'Georgia, serif' :
+                              brandFont === 'mono' ? 'monospace' : 'inherit'
+                          }}>
+                          {restName || 'আপনার রেস্টুরেন্ট'}
+                        </p>
+                        <p className="text-xs" style={{ color: brandPrimary }}>● লাইভ মেনু</p>
+                      </div>
+                    </div>
+                    {/* Mock menu item */}
+                    <div className="p-4 space-y-3">
+                      <div className="rounded-xl border p-3 flex items-center justify-between"
+                        style={{ borderColor: `${brandPrimary}30` }}>
+                        <div>
+                          <p className="font-semibold text-sm text-foreground"
+                            style={{ fontFamily: brandFont === 'serif' ? 'Georgia, serif' : 'inherit' }}>
+                            চিকেন বিরিয়ানি
+                          </p>
+                          <p className="text-xs text-muted-foreground">সুগন্ধি বাসমতি চাল</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-sm" style={{ color: brandPrimary }}>৳৩৫০</span>
+                          <button className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
+                            style={{ background: `linear-gradient(135deg, ${brandPrimary}, ${brandSecondary})` }}>
+                            + যোগ
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              )}
+            </Card>
+
+            <Button variant="hero" onClick={saveBranding} disabled={brandSaving} className="w-full">
+              {brandSaving ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Save className="w-4 h-4 mr-1" />}
+              {brandSaving ? 'সেভ হচ্ছে...' : 'ব্র্যান্ডিং সেভ করুন'}
+            </Button>
+
+            <Card className="border-warning/30 bg-warning/5">
+              <CardContent className="p-4">
+                <p className="text-sm font-semibold text-warning mb-1">⚠️ DB Migration প্রয়োজন</p>
+                <p className="text-xs text-muted-foreground mb-2">Supabase SQL Editor এ এই file টি run করুন:</p>
+                <code className="text-xs bg-secondary block p-2 rounded-lg text-foreground">
+                  20260411000001_custom_branding.sql
+                </code>
+                <p className="text-xs text-muted-foreground mt-2">এবং Storage এ <strong>restaurant-logos</strong> নামে একটি public bucket তৈরি করুন।</p>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* ── WhatsApp Notifications Tab ── */}

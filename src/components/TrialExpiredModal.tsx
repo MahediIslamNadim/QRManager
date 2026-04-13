@@ -61,18 +61,18 @@ export default function TrialExpiredModal({
                 ) : (
                   <Crown className="w-5 h-5 text-purple-600" />
                 )}
-                <h3 className="font-bold text-lg">{tierConfig.displayName}</h3>
+                <h3 className="font-bold text-lg">{tierConfig.name_bn}</h3>
               </div>
 
               <div className="mb-4">
                 <div className="flex items-baseline gap-2">
                   <span className="text-3xl font-bold">
-                    {formatPrice(tierConfig.priceMonthly)}
+                    {formatPrice(tierConfig.price_monthly)}
                   </span>
-                  <span className="text-muted-foreground">/month</span>
+                  <span className="text-muted-foreground">/মাস</span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  or {formatPrice(tierConfig.priceYearly)}/year (save 20%)
+                  অথবা {formatPrice(tierConfig.price_yearly)}/বছর (২০% ছাড়)
                 </p>
               </div>
 
@@ -100,7 +100,7 @@ export default function TrialExpiredModal({
                 }`}
                 size="lg"
               >
-                Continue with {tierConfig.displayName}
+                {tierConfig.name_bn} দিয়ে চালু করুন
               </Button>
             </div>
 
@@ -113,19 +113,19 @@ export default function TrialExpiredModal({
                   <Crown className="w-5 h-5 text-muted-foreground" />
                 )}
                 <h3 className="font-bold text-lg text-muted-foreground">
-                  {otherTierConfig.displayName}
+                  {otherTierConfig.name_bn}
                 </h3>
               </div>
 
               <div className="mb-4">
                 <div className="flex items-baseline gap-2">
                   <span className="text-3xl font-bold">
-                    {formatPrice(otherTierConfig.priceMonthly)}
+                    {formatPrice(otherTierConfig.price_monthly)}
                   </span>
-                  <span className="text-muted-foreground">/month</span>
+                  <span className="text-muted-foreground">/মাস</span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  or {formatPrice(otherTierConfig.priceYearly)}/year (save 20%)
+                  অথবা {formatPrice(otherTierConfig.price_yearly)}/বছর (২০% ছাড়)
                 </p>
               </div>
 
@@ -152,14 +152,13 @@ export default function TrialExpiredModal({
 
               <Button
                 onClick={() => {
-                  // TODO: Switch tier and go to payment
                   onUpgradeClick();
                 }}
                 variant="outline"
                 className="w-full"
                 size="lg"
               >
-                Switch to {otherTierConfig.displayName}
+                {otherTierConfig.name_bn} এ যান
               </Button>
             </div>
           </div>

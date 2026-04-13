@@ -378,9 +378,15 @@ export type Database = {
       restaurants: {
         Row: {
           address: string | null
+          brand_font: string | null
+          brand_primary: string | null
+          brand_secondary: string | null
+          billing_cycle: string | null
           created_at: string
           id: string
+          logo_url: string | null
           name: string
+          next_billing_date: string | null
           notify_daily_report: boolean | null
           notify_new_order: boolean | null
           owner_id: string | null
@@ -388,15 +394,27 @@ export type Database = {
           plan: string
           short_code: string | null
           status: string
+          subscription_end_date: string | null
+          subscription_start_date: string | null
+          subscription_status: string | null
+          tier: string | null
+          trial_end_date: string | null
           trial_ends_at: string | null
+          trial_start_date: string | null
           updated_at: string
           whatsapp_api_key: string | null
         }
         Insert: {
           address?: string | null
+          brand_font?: string | null
+          brand_primary?: string | null
+          brand_secondary?: string | null
+          billing_cycle?: string | null
           created_at?: string
           id?: string
+          logo_url?: string | null
           name: string
+          next_billing_date?: string | null
           notify_daily_report?: boolean | null
           notify_new_order?: boolean | null
           owner_id?: string | null
@@ -404,15 +422,27 @@ export type Database = {
           plan?: string
           short_code?: string | null
           status?: string
+          subscription_end_date?: string | null
+          subscription_start_date?: string | null
+          subscription_status?: string | null
+          tier?: string | null
+          trial_end_date?: string | null
           trial_ends_at?: string | null
+          trial_start_date?: string | null
           updated_at?: string
           whatsapp_api_key?: string | null
         }
         Update: {
           address?: string | null
+          brand_font?: string | null
+          brand_primary?: string | null
+          brand_secondary?: string | null
+          billing_cycle?: string | null
           created_at?: string
           id?: string
+          logo_url?: string | null
           name?: string
+          next_billing_date?: string | null
           notify_daily_report?: boolean | null
           notify_new_order?: boolean | null
           owner_id?: string | null
@@ -420,7 +450,13 @@ export type Database = {
           plan?: string
           short_code?: string | null
           status?: string
+          subscription_end_date?: string | null
+          subscription_start_date?: string | null
+          subscription_status?: string | null
+          tier?: string | null
+          trial_end_date?: string | null
           trial_ends_at?: string | null
+          trial_start_date?: string | null
           updated_at?: string
           whatsapp_api_key?: string | null
         }

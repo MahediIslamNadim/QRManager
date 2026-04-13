@@ -21,6 +21,9 @@ interface Restaurant {
   owner_id: string | null;
   created_at: string;
   trial_ends_at: string | null;
+  tier: string;
+  subscription_status: string;
+  trial_end_date: string | null;
 }
 
 const SuperAdminRestaurants = () => {
@@ -35,6 +38,8 @@ const SuperAdminRestaurants = () => {
   const [formPlan, setFormPlan] = useState("basic");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
+  const [tierFilter, setTierFilter] = useState<string>("all");
+
   const { data: restaurants = [], isLoading } = useQuery({
     queryKey: ["all-restaurants"],
     queryFn: async () => {
@@ -47,10 +52,12 @@ const SuperAdminRestaurants = () => {
     },
   });
 
-  const filtered = restaurants.filter(r =>
-    r.name.toLowerCase().includes(search.toLowerCase()) ||
-    (r.address || "").toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = restaurants.filter(r => {
+    const matchesSearch = r.name.toLowerCase().includes(search.toLowerCase()) ||
+      (r.address || "").toLowerCase().includes(search.toLowerCase());
+    const matchesTier = tierFilter === "all" || r.tier === tierFilter;
+    return matchesSearch && matchesTier;
+  });
 
   const resetForm = () => {
     setFormName("");
@@ -117,9 +124,21 @@ const SuperAdminRestaurants = () => {
     <DashboardLayout role="super_admin" title="রেস্টুরেন্ট ম্যানেজমেন্ট">
       <div className="space-y-6 animate-fade-up">
         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-          <div className="relative w-full sm:w-80">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input placeholder="রেস্টুরেন্ট খুঁজুন..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10 bg-secondary/50" />
+          <div className="flex gap-3 flex-1">
+            <div className="relative w-full sm:w-80">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input placeholder="রেস্টুরেন্ট খুঁজুন..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10 bg-secondary/50" />
+            </div>
+            <Select value={tierFilter} onValueChange={setTierFilter}>
+              <SelectTrigger className="w-[180px] bg-secondary/50">
+                <SelectValue placeholder="টিয়ার ফিল্টার" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">সব টিয়ার</SelectItem>
+                <SelectItem value="medium_smart">Medium Smart</SelectItem>
+                <SelectItem value="high_smart">High Smart</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <Button variant="hero" onClick={openAdd}><Plus className="w-4 h-4" /> নতুন রেস্টুরেন্ট</Button>
         </div>
@@ -135,7 +154,8 @@ const SuperAdminRestaurants = () => {
                     <th className="text-left p-4 font-medium text-muted-foreground text-sm">রেস্টুরেন্ট</th>
                     <th className="text-left p-4 font-medium text-muted-foreground text-sm hidden md:table-cell">ঠিকানা</th>
                     <th className="text-left p-4 font-medium text-muted-foreground text-sm hidden sm:table-cell">ফোন</th>
-                    <th className="text-left p-4 font-medium text-muted-foreground text-sm">প্ল্যান</th>
+                    <th className="text-left p-4 font-medium text-muted-foreground text-sm">টিয়ার</th>
+                    <th className="text-left p-4 font-medium text-muted-foreground text-sm hidden lg:table-cell">সাবস্ক্রিপশন</th>
                     <th className="text-left p-4 font-medium text-muted-foreground text-sm">স্ট্যাটাস</th>
                     <th className="text-right p-4 font-medium text-muted-foreground text-sm">অ্যাকশন</th>
                   </tr>
@@ -157,16 +177,31 @@ const SuperAdminRestaurants = () => {
                       <td className="p-4 text-muted-foreground hidden md:table-cell">{r.address || "—"}</td>
                       <td className="p-4 text-muted-foreground hidden sm:table-cell">{r.phone || "—"}</td>
                       <td className="p-4">
-                        <span className="px-3 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary capitalize">{r.plan}</span>
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                          (r as any).tier === 'high_smart' ? 'bg-purple-500/10 text-purple-500' : 'bg-primary/10 text-primary'
+                        }`}>
+                          {(r as any).tier === 'high_smart' ? '👑 হাই স্মার্ট' : '⚡ মিডিয়াম স্মার্ট'}
+                        </span>
+                      </td>
+                      <td className="p-4 hidden lg:table-cell">
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                          (r as any).subscription_status === 'active' ? 'bg-success/10 text-success' :
+                          (r as any).subscription_status === 'trial' ? 'bg-blue-500/10 text-blue-500' :
+                          (r as any).subscription_status === 'expired' ? 'bg-destructive/10 text-destructive' :
+                          'bg-muted text-muted-foreground'
+                        }`}>
+                          {(r as any).subscription_status === 'active' ? '✅ অ্যাক্টিভ' :
+                           (r as any).subscription_status === 'trial' ? '🎯 ট্রায়াল' :
+                           (r as any).subscription_status === 'expired' ? '⏰ মেয়াদ শেষ' : '❌ বাতিল'}
+                        </span>
                       </td>
                       <td className="p-4">
                         <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          r.status === "active_paid" ? "bg-success/10 text-success" :
-                          r.status === "active" ? "bg-primary/10 text-primary" :
-                          r.status === "pending" ? "bg-warning/10 text-warning" :
-                          "bg-muted text-muted-foreground"
+                          r.status === 'active' ? 'bg-success/10 text-success' :
+                          r.status === 'pending' ? 'bg-warning/10 text-warning' :
+                          'bg-muted text-muted-foreground'
                         }`}>
-                          {r.status === "active_paid" ? "পেইড ✓" : r.status === "active" ? "ট্রায়াল" : r.status === "pending" ? "পেন্ডিং" : "নিষ্ক্রিয়"}
+                          {r.status === 'active' ? 'সক্রিয়' : r.status === 'pending' ? 'পেন্ডিং' : 'নিষ্ক্রিয়'}
                         </span>
                       </td>
                       <td className="p-4 text-right">
@@ -228,13 +263,12 @@ const SuperAdminRestaurants = () => {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>প্ল্যান</Label>
+                <Label>টিয়ার</Label>
                 <Select value={formPlan} onValueChange={setFormPlan}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="basic">Basic — ৳৪৯৯/মাস</SelectItem>
-                    <SelectItem value="premium">Premium — ৳৭৯৯/মাস</SelectItem>
-                    <SelectItem value="enterprise">Enterprise — ৳১,২৯৯/মাস</SelectItem>
+                    <SelectItem value="medium_smart">⚡ মিডিয়াম স্মার্ট — ৳৯৯৯/মাস</SelectItem>
+                    <SelectItem value="high_smart">👑 হাই স্মার্ট — ৳১,৯৯৯/মাস</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
