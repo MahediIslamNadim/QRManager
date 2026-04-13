@@ -1,147 +1,472 @@
-// AI Insights Component for Admin
+// AI Insights — Professional AI-powered menu & business intelligence
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Sparkles, TrendingUp, UtensilsCrossed } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import {
+  Sparkles, TrendingUp, TrendingDown, UtensilsCrossed, Target,
+  DollarSign, BarChart3, Lightbulb, AlertTriangle, RefreshCw,
+  Star, Package, Clock, ShoppingBag, ChevronRight
+} from 'lucide-react';
 import { getBusinessInsights } from '@/lib/ai/geminiClient';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import FeatureGate from '@/components/FeatureGate';
 import DashboardLayout from '@/components/DashboardLayout';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, Radar, PolarGrid, PolarAngleAxis } from 'recharts';
 
 interface MenuItem {
   id: string;
   name: string;
   price: number;
   category: string;
+  available: boolean;
+}
+
+interface InsightData {
+  topPerformers: string[];
+  suggestions: string;
+  pricingTips: string;
+  // Extended analysis
+  categoryRevenue?: { category: string; revenue: number; orders: number }[];
+  hourlyPattern?: { hour: string; orders: number }[];
+  lowPerformers?: string[];
+  avgOrderValue?: number;
+  revenueGrowth?: string;
+  peakHour?: string;
 }
 
 export default function AIInsights() {
   const { restaurantId } = useAuth();
-  const [insights, setInsights] = useState<any>(null);
+  const [insights, setInsights] = useState<InsightData | null>(null);
   const [loading, setLoading] = useState(false);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [rawOrders, setRawOrders] = useState<any[]>([]);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const loadInsights = async () => {
     setLoading(true);
+    setError(null);
     try {
-      // Fetch menu items first (needed to map item IDs to names)
-      const { data: menuData } = await supabase
+      // 1. Fetch menu items
+      const { data: menuData, error: menuErr } = await supabase
         .from('menu_items')
-        .select('id, name, price, category')
+        .select('id, name, price, category, available')
         .eq('restaurant_id', restaurantId);
+      if (menuErr) throw menuErr;
 
-      if (menuData) {
-        setMenuItems(menuData as MenuItem[]);
+      const items = (menuData || []) as MenuItem[];
+      setMenuItems(items);
+
+      // 2. Fetch orders + items (last 30 days)
+      const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const { data: orders, error: ordersErr } = await supabase
+        .from('orders')
+        .select('id, total, status, created_at, order_items(name, quantity, price, menu_item_id)')
+        .eq('restaurant_id', restaurantId)
+        .gte('created_at', since)
+        .order('created_at', { ascending: false })
+        .limit(500);
+      if (ordersErr) throw ordersErr;
+
+      const allOrders = orders || [];
+      setRawOrders(allOrders);
+
+      // 3. Local analytics (fast, no API call needed)
+      const allItems = allOrders.flatMap((o: any) => o.order_items || []);
+
+      // Category revenue breakdown
+      const catMap: Record<string, { revenue: number; orders: number }> = {};
+      allOrders.forEach((o: any) => {
+        (o.order_items || []).forEach((oi: any) => {
+          const menuItem = items.find(m => m.id === oi.menu_item_id);
+          const cat = menuItem?.category || 'অন্যান্য';
+          if (!catMap[cat]) catMap[cat] = { revenue: 0, orders: 0 };
+          catMap[cat].revenue += oi.price * oi.quantity;
+          catMap[cat].orders += oi.quantity;
+        });
+      });
+      const categoryRevenue = Object.entries(catMap)
+        .map(([category, v]) => ({ category, ...v }))
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 6);
+
+      // Hourly pattern
+      const hourMap: Record<string, number> = {};
+      allOrders.forEach((o: any) => {
+        const h = new Date(o.created_at).getHours();
+        const label = `${h}:00`;
+        hourMap[label] = (hourMap[label] || 0) + 1;
+      });
+      const hourlyPattern = Object.entries(hourMap)
+        .map(([hour, orders]) => ({ hour, orders }))
+        .sort((a, b) => {
+          const ah = parseInt(a.hour); const bh = parseInt(b.hour);
+          return ah - bh;
+        });
+
+      // Peak hour
+      const peakEntry = [...hourlyPattern].sort((a, b) => b.orders - a.orders)[0];
+      const peakHour = peakEntry ? peakEntry.hour : null;
+
+      // Item frequency map
+      const itemFreq: Record<string, number> = {};
+      allItems.forEach((oi: any) => {
+        const id = oi.menu_item_id || oi.name;
+        itemFreq[id] = (itemFreq[id] || 0) + oi.quantity;
+      });
+      const sortedItems = Object.entries(itemFreq).sort((a, b) => b[1] - a[1]);
+      const topIds = sortedItems.slice(0, 5).map(([id]) => id);
+      const lowIds = sortedItems.slice(-3).map(([id]) => id).filter(id => (itemFreq[id] || 0) < 3);
+
+      // Revenue growth (this week vs last week)
+      const now = Date.now();
+      const thisWeekOrders = allOrders.filter((o: any) => new Date(o.created_at).getTime() > now - 7 * 86400000);
+      const lastWeekOrders = allOrders.filter((o: any) => {
+        const t = new Date(o.created_at).getTime();
+        return t > now - 14 * 86400000 && t <= now - 7 * 86400000;
+      });
+      const thisWeekRev = thisWeekOrders.reduce((s: number, o: any) => s + Number(o.total), 0);
+      const lastWeekRev = lastWeekOrders.reduce((s: number, o: any) => s + Number(o.total), 0);
+      let revenueGrowth = '';
+      if (lastWeekRev > 0) {
+        const pct = Math.round(((thisWeekRev - lastWeekRev) / lastWeekRev) * 100);
+        revenueGrowth = pct >= 0 ? `+${pct}%` : `${pct}%`;
+      } else if (thisWeekRev > 0) {
+        revenueGrowth = 'নতুন';
       }
 
-      // Fetch recent orders
-      const { data: orders } = await supabase
-        .from('orders')
-        .select('id, total, status, created_at')
-        .eq('restaurant_id', restaurantId)
-        .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
-        .limit(100);
+      const avgOrderValue = allOrders.length > 0
+        ? Math.round(allOrders.reduce((s: number, o: any) => s + Number(o.total), 0) / allOrders.length)
+        : 0;
 
-      // Get AI insights
-      const aiInsights = await getBusinessInsights(orders || [], menuData || []);
-      setInsights(aiInsights);
-    } catch (error) {
-      console.error('Error loading insights:', error);
+      // 4. AI-generated suggestions (Gemini)
+      let aiResult = { topPerformers: topIds, suggestions: '', pricingTips: '' };
+      try {
+        aiResult = await getBusinessInsights(allOrders.slice(0, 50), items);
+      } catch {
+        // Fallback to local data if AI fails
+        aiResult.topPerformers = topIds;
+        aiResult.suggestions = 'AI বিশ্লেষণ সাময়িকভাবে অনুপলব্ধ। স্থানীয় ডেটার উপর ভিত্তি করে দেখানো হচ্ছে।';
+        aiResult.pricingTips = '';
+      }
+
+      setInsights({
+        ...aiResult,
+        topPerformers: topIds,
+        lowPerformers: lowIds,
+        categoryRevenue,
+        hourlyPattern,
+        avgOrderValue,
+        revenueGrowth: revenueGrowth || null as any,
+        peakHour,
+      });
+      setLastUpdated(new Date().toLocaleString('bn-BD'));
+    } catch (err: any) {
+      setError(err.message || 'বিশ্লেষণ লোড করতে সমস্যা হয়েছে');
     } finally {
       setLoading(false);
     }
   };
 
-  // Helper to get item name from ID
-  const getItemName = (itemId: string): string => {
-    const item = menuItems.find(m => m.id === itemId);
-    return item ? item.name : itemId;
-  };
+  const getItemName = (id: string) => menuItems.find(m => m.id === id)?.name || id;
+
+  const isGrowthPositive = insights?.revenueGrowth && !insights.revenueGrowth.startsWith('-');
 
   return (
     <DashboardLayout role="admin" title="AI ইনসাইটস">
       <FeatureGate feature="ai_recommendations">
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
+        <div className="space-y-6 animate-fade-up">
+
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
               <h2 className="text-2xl font-bold flex items-center gap-2">
-                <Sparkles className="w-6 h-6 text-purple-600" />
+                <div className="w-8 h-8 rounded-xl bg-purple-500/15 flex items-center justify-center">
+                  <Sparkles className="w-5 h-5 text-purple-500" />
+                </div>
                 AI মেনু ইনসাইটস
               </h2>
-              <p className="text-sm text-muted-foreground">
-                AI-powered ব্যবসায়িক পরামর্শ
+              <p className="text-sm text-muted-foreground mt-1">
+                Gemini AI + রিয়েল ডেটা বিশ্লেষণ — গত ৩০ দিনের তথ্যের উপর ভিত্তি করে
               </p>
+              {lastUpdated && (
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  শেষ আপডেট: {lastUpdated}
+                </p>
+              )}
             </div>
 
-            <Button onClick={loadInsights} disabled={loading} variant="hero">
-              {loading ? 'বিশ্লেষণ হচ্ছে...' : 'ইনসাইটস দেখুন'}
+            <Button onClick={loadInsights} disabled={loading} variant="hero" className="gap-2">
+              {loading ? (
+                <><RefreshCw className="w-4 h-4 animate-spin" /> বিশ্লেষণ হচ্ছে...</>
+              ) : (
+                <><Sparkles className="w-4 h-4" /> {insights ? 'রিফ্রেশ করুন' : 'ইনসাইটস দেখুন'}</>
+              )}
             </Button>
           </div>
 
-          {insights && (
-            <div className="grid gap-6 md:grid-cols-2">
-              {/* Top Performers */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <TrendingUp className="w-5 h-5 text-success" />
-                    শীর্ষ পারফর্মিং আইটেম
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {insights.topPerformers?.length > 0 ? (
-                    <ul className="space-y-2">
-                      {insights.topPerformers.map((itemId: string, i: number) => (
-                        <li key={i} className="flex items-center gap-3">
-                          <span className="w-7 h-7 rounded-full bg-success/20 text-success flex items-center justify-center text-xs font-bold flex-shrink-0">
-                            {i + 1}
-                          </span>
-                          <span className="font-medium">{getItemName(itemId)}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">কোনো ডেটা নেই</p>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* AI Suggestions */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <UtensilsCrossed className="w-5 h-5 text-primary" />
-                    AI পরামর্শ
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {insights.suggestions ? (
-                    <p className="text-sm leading-relaxed">{insights.suggestions}</p>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">কোনো পরামর্শ নেই</p>
-                  )}
-                  {insights.pricingTips && (
-                    <div className="mt-4 p-3 rounded-lg bg-primary/5 border border-primary/20">
-                      <p className="text-sm text-primary">
-                        💡 {insights.pricingTips}
-                      </p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+          {/* Error */}
+          {error && (
+            <div className="bg-destructive/10 border border-destructive/30 rounded-xl p-4 flex items-center gap-3">
+              <AlertTriangle className="w-5 h-5 text-destructive flex-shrink-0" />
+              <p className="text-sm text-destructive">{error}</p>
             </div>
           )}
 
-          {!insights && !loading && (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <Sparkles className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-                <p className="text-muted-foreground mb-4">
-                  "ইনসাইটস দেখুন" বাটনে ক্লিক করুন AI বিশ্লেষণের জন্য
-                </p>
+          {/* Empty State */}
+          {!insights && !loading && !error && (
+            <Card className="border-dashed">
+              <CardContent className="py-16 text-center space-y-4">
+                <div className="w-16 h-16 rounded-2xl bg-purple-500/10 flex items-center justify-center mx-auto">
+                  <Sparkles className="w-8 h-8 text-purple-400" />
+                </div>
+                <div>
+                  <p className="font-semibold text-foreground text-lg">AI বিশ্লেষণ শুরু করুন</p>
+                  <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">
+                    গত ৩০ দিনের অর্ডার ডেটা বিশ্লেষণ করে আপনার মেনু অপ্টিমাইজেশন, মূল্য নির্ধারণ ও বিক্রয় বৃদ্ধির পরামর্শ দেবে।
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2 justify-center text-xs text-muted-foreground">
+                  {['🏆 শীর্ষ আইটেম', '📊 ক্যাটাগরি রিপোর্ট', '⏰ পিক আওয়ার', '💡 AI পরামর্শ', '💰 মূল্য বিশ্লেষণ'].map(t => (
+                    <span key={t} className="bg-secondary px-3 py-1 rounded-full">{t}</span>
+                  ))}
+                </div>
+                <Button onClick={loadInsights} variant="hero" size="lg" className="gap-2 mt-2">
+                  <Sparkles className="w-5 h-5" /> বিশ্লেষণ শুরু করুন
+                </Button>
               </CardContent>
             </Card>
+          )}
+
+          {/* Loading skeleton */}
+          {loading && (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              {[1, 2, 3, 4].map(i => (
+                <div key={i} className="h-28 rounded-2xl bg-secondary/40 animate-pulse" />
+              ))}
+            </div>
+          )}
+
+          {insights && !loading && (
+            <>
+              {/* KPI Row */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <Card className="bg-gradient-to-br from-purple-500/10 to-purple-500/5 border-purple-500/20">
+                  <CardContent className="p-5">
+                    <div className="flex items-center justify-between mb-3">
+                      <ShoppingBag className="w-5 h-5 text-purple-500" />
+                      {insights.revenueGrowth && (
+                        <Badge variant={isGrowthPositive ? 'success' : 'destructive'} className="text-xs">
+                          {isGrowthPositive ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
+                          {insights.revenueGrowth}
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-2xl font-bold text-foreground">{rawOrders.length}</p>
+                    <p className="text-xs text-muted-foreground mt-1">মোট অর্ডার (৩০ দিন)</p>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-gradient-to-br from-success/10 to-success/5 border-success/20">
+                  <CardContent className="p-5">
+                    <div className="flex items-center mb-3">
+                      <DollarSign className="w-5 h-5 text-success" />
+                    </div>
+                    <p className="text-2xl font-bold text-foreground">৳{insights.avgOrderValue}</p>
+                    <p className="text-xs text-muted-foreground mt-1">গড় অর্ডার মূল্য</p>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">
+                  <CardContent className="p-5">
+                    <div className="flex items-center mb-3">
+                      <TrendingUp className="w-5 h-5 text-primary" />
+                    </div>
+                    <p className="text-2xl font-bold text-foreground">{insights.topPerformers.length}</p>
+                    <p className="text-xs text-muted-foreground mt-1">শীর্ষ পারফর্মিং আইটেম</p>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-gradient-to-br from-warning/10 to-warning/5 border-warning/20">
+                  <CardContent className="p-5">
+                    <div className="flex items-center mb-3">
+                      <Clock className="w-5 h-5 text-warning" />
+                    </div>
+                    <p className="text-2xl font-bold text-foreground">{insights.peakHour || 'N/A'}</p>
+                    <p className="text-xs text-muted-foreground mt-1">পিক আওয়ার</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Top & Low Performers */}
+              <div className="grid gap-6 md:grid-cols-2">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <div className="w-7 h-7 rounded-lg bg-success/15 flex items-center justify-center">
+                        <TrendingUp className="w-4 h-4 text-success" />
+                      </div>
+                      শীর্ষ বিক্রীত আইটেম
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {insights.topPerformers.length > 0 ? (
+                      <ul className="space-y-2.5">
+                        {insights.topPerformers.map((id, i) => (
+                          <li key={i} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-secondary/50 transition-colors">
+                            <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+                              i === 0 ? 'bg-warning text-warning-foreground' :
+                              i === 1 ? 'bg-secondary text-foreground' :
+                              i === 2 ? 'bg-orange-600/20 text-orange-600' :
+                              'bg-secondary/50 text-muted-foreground'
+                            }`}>
+                              {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}
+                            </span>
+                            <span className="font-medium text-sm flex-1">{getItemName(id)}</span>
+                            {i === 0 && <Badge variant="outline" className="text-[10px] border-success/40 text-success">বেস্টসেলার</Badge>}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-sm text-muted-foreground text-center py-8">পর্যাপ্ত অর্ডার ডেটা নেই</p>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* AI Suggestions */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <div className="w-7 h-7 rounded-lg bg-purple-500/15 flex items-center justify-center">
+                        <Lightbulb className="w-4 h-4 text-purple-500" />
+                      </div>
+                      AI পরামর্শ
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {insights.suggestions && (
+                      <div className="p-4 rounded-xl bg-purple-500/5 border border-purple-500/20">
+                        <div className="flex items-start gap-2">
+                          <Sparkles className="w-4 h-4 text-purple-500 flex-shrink-0 mt-0.5" />
+                          <p className="text-sm leading-relaxed text-foreground">{insights.suggestions}</p>
+                        </div>
+                      </div>
+                    )}
+                    {insights.pricingTips && (
+                      <div className="p-4 rounded-xl bg-primary/5 border border-primary/20">
+                        <div className="flex items-start gap-2">
+                          <DollarSign className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-xs font-semibold text-primary mb-1">মূল্য পরামর্শ</p>
+                            <p className="text-sm leading-relaxed text-foreground">{insights.pricingTips}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    {insights.lowPerformers && insights.lowPerformers.length > 0 && (
+                      <div className="p-4 rounded-xl bg-warning/5 border border-warning/20">
+                        <div className="flex items-start gap-2">
+                          <AlertTriangle className="w-4 h-4 text-warning flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-xs font-semibold text-warning mb-1">কম বিক্রীত আইটেম</p>
+                            <p className="text-sm text-foreground">
+                              {insights.lowPerformers.map(id => getItemName(id)).join(', ')} — মূল্য কমানো বা প্রচার বাড়ানো বিবেচনা করুন।
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Category Revenue Chart */}
+              {insights.categoryRevenue && insights.categoryRevenue.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <BarChart3 className="w-5 h-5 text-primary" />
+                      ক্যাটাগরি ভিত্তিক আয়
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={280}>
+                      <BarChart data={insights.categoryRevenue} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis dataKey="category" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                        <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} tickFormatter={v => `৳${v}`} />
+                        <Tooltip
+                          contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }}
+                          formatter={(v: any) => [`৳${v}`, 'আয়']}
+                        />
+                        <Bar dataKey="revenue" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} name="আয়" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Hourly Pattern */}
+              {insights.hourlyPattern && insights.hourlyPattern.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <Clock className="w-5 h-5 text-warning" />
+                      ঘণ্টাভিত্তিক অর্ডার প্যাটার্ন
+                      {insights.peakHour && (
+                        <Badge variant="outline" className="ml-auto text-xs border-warning/40 text-warning">
+                          পিক: {insights.peakHour}
+                        </Badge>
+                      )}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={200}>
+                      <BarChart data={insights.hourlyPattern}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis dataKey="hour" stroke="hsl(var(--muted-foreground))" fontSize={11} />
+                        <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} />
+                        <Tooltip
+                          contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }}
+                          formatter={(v: any) => [v, 'অর্ডার']}
+                        />
+                        <Bar dataKey="orders" fill="hsl(38, 90%, 55%)" radius={[4, 4, 0, 0]} name="অর্ডার" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Action Items */}
+              <Card className="border-primary/20 bg-primary/3">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Target className="w-5 h-5 text-primary" />
+                    পরবর্তী পদক্ষেপ
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {[
+                      insights.topPerformers.length > 0 && `🏆 "${getItemName(insights.topPerformers[0])}" আপনার বেস্টসেলার — এটির প্রমোশন বাড়ান এবং সবসময় স্টকে রাখুন`,
+                      insights.peakHour && `⏰ ${insights.peakHour} তে সবচেয়ে বেশি অর্ডার আসে — এই সময় পর্যাপ্ত স্টাফ নিশ্চিত করুন`,
+                      insights.avgOrderValue && insights.avgOrderValue > 0 && `💰 গড় অর্ডার মূল্য ৳${insights.avgOrderValue} — "Add-on" বা কম্বো অফার দিয়ে এটি বাড়ান`,
+                      insights.lowPerformers && insights.lowPerformers.length > 0 && `📉 ${insights.lowPerformers.map(id => `"${getItemName(id)}"`).join(', ')} কম বিক্রি হচ্ছে — মূল্য বা বিবরণ আপডেট করুন`,
+                    ].filter(Boolean).map((tip, i) => (
+                      <div key={i} className="flex items-start gap-3 p-3 rounded-xl bg-secondary/40">
+                        <ChevronRight className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+                        <p className="text-sm text-foreground">{tip as string}</p>
+                      </div>
+                    ))}
+                    {!insights.topPerformers.length && (
+                      <p className="text-sm text-muted-foreground text-center py-4">পর্যাপ্ত ডেটা সংগ্রহ হলে পরামর্শ দেখাবে</p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </>
           )}
         </div>
       </FeatureGate>

@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { User, Store, Save, Loader2, CreditCard, Check, Crown, Copy, AlertCircle, Smartphone, MessageSquare, Bell, Palette, Upload, X, Eye } from "lucide-react";
+import { User, Store, Save, Loader2, CreditCard, Check, Crown, Copy, AlertCircle, Smartphone, MessageSquare, Bell, Palette, Upload, X, Eye, Lock } from "lucide-react";
+import { useFeatureGate } from '@/hooks/useFeatureGate';
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -382,20 +383,14 @@ const AdminSettings = () => {
 
           {/* ── Custom Branding Tab ── */}
           <TabsContent value="branding" className="space-y-4 mt-4">
-            {/* Feature Gate Notice */}
-            <Card className="border-purple-500/30 bg-purple-500/5">
-              <CardContent className="p-4 flex items-center gap-3">
-                <Crown className="w-5 h-5 text-purple-500 flex-shrink-0" />
-                <div>
-                  <p className="text-sm font-semibold text-purple-600">হাই স্মার্ট এক্সক্লুসিভ ফিচার</p>
-                  <p className="text-xs text-muted-foreground">আপনার রেস্টুরেন্টের লোগো, রং এবং ফন্ট কাস্টমাইজ করুন। কাস্টমার মেনুতে আপনার ব্র্যান্ড দেখাবে।</p>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Logo Upload */}
-            <Card>
-              <CardHeader><CardTitle className="font-display text-lg flex items-center gap-2"><Upload className="w-5 h-5 text-primary" /> রেস্টুরেন্ট লোগো</CardTitle></CardHeader>
+            <BrandingGate restaurantId={restaurantId}>
+              {/* Logo Upload */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="font-display text-lg flex items-center gap-2">
+                    <Upload className="w-5 h-5 text-primary" /> রেস্টুরেন্ট লোগো
+                  </CardTitle>
+                </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center gap-4">
                   {/* Preview */}

@@ -39,57 +39,93 @@ const AdminStaff = () => {
     queryFn: async () => {
       if (!restaurantId) return [];
       
+      // Fetch staff_restaurants only (no join to avoid schema cache issues)
       const { data, error } = await supabase
         .from('staff_restaurants')
-        .select(`
-          *,
-          users:user_id (
-            id,
-            email,
-            full_name
-          )
-        `)
+        .select('id, user_id, restaurant_id, role, created_at')
         .eq('restaurant_id', restaurantId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data || [];
+      if (!data || data.length === 0) return [];
+
+      // Fetch profiles separately
+      const userIds = data.map((s: any) => s.user_id);
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .in('id', userIds);
+
+      // Merge
+      return data.map((s: any) => ({
+        ...s,
+        users: profiles?.find((p: any) => p.id === s.user_id) || null,
+      }));
     },
     enabled: !!restaurantId
   });
 
-  // Invite staff mutation
+  // Invite staff mutation — looks up user by email, then creates staff_restaurants entry
   const inviteMutation = useMutation({
     mutationFn: async () => {
       if (!restaurantId) throw new Error('No restaurant');
-      
+      if (!inviteEmail.trim()) throw new Error('ইমেইল দিন');
+
       // Check limit before inviting
       const check = checkBeforeInvite();
       if (!check.allowed) {
         throw new Error(upgradeMessage || 'Staff limit reached. Please upgrade to add more staff.');
       }
 
-      // TODO: In production, this should:
-      // 1. Send an email invitation
-      // 2. Create a pending invitation record
-      // 3. User accepts and creates account
-      // For now, we'll just show a placeholder
+      // 1. Check if admin_invites table has a pending invite for this email
+      // 2. Look up the user in profiles by email
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .eq('email', inviteEmail.trim().toLowerCase())
+        .maybeSingle();
 
-      // Placeholder: Just insert a dummy record
-      // In real implementation, you'd have an invitations table
+      if (profileError) throw profileError;
+
+      if (!profile) {
+        // User not found — insert an admin_invite record so they can sign up
+        const { error: inviteError } = await supabase
+          .from('admin_invites')
+          .insert({
+            email: inviteEmail.trim().toLowerCase(),
+            invited_by: (await supabase.auth.getUser()).data.user?.id,
+            restaurant_name: null,
+            invited_name: inviteEmail.trim(),
+            status: 'pending',
+          });
+        if (inviteError) throw inviteError;
+        throw new Error(`"${inviteEmail}" এই ইমেইলের কোনো অ্যাকাউন্ট নেই। Invite পাঠানো হয়েছে — তারা সাইন আপ করলে যোগ করুন।`);
+      }
+
+      // 3. Check if already a staff member
+      const { data: existing } = await supabase
+        .from('staff_restaurants')
+        .select('id')
+        .eq('restaurant_id', restaurantId)
+        .eq('user_id', profile.id)
+        .maybeSingle();
+
+      if (existing) throw new Error('এই স্টাফ ইতিমধ্যে যোগ করা আছে।');
+
+      // 4. Insert with role
       const { error } = await supabase
         .from('staff_restaurants')
         .insert({
           restaurant_id: restaurantId,
-          user_id: '00000000-0000-0000-0000-000000000000', // Placeholder
-          role: inviteRole
+          user_id: profile.id,
+          role: inviteRole,
         });
 
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['staff', restaurantId] });
-      toast.success('Invitation sent! (Placeholder - real email invitation coming soon)');
+      toast.success(`✅ স্টাফ সফলভাবে যোগ করা হয়েছে!`);
       setShowInviteDialog(false);
       setInviteEmail('');
       setInviteRole('waiter');

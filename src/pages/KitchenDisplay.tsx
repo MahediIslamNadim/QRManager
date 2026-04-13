@@ -62,13 +62,13 @@ const KitchenDisplay = () => {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<string>("");
 
-  // Auto refresh every 30 seconds
+  // Auto refresh every 10 seconds (was 30)
   useEffect(() => {
     if (!autoRefresh) return;
     const interval = setInterval(() => {
       queryClient.invalidateQueries({ queryKey: kitchenQueryKey });
       setLastUpdate(new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-    }, 30000); // 30 seconds
+    }, 10000); // 10 seconds
     return () => clearInterval(interval);
   }, [autoRefresh, queryClient, kitchenQueryKey]);
 

@@ -35,7 +35,7 @@ const AdminMenu = () => {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [sortBy, setSortBy] = useState<'default' | 'popular' | 'price'>('default');
+  const [sortBy, setSortBy] = useState<'default' | 'popular' | 'price' | 'available'>('available');
 
   const { data: menuItemsRaw = [], isLoading } = useQuery({
     queryKey: ["menu-items", restaurantId],
@@ -53,17 +53,26 @@ const AdminMenu = () => {
     enabled: !!restaurantId,
   });
 
-  // Sort menu items
+  // Sort menu items — always push unavailable items to the bottom
   const menuItems = [...menuItemsRaw].sort((a: any, b: any) => {
+    // Available items always come first (unless explicit sort chosen)
+    if (sortBy === 'available') {
+      if (a.available === b.available) return a.sort_order - b.sort_order;
+      return a.available ? -1 : 1; // available first
+    }
     if (sortBy === 'popular') {
+      if (a.available !== b.available) return a.available ? -1 : 1; // unavailable goes bottom
       const aOrders = a.menu_item_metrics?.[0]?.order_count || 0;
       const bOrders = b.menu_item_metrics?.[0]?.order_count || 0;
       return bOrders - aOrders; // Most popular first
     }
     if (sortBy === 'price') {
+      if (a.available !== b.available) return a.available ? -1 : 1;
       return a.price - b.price; // Lowest price first
     }
-    return a.sort_order - b.sort_order; // Default sorting
+    // default
+    if (a.available !== b.available) return a.available ? -1 : 1;
+    return a.sort_order - b.sort_order;
   });
 
   const filtered = activeCategory === "সব" ? menuItems : menuItems.filter((i: any) => i.category === activeCategory);
@@ -192,9 +201,10 @@ const AdminMenu = () => {
               onChange={e => setSortBy(e.target.value as any)}
               className="h-9 rounded-md border border-input bg-background px-3 text-sm"
             >
-              <option value="default">সাজানো ক্রম</option>
+              <option value="available">✅ স্টক আগে</option>
               <option value="popular">🔥 জনপ্রিয়তা</option>
               <option value="price">মূল্য অনুযায়ী</option>
+              <option value="default">সাজানো ক্রম</option>
             </select>
             <span className="text-xs text-muted-foreground bg-secondary px-3 py-1.5 rounded-full">
               {menuItems.length}/{formatLimit(limits.maxMenuItems)} আইটেম
