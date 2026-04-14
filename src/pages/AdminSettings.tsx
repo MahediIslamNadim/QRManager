@@ -22,10 +22,10 @@ const BrandingGate = ({ restaurantId, children }: { restaurantId: string | undef
       </div>
       <div>
         <p className="font-display font-semibold text-lg text-foreground">কাস্টম ব্র্যান্ডিং</p>
-        <p className="text-sm text-muted-foreground mt-1 max-w-sm mx-auto">লোগো, রং এবং ফন্ট কাস্টমাইজ করতে <strong>High Smart</strong> প্ল্যানে আপগ্রেড করুন।</p>
+        <p className="text-sm text-muted-foreground mt-1 max-w-sm mx-auto">লোগো, রং এবং ফন্ট কাস্টমাইজ করতে সাবস্ক্রিপশন সক্রিয় করুন।</p>
       </div>
-      <a href="/settings" className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-purple-600 text-white text-sm font-semibold hover:opacity-90 transition-opacity">
-        👑 High Smart এ আপগ্রেড করুন
+      <a href="/admin/settings" className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-purple-600 text-white text-sm font-semibold hover:opacity-90 transition-opacity">
+        সাবস্ক্রিপশন দেখুন
       </a>
     </div>
   );
@@ -594,16 +594,6 @@ const AdminSettings = () => {
               {brandSaving ? 'সেভ হচ্ছে...' : 'ব্র্যান্ডিং সেভ করুন'}
             </Button>
 
-            <Card className="border-warning/30 bg-warning/5">
-              <CardContent className="p-4">
-                <p className="text-sm font-semibold text-warning mb-1">⚠️ DB Migration প্রয়োজন</p>
-                <p className="text-xs text-muted-foreground mb-2">Supabase SQL Editor এ এই file টি run করুন:</p>
-                <code className="text-xs bg-secondary block p-2 rounded-lg text-foreground">
-                  20260411000001_custom_branding.sql
-                </code>
-                <p className="text-xs text-muted-foreground mt-2">এবং Storage এ <strong>restaurant-logos</strong> নামে একটি public bucket তৈরি করুন।</p>
-              </CardContent>
-            </Card>
             </></BrandingGate>
           </TabsContent>
 
