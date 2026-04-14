@@ -68,7 +68,7 @@ Deno.serve(async (req) => {
     }
     const { action, email, password, full_name, role, restaurant_id, user_id } = parsed;
     const requestedAction = action === "remove" ? "remove" : "add";
-    const allowedRoles = ["admin", "waiter"] as const;
+    const allowedRoles = ["admin", "waiter", "kitchen"] as const;
 
     if (requestedAction === "remove" && typeof user_id !== "string") {
       return new Response(JSON.stringify({ error: "User ID is required" }), {
@@ -324,7 +324,7 @@ Deno.serve(async (req) => {
 
     if (typeof password !== "string" || !password) {
       return new Response(JSON.stringify({
-        error: "No QRManager account found for this email. Ask the staff member to sign up first, then add them again.",
+        error: `"${normalizedEmail}" এই ইমেইলে কোনো অ্যাকাউন্ট নেই। নতুন অ্যাকাউন্ট তৈরি করতে পাসওয়ার্ড দিন।`,
       }), {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

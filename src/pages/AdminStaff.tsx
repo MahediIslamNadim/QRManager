@@ -12,7 +12,7 @@ import { useCanInviteStaff } from "@/hooks/useStaffLimit";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-type StaffRole = "admin" | "waiter";
+type StaffRole = "admin" | "waiter" | "kitchen";
 type StaffMember = {
   id: string;
   user_id: string;
@@ -43,6 +43,8 @@ const AdminStaff = () => {
 
   const [showInviteDialog, setShowInviteDialog] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteFullName, setInviteFullName] = useState("");
+  const [invitePassword, setInvitePassword] = useState("");
   const [inviteRole, setInviteRole] = useState<StaffRole>("waiter");
 
   const { data: staffMembers = [], isLoading } = useQuery<StaffMember[]>({
@@ -111,34 +113,23 @@ const AdminStaff = () => {
       if (!restaurantId) throw new Error("No restaurant");
 
       const normalizedEmail = inviteEmail.trim().toLowerCase();
-      if (!normalizedEmail) throw new Error("Please enter an email address.");
+      if (!normalizedEmail) throw new Error("ইমেইল দিন।");
 
       const check = checkBeforeInvite();
       if (!check.allowed) {
         throw new Error(upgradeMessage || "Staff limit reached. Please upgrade to add more staff.");
       }
 
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("email", normalizedEmail)
-        .maybeSingle();
+      const body: Record<string, string> = {
+        email: normalizedEmail,
+        role: inviteRole,
+        restaurant_id: restaurantId,
+      };
 
-      if (profileError) throw profileError;
+      if (inviteFullName.trim()) body.full_name = inviteFullName.trim();
+      if (invitePassword.trim()) body.password = invitePassword.trim();
 
-      if (!profile) {
-        throw new Error(
-          `No QRManager account was found for "${normalizedEmail}". Ask the staff member to sign up first, then add them again here.`,
-        );
-      }
-
-      const { data, error } = await supabase.functions.invoke("create-staff", {
-        body: {
-          email: normalizedEmail,
-          role: inviteRole,
-          restaurant_id: restaurantId,
-        },
-      });
+      const { data, error } = await supabase.functions.invoke("create-staff", { body });
 
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
@@ -149,15 +140,17 @@ const AdminStaff = () => {
       queryClient.invalidateQueries({ queryKey: ["staff", restaurantId] });
 
       if (result?.already_exists) {
-        toast.success("This staff member is already linked to your restaurant.");
+        toast.success("এই স্টাফ ইতিমধ্যেই যুক্ত আছেন।");
       } else if (result?.role_updated) {
-        toast.success("Staff access was synced and their role was updated.");
+        toast.success("স্টাফের রোল আপডেট হয়েছে।");
       } else {
-        toast.success("Staff member added successfully.");
+        toast.success("স্টাফ সফলভাবে যোগ হয়েছে।");
       }
 
       setShowInviteDialog(false);
       setInviteEmail("");
+      setInviteFullName("");
+      setInvitePassword("");
       setInviteRole("waiter");
     },
     onError: (err: Error) => {
@@ -286,7 +279,7 @@ const AdminStaff = () => {
         <Dialog open={showInviteDialog} onOpenChange={setShowInviteDialog}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Add Staff Member</DialogTitle>
+              <DialogTitle>স্টাফ যোগ করুন</DialogTitle>
             </DialogHeader>
 
             <form
@@ -297,7 +290,7 @@ const AdminStaff = () => {
               className="space-y-4"
             >
               <div>
-                <Label>Email Address</Label>
+                <Label>ইমেইল *</Label>
                 <Input
                   type="email"
                   placeholder="staff@example.com"
@@ -305,20 +298,41 @@ const AdminStaff = () => {
                   onChange={(event) => setInviteEmail(event.target.value)}
                   required
                 />
+              </div>
+
+              <div>
+                <Label>পুরো নাম (ঐচ্ছিক)</Label>
+                <Input
+                  type="text"
+                  placeholder="যেমন: Rahim Uddin"
+                  value={inviteFullName}
+                  onChange={(event) => setInviteFullName(event.target.value)}
+                />
+              </div>
+
+              <div>
+                <Label>পাসওয়ার্ড</Label>
+                <Input
+                  type="password"
+                  placeholder="নতুন স্টাফ হলে পাসওয়ার্ড দিন"
+                  value={invitePassword}
+                  onChange={(event) => setInvitePassword(event.target.value)}
+                />
                 <p className="text-xs text-muted-foreground mt-1">
-                  This email must already belong to a QRManager account. New staff should sign up first.
+                  স্টাফের আগে থেকে অ্যাকাউন্ট থাকলে পাসওয়ার্ড লাগবে না। নতুন হলে পাসওয়ার্ড দিন — অ্যাকাউন্ট তৈরি হয়ে যাবে।
                 </p>
               </div>
 
               <div>
-                <Label>Role</Label>
+                <Label>ভূমিকা</Label>
                 <select
                   value={inviteRole}
                   onChange={(event) => setInviteRole(event.target.value as StaffRole)}
                   className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
                 >
-                  <option value="waiter">Waiter - Can take orders and manage tables</option>
-                  <option value="admin">Admin - Full access to staff-facing features</option>
+                  <option value="waiter">ওয়েটার — অর্ডার ও টেবিল পরিচালনা</option>
+                  <option value="kitchen">কিচেন — রান্নাঘরের ডিসপ্লে দেখতে পারবে</option>
+                  <option value="admin">অ্যাডমিন — সব ফিচারে পূর্ণ অ্যাক্সেস</option>
                 </select>
               </div>
 
@@ -328,7 +342,7 @@ const AdminStaff = () => {
                 className="w-full"
                 disabled={inviteMutation.isPending}
               >
-                {inviteMutation.isPending ? "Adding..." : "Add Staff Member"}
+                {inviteMutation.isPending ? "যোগ হচ্ছে..." : "স্টাফ যোগ করুন"}
               </Button>
             </form>
           </DialogContent>
@@ -341,7 +355,7 @@ const AdminStaff = () => {
             <CardContent className="py-12 text-center">
               <Users className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
               <p className="text-muted-foreground mb-4">
-                No staff members yet. Add someone who already has a QRManager account to get started.
+                এখনো কোনো স্টাফ নেই। স্টাফ যোগ করুন।
               </p>
               <Button onClick={() => setShowInviteDialog(true)} variant="outline">
                 <UserPlus className="w-4 h-4 mr-2" />
