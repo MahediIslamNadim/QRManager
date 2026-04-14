@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, createContext, useContext, ReactNode, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { createAuthedSupabaseClient, supabase } from "@/integrations/supabase/client";
 import { User } from "@supabase/supabase-js";
 
 interface AuthContextType {
@@ -38,11 +38,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (fetchingRef.current === userId) return;
     fetchingRef.current = userId;
     try {
-      const { data: roleRow } = await supabase
+      let { data: roleRow, error: roleError } = await supabase
         .from("user_roles")
         .select("role")
         .eq("user_id", userId)
         .order("role");
+
+      if ((!roleRow || roleRow.length === 0) && !roleError) {
+        const { data: { session } } = await supabase.auth.getSession();
+
+        // signInWithPassword resolves before the shared PostgREST client always switches
+        // from anon to the new bearer token. Retry through a one-off authed client so RLS
+        // can evaluate this user's own role row immediately after login.
+        if (session?.access_token && session.user.id === userId) {
+          const authedClient = createAuthedSupabaseClient(session.access_token);
+          const retry = await authedClient
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", userId)
+            .order("role");
+
+          roleRow = retry.data;
+          roleError = retry.error;
+        }
+      }
+
+      if (roleError) {
+        console.warn("Role fetch error:", roleError.message);
+      }
 
       const roles = (roleRow || []).map((r: any) => r.role);
       const superCheck = { data: roles.includes("super_admin") };

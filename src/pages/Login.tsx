@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { createAuthedSupabaseClient, supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import {
@@ -10,6 +10,7 @@ import {
 import { APP_NAME, COMPANY_NAME, FREE_TRIAL_DAYS } from "@/constants/app";
 
 type Mode = "login" | "signup" | "forgot" | "forgot_sent";
+type RedirectRole = "super_admin" | "admin" | "waiter";
 
 /**
  * Wait for session to be fully propagated in Supabase client
@@ -27,6 +28,26 @@ const waitForSession = async (maxAttempts = 5): Promise<boolean> => {
   return false;
 };
 
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const pickRedirectRole = (
+  roleRows: Array<{ role: string }> | null | undefined,
+): RedirectRole | null => {
+  const roles = new Set((roleRows || []).map((row) => row.role));
+
+  if (roles.has("super_admin")) return "super_admin";
+  if (roles.has("admin")) return "admin";
+  if (roles.has("waiter")) return "waiter";
+  return null;
+};
+
+const getRedirectPath = (resolvedRole: RedirectRole, inviteId: string | null) => {
+  if (resolvedRole === "super_admin") return "/super-admin";
+  if (resolvedRole === "waiter") return "/waiter";
+  if (inviteId) return `/admin-setup?invite=${inviteId}`;
+  return "/admin";
+};
+
 const Login = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -42,6 +63,36 @@ const Login = () => {
   const [restaurantPhone, setRestaurantPhone] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  const resolveRoleForRedirect = async (
+    userId: string,
+    accessToken: string,
+    maxAttempts = 6,
+  ): Promise<RedirectRole | null> => {
+    const authedClient = createAuthedSupabaseClient(accessToken);
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const { data: roleRows, error: roleError } = await authedClient
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .order("role");
+
+      if (roleError) {
+        console.warn("Login role lookup failed:", roleError.message);
+      }
+
+      const resolvedRole = pickRedirectRole(roleRows as Array<{ role: string }> | null | undefined);
+      if (resolvedRole) {
+        await refetchUserData(userId);
+        return resolvedRole;
+      }
+
+      await wait(250);
+    }
+
+    return null;
+  };
 
   useEffect(() => {
     // Wait until auth is fully resolved AND a role has been assigned.
@@ -154,9 +205,38 @@ const Login = () => {
           setMode("login");
         }
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+        const { data: signInData, error } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password,
+        });
         if (error) throw error;
         toast.success("স্বাগতম!");
+
+        const sessionReady = await waitForSession();
+        if (!sessionReady) {
+          throw new Error("Login succeeded, but the session is still loading. Please try again.");
+        }
+
+        const { data: { session } } = await supabase.auth.getSession();
+        const currentUser = session?.user || signInData.user;
+
+        if (!currentUser) {
+          throw new Error("Login succeeded, but we couldn't load your account session. Please try again.");
+        }
+
+        const accessToken = session?.access_token || signInData.session?.access_token;
+        if (!accessToken) {
+          throw new Error("Login succeeded, but the access token is not ready yet. Please try again.");
+        }
+
+        const resolvedRole = await resolveRoleForRedirect(currentUser.id, accessToken);
+        if (!resolvedRole) {
+          toast.error("Login succeeded, but no usable account role was found for this user.");
+          return;
+        }
+
+        navigate(getRedirectPath(resolvedRole, inviteId), { replace: true });
+        return;
       }
     } catch (err: any) {
       console.error("Auth error:", err);
