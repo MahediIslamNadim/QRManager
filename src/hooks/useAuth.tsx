@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, createContext, useContext, ReactNode, useCallback } from "react";
-import { createAuthedSupabaseClient, supabase } from "@/integrations/supabase/client";
 import { User } from "@supabase/supabase-js";
+import { createAuthedSupabaseClient, supabase } from "@/integrations/supabase/client";
+import { authDebug } from "@/lib/authDebug";
 
 interface AuthContextType {
   user: User | null;
@@ -10,7 +11,7 @@ interface AuthContextType {
   loading: boolean;
   trialExpired: boolean;
   signOut: () => Promise<void>;
-  refetchUserData: (userId: string) => Promise<void>;
+  refetchUserData: (userId: string, accessToken?: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -31,129 +32,269 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [restaurantPlan, setRestaurantPlan] = useState("basic");
   const [loading, setLoading] = useState(true);
   const [trialExpired, setTrialExpired] = useState(false);
-  // Prevent double-fetch: track the userId currently being fetched
-  const fetchingRef = useRef<string | null>(null);
-  const fetchUserData = useCallback(async (userId: string) => {
-    // Skip if already fetching for this user — but don't block if loading needs update
-    if (fetchingRef.current === userId) return;
-    fetchingRef.current = userId;
-    try {
-      let { data: roleRow, error: roleError } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userId)
-        .order("role");
+  const fetchingRef = useRef<{ promise: Promise<void>; userId: string } | null>(null);
 
-      if ((!roleRow || roleRow.length === 0) && !roleError) {
-        const { data: { session } } = await supabase.auth.getSession();
+  const fetchUserData = useCallback(async (userId: string, accessToken?: string) => {
+    if (fetchingRef.current?.userId === userId) {
+      authDebug("useAuth", "Awaiting in-flight fetchUserData call", { userId });
+      return fetchingRef.current.promise;
+    }
 
-        // signInWithPassword resolves before the shared PostgREST client always switches
-        // from anon to the new bearer token. Retry through a one-off authed client so RLS
-        // can evaluate this user's own role row immediately after login.
-        if (session?.access_token && session.user.id === userId) {
-          const authedClient = createAuthedSupabaseClient(session.access_token);
-          const retry = await authedClient
+    const fetchPromise = (async () => {
+      authDebug("useAuth", "Starting fetchUserData", {
+        hasAccessToken: Boolean(accessToken),
+        userId,
+      });
+
+      try {
+        let authedClient = accessToken
+          ? createAuthedSupabaseClient(accessToken)
+          : null;
+
+        const getAuthedClient = async () => {
+          if (authedClient) return authedClient;
+
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.access_token && session.user.id === userId) {
+            authedClient = createAuthedSupabaseClient(session.access_token);
+          }
+
+          return authedClient;
+        };
+
+        let { data: roleRows, error: roleError } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", userId)
+          .order("role");
+
+        authDebug("useAuth", "Initial user_roles query finished", {
+          error: roleError?.message ?? null,
+          roles: roleRows?.map((row: any) => row.role) ?? [],
+          rowCount: roleRows?.length ?? 0,
+          userId,
+        });
+
+        const roleRetryClient = await getAuthedClient();
+        if (roleRetryClient && ((!roleRows || roleRows.length === 0) || roleError)) {
+          const retry = await roleRetryClient
             .from("user_roles")
             .select("role")
             .eq("user_id", userId)
             .order("role");
 
-          roleRow = retry.data;
+          roleRows = retry.data;
           roleError = retry.error;
+
+          authDebug("useAuth", "Retried user_roles query with explicit bearer token", {
+            error: roleError?.message ?? null,
+            roles: roleRows?.map((row: any) => row.role) ?? [],
+            rowCount: roleRows?.length ?? 0,
+            userId,
+          });
         }
-      }
 
-      if (roleError) {
-        console.warn("Role fetch error:", roleError.message);
-      }
-
-      const roles = (roleRow || []).map((r: any) => r.role);
-      const superCheck = { data: roles.includes("super_admin") };
-      const adminCheck = { data: roles.includes("admin") };
-      const waiterCheck = { data: roles.includes("waiter") };
-
-      // Default null — a user with no role in user_roles gets no access.
-      // Previously defaulted to "admin" which allowed roleless users into admin flows.
-      let bestRole: string | null = null;
-      if (superCheck.data === true) bestRole = "super_admin";
-      else if (adminCheck.data === true) bestRole = "admin";
-      else if (waiterCheck.data === true) bestRole = "waiter";
-      setRole(bestRole);
-
-      let foundRestId: string | null = null;
-
-      // 1️⃣ RPC lookup
-      try {
-        const { data: restId, error: rpcError } = await supabase
-          .rpc("get_user_restaurant_id", { _user_id: userId });
-        if (rpcError) console.warn("get_user_restaurant_id RPC error:", rpcError.message);
-        if (restId) {
-          foundRestId = restId;
-          setRestaurantId(restId);
+        if (roleError) {
+          console.warn("Role fetch error:", roleError.message);
         }
-      } catch (e) {
-        console.warn("get_user_restaurant_id failed:", e);
-      }
 
-      // 2️⃣ owner_id lookup
-      if (!foundRestId) {
-        const { data: restaurants } = await supabase
-          .from("restaurants")
-          .select("id")
-          .eq("owner_id", userId)
-          .limit(1);
-        if (restaurants && restaurants.length > 0) {
-          foundRestId = restaurants[0].id;
-          setRestaurantId(restaurants[0].id);
+        const roles = (roleRows || []).map((row: any) => row.role);
+        let bestRole: string | null = null;
+
+        if (roles.includes("super_admin")) bestRole = "super_admin";
+        else if (roles.includes("admin")) bestRole = "admin";
+        else if (roles.includes("waiter")) bestRole = "waiter";
+        else if (roles.includes("kitchen")) bestRole = "kitchen";
+
+        setRole(bestRole);
+        authDebug("useAuth", "Resolved app role from user_roles", {
+          resolvedRole: bestRole,
+          roles,
+          userId,
+        });
+
+        let foundRestaurantId: string | null = null;
+
+        try {
+          let { data: restId, error: rpcError } = await supabase
+            .rpc("get_user_restaurant_id", { _user_id: userId });
+
+          authDebug("useAuth", "RPC restaurant lookup finished", {
+            error: rpcError?.message ?? null,
+            restaurantId: restId ?? null,
+            userId,
+          });
+
+          const rpcRetryClient = await getAuthedClient();
+          if (rpcRetryClient && (!restId || rpcError)) {
+            const retry = await rpcRetryClient
+              .rpc("get_user_restaurant_id", { _user_id: userId });
+
+            restId = retry.data;
+            rpcError = retry.error;
+
+            authDebug("useAuth", "Retried RPC restaurant lookup with explicit bearer token", {
+              error: rpcError?.message ?? null,
+              restaurantId: restId ?? null,
+              userId,
+            });
+          }
+
+          if (rpcError) console.warn("get_user_restaurant_id RPC error:", rpcError.message);
+          if (restId) {
+            foundRestaurantId = restId;
+            setRestaurantId(restId);
+          }
+        } catch (error) {
+          console.warn("get_user_restaurant_id failed:", error);
         }
-      }
 
-      // ✅ 3️⃣ staff_restaurants lookup — .maybeSingle() ব্যবহার করা হয়েছে
-      if (!foundRestId) {
-        const { data: staffRow } = await supabase
-          .from("staff_restaurants" as any)
-          .select("restaurant_id")
-          .eq("user_id", userId)
-          .limit(1)
-          .maybeSingle();
-        if (staffRow && (staffRow as any).restaurant_id) {
-          foundRestId = (staffRow as any).restaurant_id;
-          setRestaurantId((staffRow as any).restaurant_id);
+        if (!foundRestaurantId) {
+          let { data: ownerRestaurants, error: ownerError } = await supabase
+            .from("restaurants")
+            .select("id")
+            .eq("owner_id", userId)
+            .limit(1);
+
+          authDebug("useAuth", "Owner restaurant lookup finished", {
+            error: ownerError?.message ?? null,
+            rowCount: ownerRestaurants?.length ?? 0,
+            userId,
+          });
+
+          const ownerRetryClient = await getAuthedClient();
+          if (ownerRetryClient && ((!ownerRestaurants || ownerRestaurants.length === 0) || ownerError)) {
+            const retry = await ownerRetryClient
+              .from("restaurants")
+              .select("id")
+              .eq("owner_id", userId)
+              .limit(1);
+
+            ownerRestaurants = retry.data;
+            ownerError = retry.error;
+
+            authDebug("useAuth", "Retried owner restaurant lookup with explicit bearer token", {
+              error: ownerError?.message ?? null,
+              rowCount: ownerRestaurants?.length ?? 0,
+              userId,
+            });
+          }
+
+          if (ownerRestaurants && ownerRestaurants.length > 0) {
+            foundRestaurantId = ownerRestaurants[0].id;
+            setRestaurantId(ownerRestaurants[0].id);
+          }
         }
-      }
 
-      // Check trial expiry and plan
-      if (foundRestId) {
-        const { data: restaurant, error: restError } = await supabase
-          .from("restaurants")
-          .select("trial_ends_at, status, plan, subscription_status, tier")
-          .eq("id", foundRestId)
-          .single();
-        if (restError) console.warn("Restaurant fetch error:", restError.message);
+        if (!foundRestaurantId) {
+          let { data: staffRow, error: staffError } = await supabase
+            .from("staff_restaurants" as any)
+            .select("restaurant_id")
+            .eq("user_id", userId)
+            .limit(1)
+            .maybeSingle();
 
-        if (restaurant) {
-          setRestaurantPlan(restaurant.tier || restaurant.plan || "basic");
+          authDebug("useAuth", "Staff restaurant lookup finished", {
+            error: staffError?.message ?? null,
+            restaurantId: (staffRow as any)?.restaurant_id ?? null,
+            userId,
+          });
 
-          if (bestRole === "admin") {
-            const subStatus = restaurant.subscription_status || "trial";
-            const trialEnded = subStatus === "expired" || subStatus === "cancelled" ||
-              (restaurant.trial_ends_at
-                ? new Date() > new Date(restaurant.trial_ends_at) && subStatus !== "active"
-                : false);
-            setTrialExpired(trialEnded);
+          const staffRetryClient = await getAuthedClient();
+          if (staffRetryClient && (!(staffRow as any)?.restaurant_id || staffError)) {
+            const retry = await staffRetryClient
+              .from("staff_restaurants" as any)
+              .select("restaurant_id")
+              .eq("user_id", userId)
+              .limit(1)
+              .maybeSingle();
+
+            staffRow = retry.data;
+            staffError = retry.error;
+
+            authDebug("useAuth", "Retried staff restaurant lookup with explicit bearer token", {
+              error: staffError?.message ?? null,
+              restaurantId: (staffRow as any)?.restaurant_id ?? null,
+              userId,
+            });
+          }
+
+          if (staffRow && (staffRow as any).restaurant_id) {
+            foundRestaurantId = (staffRow as any).restaurant_id;
+            setRestaurantId((staffRow as any).restaurant_id);
+          }
+        }
+
+        if (!foundRestaurantId) {
+          setRestaurantId(null);
+          setRestaurantPlan("basic");
+        }
+
+        authDebug("useAuth", "Resolved restaurant context", {
+          resolvedRestaurantId: foundRestaurantId,
+          userId,
+        });
+
+        if (foundRestaurantId) {
+          let { data: restaurant, error: restaurantError } = await supabase
+            .from("restaurants")
+            .select("trial_ends_at, status, plan, subscription_status, tier")
+            .eq("id", foundRestaurantId)
+            .single();
+
+          const restaurantRetryClient = await getAuthedClient();
+          if (restaurantRetryClient && (!restaurant || restaurantError)) {
+            const retry = await restaurantRetryClient
+              .from("restaurants")
+              .select("trial_ends_at, status, plan, subscription_status, tier")
+              .eq("id", foundRestaurantId)
+              .single();
+
+            restaurant = retry.data;
+            restaurantError = retry.error;
+
+            authDebug("useAuth", "Retried restaurant plan lookup with explicit bearer token", {
+              error: restaurantError?.message ?? null,
+              restaurantId: foundRestaurantId,
+              userId,
+            });
+          }
+
+          if (restaurantError) {
+            console.warn("Restaurant fetch error:", restaurantError.message);
+          }
+
+          if (restaurant) {
+            setRestaurantPlan(restaurant.tier || restaurant.plan || "basic");
+
+            if (bestRole === "admin") {
+              const subStatus = restaurant.subscription_status || "trial";
+              const trialEnded = subStatus === "expired" || subStatus === "cancelled" ||
+                (restaurant.trial_ends_at
+                  ? new Date() > new Date(restaurant.trial_ends_at) && subStatus !== "active"
+                  : false);
+              setTrialExpired(trialEnded);
+            } else {
+              setTrialExpired(false);
+            }
           } else {
             setTrialExpired(false);
           }
+        } else {
+          setTrialExpired(false);
         }
-      } else {
-        setTrialExpired(false);
+      } catch (error) {
+        console.error("fetchUserData error:", error);
+      } finally {
+        if (fetchingRef.current?.userId === userId) {
+          fetchingRef.current = null;
+        }
+        authDebug("useAuth", "Finished fetchUserData", { userId });
       }
-    } catch (err) {
-      console.error("fetchUserData error:", err);
-    } finally {
-      // Clear fetching lock after done
-      if (fetchingRef.current === userId) fetchingRef.current = null;
-    }
+    })();
+
+    fetchingRef.current = { promise: fetchPromise, userId };
+    return fetchPromise;
   }, []);
 
   useEffect(() => {
@@ -163,43 +304,52 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser(null);
       setRole(null);
       setRestaurantId(null);
+      setRestaurantPlan("basic");
       setTrialExpired(false);
     };
 
-    // Use getSession() as the single source of truth on mount.
-    // onAuthStateChange handles subsequent sign-in/sign-out events only.
     supabase.auth.getSession().then(({ data: { session } }) => {
+      authDebug("useAuth", "Initial auth session check finished", {
+        hasSession: Boolean(session),
+        userId: session?.user.id ?? null,
+      });
+
       if (!mounted) return;
+
       if (session?.user) {
         setUser(session.user);
-        fetchUserData(session.user.id).then(() => {
+        fetchUserData(session.user.id, session.access_token).then(() => {
           if (mounted) setLoading(false);
         });
       } else {
-        if (mounted) setLoading(false);
+        setLoading(false);
       }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        if (!mounted) return;
-        // SIGNED_IN after initial load or TOKEN_REFRESHED — re-fetch user data
-        if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
-          if (session?.user) {
-            setLoading(true);
-            setUser(session.user);
-            // SIGNED_IN এ lock রিসেট করো যাতে getSession ও SIGNED_IN রেস হলে ব্লক না হয়
-            fetchingRef.current = null;
-            fetchUserData(session.user.id).then(() => {
-              if (mounted) setLoading(false);
-            });
-          }
-        } else if (event === "SIGNED_OUT") {
-          clearUser();
-          setLoading(false);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      authDebug("useAuth", "Supabase auth state change", {
+        event,
+        hasSession: Boolean(session),
+        userId: session?.user.id ?? null,
+      });
+
+      if (!mounted) return;
+
+      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+        if (session?.user) {
+          setLoading(true);
+          setUser(session.user);
+          fetchingRef.current = null;
+          fetchUserData(session.user.id, session.access_token).then(() => {
+            if (mounted) setLoading(false);
+          });
         }
+      } else if (event === "SIGNED_OUT") {
+        authDebug("useAuth", "Clearing auth context after sign-out");
+        clearUser();
+        setLoading(false);
       }
-    );
+    });
 
     return () => {
       mounted = false;
@@ -212,7 +362,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, role, restaurantId, restaurantPlan, loading, trialExpired, signOut, refetchUserData: fetchUserData }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        role,
+        restaurantId,
+        restaurantPlan,
+        loading,
+        trialExpired,
+        signOut,
+        refetchUserData: fetchUserData,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { createAuthedSupabaseClient, supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { authDebug, clearPendingLoginRedirect, setPendingLoginRedirect } from "@/lib/authDebug";
 import { toast } from "sonner";
 import {
   Eye, EyeOff, ArrowRight,
@@ -10,7 +11,7 @@ import {
 import { APP_NAME, COMPANY_NAME, FREE_TRIAL_DAYS } from "@/constants/app";
 
 type Mode = "login" | "signup" | "forgot" | "forgot_sent";
-type RedirectRole = "super_admin" | "admin" | "waiter";
+type RedirectRole = "super_admin" | "admin" | "waiter" | "kitchen";
 
 /**
  * Wait for session to be fully propagated in Supabase client
@@ -38,12 +39,14 @@ const pickRedirectRole = (
   if (roles.has("super_admin")) return "super_admin";
   if (roles.has("admin")) return "admin";
   if (roles.has("waiter")) return "waiter";
+  if (roles.has("kitchen")) return "kitchen";
   return null;
 };
 
 const getRedirectPath = (resolvedRole: RedirectRole, inviteId: string | null) => {
   if (resolvedRole === "super_admin") return "/super-admin";
   if (resolvedRole === "waiter") return "/waiter";
+  if (resolvedRole === "kitchen") return "/admin/kitchen";
   if (inviteId) return `/admin-setup?invite=${inviteId}`;
   return "/admin";
 };
@@ -52,7 +55,7 @@ const Login = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const inviteId = searchParams.get("invite");
-  const { user, role, loading, refetchUserData } = useAuth();
+  const { user, role, loading, restaurantId, refetchUserData } = useAuth();
 
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
@@ -78,32 +81,71 @@ const Login = () => {
         .eq("user_id", userId)
         .order("role");
 
+      const resolvedRole = pickRedirectRole(roleRows as Array<{ role: string }> | null | undefined);
+      authDebug("Login", "Direct role lookup attempt finished", {
+        attempt: attempt + 1,
+        error: roleError?.message ?? null,
+        resolvedRole,
+        roles: roleRows?.map((row) => row.role) ?? [],
+        rowCount: roleRows?.length ?? 0,
+        userId,
+      });
+
       if (roleError) {
         console.warn("Login role lookup failed:", roleError.message);
       }
 
-      const resolvedRole = pickRedirectRole(roleRows as Array<{ role: string }> | null | undefined);
       if (resolvedRole) {
-        await refetchUserData(userId);
+        await refetchUserData(userId, accessToken);
+        authDebug("Login", "Context sync completed after direct role lookup", {
+          resolvedRole,
+          userId,
+        });
         return resolvedRole;
       }
 
       await wait(250);
     }
 
+    authDebug("Login", "Direct role lookup exhausted all attempts without a usable role", {
+      maxAttempts,
+      userId,
+    });
     return null;
   };
+
+  useEffect(() => {
+    authDebug("Login", "Auth context snapshot changed", {
+      inviteId,
+      loading,
+      resolvedRole: role,
+      restaurantId,
+      userId: user?.id ?? null,
+    });
+  }, [inviteId, loading, restaurantId, role, user?.id]);
 
   useEffect(() => {
     // Wait until auth is fully resolved AND a role has been assigned.
     // role=null means fetchUserData either hasn't finished or found no role row yet —
     // navigating early would send the user to /login in an infinite loop.
     if (loading || !user || !role) return;
-    if (role === "super_admin") navigate("/super-admin", { replace: true });
-    else if (role === "waiter") navigate("/waiter", { replace: true });
-    else if (inviteId) navigate(`/admin-setup?invite=${inviteId}`, { replace: true });
-    else navigate("/admin", { replace: true });
-  }, [user, role, loading, navigate, inviteId]);
+
+    const target = getRedirectPath(role as RedirectRole, inviteId);
+    authDebug("Login", "Context-based redirect branch chosen", {
+      inviteId,
+      resolvedRole: role,
+      restaurantId,
+      target,
+      userId: user.id,
+    });
+    setPendingLoginRedirect({
+      inviteId,
+      role,
+      target,
+      userId: user.id,
+    });
+    navigate(target, { replace: true });
+  }, [user, role, loading, navigate, inviteId, restaurantId]);
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -124,6 +166,12 @@ const Login = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    clearPendingLoginRedirect();
+    authDebug("Login", "Auth form submitted", {
+      inviteId,
+      mode,
+      userEmail: email.trim(),
+    });
     if (!email.trim() || !password.trim()) { toast.error("সব ফিল্ড পূরণ করুন"); return; }
     if (mode === "signup" && !restaurantName.trim()) { toast.error("রেস্টুরেন্টের নাম দিন"); return; }
     setSubmitting(true);
@@ -197,7 +245,7 @@ const Login = () => {
           // so fetchUserData ran against an empty user_roles table → role stayed null.
           // Explicitly re-fetch user data now that the role row exists; this updates
           // role in context which triggers the navigation useEffect above.
-          if (data.user) await refetchUserData(data.user.id);
+          if (data.user) await refetchUserData(data.user.id, data.session.access_token);
         } else {
           // data.session is null → Supabase email confirmation is enabled.
           // The user exists in auth but is not yet logged in — they must confirm first.
@@ -210,36 +258,72 @@ const Login = () => {
           password,
         });
         if (error) throw error;
+        authDebug("Login", "signInWithPassword succeeded", {
+          hasReturnedSession: Boolean(signInData.session),
+          userId: signInData.user?.id ?? null,
+        });
         toast.success("স্বাগতম!");
 
         const sessionReady = await waitForSession();
+        authDebug("Login", "waitForSession completed", { sessionReady });
         if (!sessionReady) {
           throw new Error("Login succeeded, but the session is still loading. Please try again.");
         }
 
         const { data: { session } } = await supabase.auth.getSession();
         const currentUser = session?.user || signInData.user;
+        authDebug("Login", "Session lookup after sign-in finished", {
+          hasSession: Boolean(session),
+          sessionUserId: session?.user.id ?? null,
+          userId: currentUser?.id ?? null,
+        });
 
         if (!currentUser) {
           throw new Error("Login succeeded, but we couldn't load your account session. Please try again.");
         }
 
         const accessToken = session?.access_token || signInData.session?.access_token;
+        authDebug("Login", "Access token availability checked", {
+          hasAccessToken: Boolean(accessToken),
+          userId: currentUser.id,
+        });
         if (!accessToken) {
           throw new Error("Login succeeded, but the access token is not ready yet. Please try again.");
         }
 
         const resolvedRole = await resolveRoleForRedirect(currentUser.id, accessToken);
+        authDebug("Login", "Direct role resolution completed", {
+          resolvedRole,
+          userId: currentUser.id,
+        });
         if (!resolvedRole) {
           toast.error("Login succeeded, but no usable account role was found for this user.");
           return;
         }
 
-        navigate(getRedirectPath(resolvedRole, inviteId), { replace: true });
+        const target = getRedirectPath(resolvedRole, inviteId);
+        authDebug("Login", "Fallback redirect target chosen", {
+          inviteId,
+          resolvedRole,
+          target,
+          userId: currentUser.id,
+        });
+        setPendingLoginRedirect({
+          inviteId,
+          role: resolvedRole,
+          target,
+          userId: currentUser.id,
+        });
+        navigate(target, { replace: true });
         return;
       }
     } catch (err: any) {
       console.error("Auth error:", err);
+      authDebug("Login", "Auth form submission failed", {
+        error: err?.message ?? String(err),
+        inviteId,
+        mode,
+      });
       toast.error(err.message || "প্রমাণীকরণ ব্যর্থ");
     } finally {
       setSubmitting(false);

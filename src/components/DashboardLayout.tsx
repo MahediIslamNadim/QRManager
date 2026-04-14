@@ -1,4 +1,4 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import DashboardSidebar from "./DashboardSidebar";
 import NotificationBell from "./NotificationBell";
 import { Menu } from "lucide-react";
@@ -6,8 +6,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { useTrialStatus } from "@/hooks/useTrialStatus";
 import TrialWarningBanner from "@/components/TrialWarningBanner";
 import TrialExpiredModal from "@/components/TrialExpiredModal";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { authDebug, clearPendingLoginRedirect, getPendingLoginRedirect } from "@/lib/authDebug";
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -18,6 +19,7 @@ interface DashboardLayoutProps {
 const DashboardLayout = ({ children, role, title }: DashboardLayoutProps) => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
   const { restaurantId } = useAuth();
   
   // Trial status check
@@ -38,6 +40,26 @@ const DashboardLayout = ({ children, role, title }: DashboardLayoutProps) => {
     await supabase.auth.signOut();
     navigate('/login');
   };
+
+  useEffect(() => {
+    const pendingRedirect = getPendingLoginRedirect();
+
+    authDebug("DashboardLayout", "Dashboard layout rendered", {
+      path: location.pathname,
+      pendingRedirect,
+      resolvedRole: role,
+      restaurantId,
+      title,
+    });
+
+    if (pendingRedirect) {
+      authDebug("DashboardLayout", "Clearing pending login redirect after dashboard render", {
+        path: location.pathname,
+        pendingRedirect,
+      });
+      clearPendingLoginRedirect();
+    }
+  }, [location.pathname, restaurantId, role, title]);
 
   return (
     <div className="flex min-h-screen bg-background">
