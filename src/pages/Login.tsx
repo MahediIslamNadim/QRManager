@@ -107,11 +107,11 @@ const Login = () => {
       await wait(250);
     }
 
-    // Fallback: check staff_restaurants directly (user_roles row may be missing)
+    // Fallback 1: check staff_restaurants (waiter / kitchen / admin staff)
     authDebug("Login", "user_roles exhausted — falling back to staff_restaurants", { userId });
     const { data: staffRow } = await authedClient
       .from("staff_restaurants" as any)
-      .select("role")
+      .select("role, restaurant_id")
       .eq("user_id", userId)
       .limit(1)
       .maybeSingle();
@@ -122,7 +122,6 @@ const Login = () => {
     if (staffRole) {
       const fallbackRole = pickRedirectRole([{ role: staffRole }]);
       if (fallbackRole) {
-        // Sync user_roles row so future logins work without fallback
         await (authedClient.from("user_roles") as any).upsert(
           { user_id: userId, role: staffRole, restaurant_id: (staffRow as any)?.restaurant_id ?? null },
           { onConflict: "user_id,role" }
@@ -132,10 +131,26 @@ const Login = () => {
       }
     }
 
-    authDebug("Login", "Direct role lookup exhausted all attempts without a usable role", {
-      maxAttempts,
-      userId,
-    });
+    // Fallback 2: check restaurants ownership (owner = admin)
+    authDebug("Login", "staff_restaurants fallback empty — checking restaurants owner", { userId });
+    const { data: ownedRestaurant } = await authedClient
+      .from("restaurants")
+      .select("id")
+      .eq("owner_id", userId)
+      .limit(1)
+      .maybeSingle();
+
+    if (ownedRestaurant?.id) {
+      authDebug("Login", "User owns a restaurant — assigning admin role", { userId });
+      await (authedClient.from("user_roles") as any).upsert(
+        { user_id: userId, role: "admin", restaurant_id: ownedRestaurant.id },
+        { onConflict: "user_id,role" }
+      );
+      await refetchUserData(userId, accessToken);
+      return "admin";
+    }
+
+    authDebug("Login", "All role fallbacks exhausted", { maxAttempts, userId });
     return null;
   };
 

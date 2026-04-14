@@ -106,6 +106,46 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         else if (roles.includes("waiter")) bestRole = "waiter";
         else if (roles.includes("kitchen")) bestRole = "kitchen";
 
+        // Fallback: if user_roles is empty, infer role from other tables
+        if (!bestRole) {
+          const retryClient = await getAuthedClient();
+          const client = retryClient ?? supabase;
+
+          // Check staff_restaurants
+          const { data: staffFallback } = await (client.from("staff_restaurants") as any)
+            .select("role, restaurant_id")
+            .eq("user_id", userId)
+            .limit(1)
+            .maybeSingle();
+
+          if (staffFallback?.role) {
+            bestRole = staffFallback.role as string;
+            authDebug("useAuth", "Role resolved from staff_restaurants fallback", { bestRole, userId });
+            // Backfill user_roles so future fetches don't need fallback
+            await (client.from("user_roles") as any).upsert(
+              { user_id: userId, role: staffFallback.role, restaurant_id: staffFallback.restaurant_id ?? null },
+              { onConflict: "user_id,role" }
+            );
+          } else {
+            // Check restaurant ownership (owner = admin)
+            const { data: ownedRest } = await client
+              .from("restaurants")
+              .select("id")
+              .eq("owner_id", userId)
+              .limit(1)
+              .maybeSingle();
+
+            if (ownedRest?.id) {
+              bestRole = "admin";
+              authDebug("useAuth", "Role resolved from restaurant ownership fallback", { userId });
+              await (client.from("user_roles") as any).upsert(
+                { user_id: userId, role: "admin", restaurant_id: ownedRest.id },
+                { onConflict: "user_id,role" }
+              );
+            }
+          }
+        }
+
         setRole(bestRole);
         authDebug("useAuth", "Resolved app role from user_roles", {
           resolvedRole: bestRole,
