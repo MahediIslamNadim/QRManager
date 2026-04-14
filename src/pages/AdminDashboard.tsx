@@ -1,9 +1,10 @@
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
 import StatCard from "@/components/StatCard";
-import { ShoppingCart, DollarSign, Users, TrendingUp, Clock, Crown, ArrowRight, Banknote, Smartphone, TrendingDown, Star } from "lucide-react";
+import { ShoppingCart, DollarSign, Users, TrendingUp, Clock, Crown, ArrowRight, Banknote, Smartphone, TrendingDown, Star, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -25,7 +26,7 @@ const AdminDashboard = () => {
       const today = todayDate.toISOString().split("T")[0];
       const yesterday = yesterdayDate.toISOString().split("T")[0];
 
-      const [ordersRes, tablesRes, ratingsRes] = await Promise.all([
+      const [ordersRes, tablesRes, ratingsRes, menuRes] = await Promise.all([
         supabase.from("orders")
           .select("id, total, status, created_at")
           .eq("restaurant_id", restaurantId)
@@ -37,11 +38,17 @@ const AdminDashboard = () => {
           .eq("restaurant_id", restaurantId)
           .not("rating", "is", null)
           .gte("created_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()),
+        supabase.from("menu_items")
+          .select("id, name, available")
+          .eq("restaurant_id", restaurantId),
       ]);
 
       const orders = ordersRes.data || [];
       const tables = tablesRes.data || [];
       const ratingRows = ratingsRes.data || [];
+      const menuItems = menuRes.data || [];
+      const soldOutItems = menuItems.filter((m: any) => !m.available);
+      const inStockItems = menuItems.filter((m: any) => m.available);
       const avgRating = ratingRows.length > 0
         ? Math.round((ratingRows.reduce((s, r) => s + (r.rating || 0), 0) / ratingRows.length) * 10) / 10
         : null;
@@ -78,6 +85,10 @@ const AdminDashboard = () => {
         avgChange: calcChange(todayAvg, yesterdayAvg),
         avgRating,
         totalRatings: ratingRows.length,
+        soldOutCount: soldOutItems.length,
+        soldOutItems: soldOutItems.slice(0, 5),
+        totalMenuItems: menuItems.length,
+        inStockCount: inStockItems.length,
       };
     },
     enabled: !!restaurantId,
@@ -160,6 +171,40 @@ const AdminDashboard = () => {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Sold-out Alert Banner */}
+        {stats && stats.soldOutCount > 0 && (
+          <div className="rounded-2xl border border-destructive/30 bg-destructive/5 px-4 py-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-3">
+                <AlertTriangle className="w-5 h-5 text-destructive flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold text-destructive">
+                    {stats.soldOutCount}টি আইটেম স্টক আউট!
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {stats.soldOutItems.map((i: any) => i.name).join(', ')}
+                    {stats.soldOutCount > 5 ? ` এবং আরো...` : ''}
+                  </p>
+                </div>
+              </div>
+              <Button size="sm" variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/10 text-xs h-7"
+                onClick={() => navigate('/admin/menu')}>
+                মেনু আপডেট করুন →
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* In-stock summary */}
+        {stats && stats.totalMenuItems > 0 && stats.soldOutCount === 0 && (
+          <div className="rounded-2xl border border-success/30 bg-success/5 px-4 py-3 flex items-center gap-3">
+            <CheckCircle2 className="w-4 h-4 text-success flex-shrink-0" />
+            <p className="text-sm text-success font-medium">
+              সব {stats.totalMenuItems}টি মেনু আইটেম স্টকে আছে ✓
+            </p>
           </div>
         )}
 

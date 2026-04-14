@@ -9,6 +9,27 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { User, Store, Save, Loader2, CreditCard, Check, Crown, Copy, AlertCircle, Smartphone, MessageSquare, Bell, Palette, Upload, X, Eye, Lock } from "lucide-react";
 import { useFeatureGate } from '@/hooks/useFeatureGate';
 import { useAuth } from "@/hooks/useAuth";
+
+// ── BrandingGate: High Smart only wrapper ──
+const BrandingGate = ({ restaurantId, children }: { restaurantId: string | undefined; children: React.ReactNode }) => {
+  const { hasAccess, loading } = useFeatureGate('custom_branding', restaurantId);
+  if (loading) return <div className="animate-pulse bg-muted rounded-2xl h-40" />;
+  if (hasAccess) return <>{children}</>;
+  return (
+    <div className="flex flex-col items-center justify-center py-16 text-center space-y-4 border-2 border-dashed border-muted rounded-2xl">
+      <div className="w-16 h-16 rounded-full bg-purple-500/10 flex items-center justify-center">
+        <Lock className="w-8 h-8 text-purple-500" />
+      </div>
+      <div>
+        <p className="font-display font-semibold text-lg text-foreground">কাস্টম ব্র্যান্ডিং</p>
+        <p className="text-sm text-muted-foreground mt-1 max-w-sm mx-auto">লোগো, রং এবং ফন্ট কাস্টমাইজ করতে <strong>High Smart</strong> প্ল্যানে আপগ্রেড করুন।</p>
+      </div>
+      <a href="/settings" className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-purple-600 text-white text-sm font-semibold hover:opacity-90 transition-opacity">
+        👑 High Smart এ আপগ্রেড করুন
+      </a>
+    </div>
+  );
+};
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { TIERS, formatPrice, type TierName, type BillingCycle } from "@/constants/tiers";
@@ -383,7 +404,7 @@ const AdminSettings = () => {
 
           {/* ── Custom Branding Tab ── */}
           <TabsContent value="branding" className="space-y-4 mt-4">
-            <BrandingGate restaurantId={restaurantId}>
+            <BrandingGate restaurantId={restaurantId}><>
               {/* Logo Upload */}
               <Card>
                 <CardHeader>
@@ -583,6 +604,7 @@ const AdminSettings = () => {
                 <p className="text-xs text-muted-foreground mt-2">এবং Storage এ <strong>restaurant-logos</strong> নামে একটি public bucket তৈরি করুন।</p>
               </CardContent>
             </Card>
+            </></BrandingGate>
           </TabsContent>
 
           {/* ── WhatsApp Notifications Tab ── */}

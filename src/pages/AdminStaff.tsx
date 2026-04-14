@@ -1,23 +1,35 @@
-// AdminStaff.tsx - Staff Management Page
-import { useState } from 'react';
-import DashboardLayout from '@/components/DashboardLayout';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { useAuth } from '@/hooks/useAuth';
-import { useCanInviteStaff } from '@/hooks/useStaffLimit';
-import { supabase } from '@/integrations/supabase/client';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
-import { UserPlus, Mail, Trash2, Crown, Users, Shield, AlertTriangle } from 'lucide-react';
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AlertTriangle, Crown, Mail, Shield, Trash2, UserPlus, Users } from "lucide-react";
+import DashboardLayout from "@/components/DashboardLayout";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useAuth } from "@/hooks/useAuth";
+import { useCanInviteStaff } from "@/hooks/useStaffLimit";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+
+type StaffRole = "admin" | "waiter";
+type StaffMember = {
+  id: string;
+  user_id: string;
+  restaurant_id: string;
+  created_at: string;
+  role: string;
+  users: {
+    id: string;
+    full_name: string | null;
+    email: string | null;
+  } | null;
+};
 
 const AdminStaff = () => {
   const { restaurantId } = useAuth();
   const queryClient = useQueryClient();
 
-  // Staff limit check
   const {
     canAdd: canInviteStaff,
     currentCount: staffCount,
@@ -26,162 +38,209 @@ const AdminStaff = () => {
     isAtLimit,
     upgradeMessage,
     loading: limitLoading,
-    checkBeforeInvite
+    checkBeforeInvite,
   } = useCanInviteStaff(restaurantId);
 
   const [showInviteDialog, setShowInviteDialog] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<'admin' | 'waiter' | 'kitchen'>('waiter');
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<StaffRole>("waiter");
 
-  // Fetch staff members
-  const { data: staffMembers = [], isLoading } = useQuery({
-    queryKey: ['staff', restaurantId],
+  const { data: staffMembers = [], isLoading } = useQuery<StaffMember[]>({
+    queryKey: ["staff", restaurantId],
     queryFn: async () => {
       if (!restaurantId) return [];
-      
-      // Fetch staff_restaurants only (no join to avoid schema cache issues)
-      const { data, error } = await supabase
-        .from('staff_restaurants')
-        .select('id, user_id, restaurant_id, role, created_at')
-        .eq('restaurant_id', restaurantId)
-        .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      if (!data || data.length === 0) return [];
+      let staffRows: Array<{
+        id: string;
+        user_id: string;
+        restaurant_id: string;
+        created_at: string;
+        role?: string | null;
+      }> = [];
 
-      // Fetch profiles separately
-      const userIds = data.map((s: any) => s.user_id);
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, full_name, email')
-        .in('id', userIds);
+      const result = await supabase
+        .from("staff_restaurants")
+        .select("id, user_id, restaurant_id, role, created_at")
+        .eq("restaurant_id", restaurantId)
+        .order("created_at", { ascending: false });
 
-      // Merge
-      return data.map((s: any) => ({
-        ...s,
-        users: profiles?.find((p: any) => p.id === s.user_id) || null,
-      }));
-    },
-    enabled: !!restaurantId
-  });
+      if (result.error) {
+        const fallback = await supabase
+          .from("staff_restaurants")
+          .select("id, user_id, restaurant_id, created_at")
+          .eq("restaurant_id", restaurantId)
+          .order("created_at", { ascending: false });
 
-  // Invite staff mutation — looks up user by email, then creates staff_restaurants entry
-  const inviteMutation = useMutation({
-    mutationFn: async () => {
-      if (!restaurantId) throw new Error('No restaurant');
-      if (!inviteEmail.trim()) throw new Error('ইমেইল দিন');
-
-      // Check limit before inviting
-      const check = checkBeforeInvite();
-      if (!check.allowed) {
-        throw new Error(upgradeMessage || 'Staff limit reached. Please upgrade to add more staff.');
+        if (fallback.error) throw fallback.error;
+        staffRows = (fallback.data || []).map((row) => ({ ...row, role: null }));
+      } else {
+        staffRows = result.data || [];
       }
 
-      // 1. Check if admin_invites table has a pending invite for this email
-      // 2. Look up the user in profiles by email
+      if (staffRows.length === 0) return [];
+
+      const userIds = staffRows.map((row) => row.user_id);
+      const [{ data: profiles }, { data: roleRows, error: roleError }] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("id, full_name, email")
+          .in("id", userIds),
+        supabase
+          .from("user_roles")
+          .select("user_id, role")
+          .in("user_id", userIds),
+      ]);
+
+      if (roleError) {
+        console.warn("Staff role lookup failed:", roleError.message);
+      }
+
+      const roleMap = new Map((roleRows || []).map((row) => [row.user_id, row.role]));
+
+      return staffRows.map((row) => ({
+        ...row,
+        role: row.role || roleMap.get(row.user_id) || "waiter",
+        users: profiles?.find((profile) => profile.id === row.user_id) || null,
+      }));
+    },
+    enabled: !!restaurantId,
+  });
+
+  const inviteMutation = useMutation({
+    mutationFn: async () => {
+      if (!restaurantId) throw new Error("No restaurant");
+
+      const normalizedEmail = inviteEmail.trim().toLowerCase();
+      if (!normalizedEmail) throw new Error("Please enter an email address.");
+
+      const check = checkBeforeInvite();
+      if (!check.allowed) {
+        throw new Error(upgradeMessage || "Staff limit reached. Please upgrade to add more staff.");
+      }
+
       const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('id, full_name, email')
-        .eq('email', inviteEmail.trim().toLowerCase())
+        .from("profiles")
+        .select("id")
+        .eq("email", normalizedEmail)
         .maybeSingle();
 
       if (profileError) throw profileError;
 
       if (!profile) {
-        // User not found — insert an admin_invite record so they can sign up
-        const { error: inviteError } = await supabase
-          .from('admin_invites')
-          .insert({
-            email: inviteEmail.trim().toLowerCase(),
-            invited_by: (await supabase.auth.getUser()).data.user?.id,
-            restaurant_name: null,
-            invited_name: inviteEmail.trim(),
-            status: 'pending',
-          });
-        if (inviteError) throw inviteError;
-        throw new Error(`"${inviteEmail}" এই ইমেইলের কোনো অ্যাকাউন্ট নেই। Invite পাঠানো হয়েছে — তারা সাইন আপ করলে যোগ করুন।`);
+        throw new Error(
+          `No QRManager account was found for "${normalizedEmail}". Ask the staff member to sign up first, then add them again here.`,
+        );
       }
 
-      // 3. Check if already a staff member
-      const { data: existing } = await supabase
-        .from('staff_restaurants')
-        .select('id')
-        .eq('restaurant_id', restaurantId)
-        .eq('user_id', profile.id)
-        .maybeSingle();
-
-      if (existing) throw new Error('এই স্টাফ ইতিমধ্যে যোগ করা আছে।');
-
-      // 4. Insert with role
-      const { error } = await supabase
-        .from('staff_restaurants')
-        .insert({
-          restaurant_id: restaurantId,
-          user_id: profile.id,
+      const { data, error } = await supabase.functions.invoke("create-staff", {
+        body: {
+          email: normalizedEmail,
           role: inviteRole,
-        });
+          restaurant_id: restaurantId,
+        },
+      });
 
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      return data as { already_exists?: boolean; role_updated?: boolean };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['staff', restaurantId] });
-      toast.success(`✅ স্টাফ সফলভাবে যোগ করা হয়েছে!`);
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["staff", restaurantId] });
+
+      if (result?.already_exists) {
+        toast.success("This staff member is already linked to your restaurant.");
+      } else if (result?.role_updated) {
+        toast.success("Staff access was synced and their role was updated.");
+      } else {
+        toast.success("Staff member added successfully.");
+      }
+
       setShowInviteDialog(false);
-      setInviteEmail('');
-      setInviteRole('waiter');
+      setInviteEmail("");
+      setInviteRole("waiter");
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       toast.error(err.message);
-    }
+    },
   });
 
-  // Remove staff mutation
   const removeMutation = useMutation({
-    mutationFn: async (staffId: string) => {
-      const { error } = await supabase
-        .from('staff_restaurants')
-        .delete()
-        .eq('id', staffId)
-        .eq('restaurant_id', restaurantId);
+    mutationFn: async (staff: Pick<StaffMember, "id" | "user_id">) => {
+      if (!restaurantId) throw new Error("No restaurant");
+
+      const { data, error } = await supabase.functions.invoke("create-staff", {
+        body: {
+          action: "remove",
+          user_id: staff.user_id,
+          restaurant_id: restaurantId,
+        },
+      });
 
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      return data as {
+        link_removed?: boolean;
+        role_revoked?: boolean;
+        role_preserved_reason?: "super_admin" | "restaurant_owner" | "other_staff_links" | null;
+      };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['staff', restaurantId] });
-      toast.success('Staff member removed');
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["staff", restaurantId] });
+
+      if (result?.role_revoked) {
+        toast.success("Staff member removed and their restaurant staff access was revoked.");
+      } else if (result?.role_preserved_reason === "other_staff_links") {
+        toast.success("Staff member removed from this restaurant. Their app role was kept because they still belong to another restaurant.");
+      } else if (
+        result?.role_preserved_reason === "restaurant_owner" ||
+        result?.role_preserved_reason === "super_admin"
+      ) {
+        toast.success("Staff link removed. Elevated access was preserved for this user.");
+      } else {
+        toast.success("Staff member removed.");
+      }
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       toast.error(err.message);
-    }
+    },
   });
 
   const getRoleIcon = (role: string) => {
     switch (role) {
-      case 'admin': return Crown;
-      case 'waiter': return Users;
-      case 'kitchen': return Shield;
-      default: return Users;
+      case "admin":
+        return Crown;
+      case "waiter":
+        return Users;
+      case "kitchen":
+        return Shield;
+      default:
+        return Users;
     }
   };
 
   const getRoleColor = (role: string) => {
     switch (role) {
-      case 'admin': return 'text-purple-600 bg-purple-100';
-      case 'waiter': return 'text-blue-600 bg-blue-100';
-      case 'kitchen': return 'text-orange-600 bg-orange-100';
-      default: return 'text-gray-600 bg-gray-100';
+      case "admin":
+        return "text-purple-600 bg-purple-100";
+      case "waiter":
+        return "text-blue-600 bg-blue-100";
+      case "kitchen":
+        return "text-orange-600 bg-orange-100";
+      default:
+        return "text-gray-600 bg-gray-100";
     }
   };
 
   return (
     <DashboardLayout role="admin" title="Staff Management">
       <div className="space-y-6">
-        {/* Header */}
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
             <h2 className="text-2xl font-bold">Team Members</h2>
             <p className="text-sm text-muted-foreground">
-              Manage your restaurant staff and their roles
+              Add existing QRManager accounts to your restaurant and manage their roles.
             </p>
           </div>
 
@@ -195,46 +254,44 @@ const AdminStaff = () => {
               variant="hero"
             >
               <UserPlus className="w-4 h-4 mr-2" />
-              Invite Staff
+              Add Staff
             </Button>
           </div>
         </div>
 
-        {/* Limit Warning */}
         {isAtLimit && (
           <div className="bg-warning/10 border border-warning/30 rounded-xl p-4">
             <div className="flex items-center gap-2 mb-2">
               <AlertTriangle className="w-5 h-5 text-warning" />
-              <span className="font-semibold text-warning">Staff Limit Reached!</span>
+              <span className="font-semibold text-warning">Staff Limit Reached</span>
             </div>
             <p className="text-sm text-muted-foreground mb-3">
               {upgradeMessage || `You've reached the maximum of ${maxStaff} staff members for your current tier.`}
             </p>
-            {tier === 'medium_smart' && (
+            {tier === "medium_smart" && (
               <Button
                 variant="default"
                 size="sm"
                 className="bg-purple-600 hover:bg-purple-700 text-white"
                 onClick={() => {
-                  toast.info('Upgrade feature coming soon!');
+                  toast.info("Upgrade feature coming soon!");
                 }}
               >
-                Upgrade to High Smart → Unlimited Staff
+                Upgrade to High Smart
               </Button>
             )}
           </div>
         )}
 
-        {/* Invite Dialog */}
         <Dialog open={showInviteDialog} onOpenChange={setShowInviteDialog}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Invite Staff Member</DialogTitle>
+              <DialogTitle>Add Staff Member</DialogTitle>
             </DialogHeader>
 
             <form
-              onSubmit={(e) => {
-                e.preventDefault();
+              onSubmit={(event) => {
+                event.preventDefault();
                 inviteMutation.mutate();
               }}
               className="space-y-4"
@@ -245,11 +302,11 @@ const AdminStaff = () => {
                   type="email"
                   placeholder="staff@example.com"
                   value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
+                  onChange={(event) => setInviteEmail(event.target.value)}
                   required
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  An invitation email will be sent to this address
+                  This email must already belong to a QRManager account. New staff should sign up first.
                 </p>
               </div>
 
@@ -257,12 +314,11 @@ const AdminStaff = () => {
                 <Label>Role</Label>
                 <select
                   value={inviteRole}
-                  onChange={(e) => setInviteRole(e.target.value as any)}
+                  onChange={(event) => setInviteRole(event.target.value as StaffRole)}
                   className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
                 >
-                  <option value="waiter">Waiter - Can take orders & manage tables</option>
-                  <option value="kitchen">Kitchen - Can view & update order status</option>
-                  <option value="admin">Admin - Full access to all features</option>
+                  <option value="waiter">Waiter - Can take orders and manage tables</option>
+                  <option value="admin">Admin - Full access to staff-facing features</option>
                 </select>
               </div>
 
@@ -272,33 +328,30 @@ const AdminStaff = () => {
                 className="w-full"
                 disabled={inviteMutation.isPending}
               >
-                {inviteMutation.isPending ? 'Sending...' : 'Send Invitation'}
+                {inviteMutation.isPending ? "Adding..." : "Add Staff Member"}
               </Button>
             </form>
           </DialogContent>
         </Dialog>
 
-        {/* Staff List */}
         {isLoading ? (
-          <div className="text-center py-12 text-muted-foreground">
-            Loading staff members...
-          </div>
+          <div className="text-center py-12 text-muted-foreground">Loading staff members...</div>
         ) : staffMembers.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center">
               <Users className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
               <p className="text-muted-foreground mb-4">
-                No staff members yet. Invite your team to get started!
+                No staff members yet. Add someone who already has a QRManager account to get started.
               </p>
               <Button onClick={() => setShowInviteDialog(true)} variant="outline">
                 <UserPlus className="w-4 h-4 mr-2" />
-                Invite First Staff Member
+                Add First Staff Member
               </Button>
             </CardContent>
           </Card>
         ) : (
           <div className="grid gap-4">
-            {staffMembers.map((staff: any) => {
+            {staffMembers.map((staff) => {
               const RoleIcon = getRoleIcon(staff.role);
               const roleColor = getRoleColor(staff.role);
 
@@ -307,38 +360,32 @@ const AdminStaff = () => {
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
-                        {/* Avatar */}
                         <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center text-white font-semibold text-lg">
-                          {staff.users?.full_name?.[0]?.toUpperCase() || staff.users?.email?.[0]?.toUpperCase() || 'U'}
+                          {staff.users?.full_name?.[0]?.toUpperCase() || staff.users?.email?.[0]?.toUpperCase() || "U"}
                         </div>
 
-                        {/* Info */}
                         <div>
-                          <h3 className="font-semibold text-lg">
-                            {staff.users?.full_name || 'Unknown User'}
-                          </h3>
+                          <h3 className="font-semibold text-lg">{staff.users?.full_name || "Unknown User"}</h3>
                           <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             <Mail className="w-3 h-3" />
-                            {staff.users?.email || 'No email'}
+                            {staff.users?.email || "No email"}
                           </div>
                         </div>
                       </div>
 
                       <div className="flex items-center gap-3">
-                        {/* Role Badge */}
                         <div className={`px-3 py-1.5 rounded-full flex items-center gap-1.5 ${roleColor}`}>
                           <RoleIcon className="w-4 h-4" />
                           <span className="text-xs font-medium capitalize">{staff.role}</span>
                         </div>
 
-                        {/* Remove Button */}
                         <Button
                           variant="ghost"
                           size="sm"
                           className="text-destructive hover:text-destructive hover:bg-destructive/10"
                           onClick={() => {
-                            if (confirm(`Remove ${staff.users?.full_name || 'this staff member'}?`)) {
-                              removeMutation.mutate(staff.id);
+                            if (confirm(`Remove ${staff.users?.full_name || "this staff member"}?`)) {
+                              removeMutation.mutate({ id: staff.id, user_id: staff.user_id });
                             }
                           }}
                         >
@@ -353,15 +400,17 @@ const AdminStaff = () => {
           </div>
         )}
 
-        {/* Info Card */}
         <Card className="bg-blue-50 border-blue-200">
           <CardHeader>
-            <CardTitle className="text-sm text-blue-900">Staff Roles Explained</CardTitle>
+            <CardTitle className="text-sm text-blue-900">Supported Staff Roles</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm text-blue-800">
-            <p><strong>👑 Admin:</strong> Full access - can manage menu, tables, staff, and view all analytics</p>
-            <p><strong>👥 Waiter:</strong> Can take orders, manage tables, view kitchen status</p>
-            <p><strong>🍳 Kitchen:</strong> Can view incoming orders and update cooking status</p>
+            <p>
+              <strong>Admin:</strong> Full access to menu, tables, staff, billing, and analytics.
+            </p>
+            <p>
+              <strong>Waiter:</strong> Can take orders, manage tables, and view kitchen status.
+            </p>
           </CardContent>
         </Card>
       </div>

@@ -34,7 +34,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Prevent double-fetch: track the userId currently being fetched
   const fetchingRef = useRef<string | null>(null);
   const fetchUserData = useCallback(async (userId: string) => {
-    // Skip if already fetching for this user
+    // Skip if already fetching for this user — but don't block if loading needs update
     if (fetchingRef.current === userId) return;
     fetchingRef.current = userId;
     try {
@@ -163,7 +163,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // SIGNED_IN after initial load or TOKEN_REFRESHED — re-fetch user data
         if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
           if (session?.user) {
+            setLoading(true);
             setUser(session.user);
+            // SIGNED_IN এ lock রিসেট করো যাতে getSession ও SIGNED_IN রেস হলে ব্লক না হয়
+            fetchingRef.current = null;
             fetchUserData(session.user.id).then(() => {
               if (mounted) setLoading(false);
             });

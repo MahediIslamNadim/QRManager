@@ -49,7 +49,15 @@ Deno.serve(async (req) => {
       });
     }
 
-    let parsed: { email?: unknown; password?: unknown; full_name?: unknown; role?: unknown; restaurant_id?: unknown };
+    let parsed: {
+      action?: unknown;
+      email?: unknown;
+      password?: unknown;
+      full_name?: unknown;
+      role?: unknown;
+      restaurant_id?: unknown;
+      user_id?: unknown;
+    };
     try {
       parsed = await req.json();
     } catch {
@@ -58,21 +66,42 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const { email, password, full_name, role, restaurant_id } = parsed;
+    const { action, email, password, full_name, role, restaurant_id, user_id } = parsed;
+    const requestedAction = action === "remove" ? "remove" : "add";
+    const allowedRoles = ["admin", "waiter"] as const;
 
-    if (!email || !password || !role) {
+    if (requestedAction === "remove" && typeof user_id !== "string") {
+      return new Response(JSON.stringify({ error: "User ID is required" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (requestedAction === "add" && (typeof email !== "string" || typeof role !== "string")) {
       return new Response(JSON.stringify({ error: "Missing required fields" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    if (!["waiter", "admin"].includes(role)) {
+    const normalizedEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
+    if (requestedAction === "add" && !normalizedEmail) {
+      return new Response(JSON.stringify({ error: "Email is required" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (requestedAction === "add" && !allowedRoles.includes(role as (typeof allowedRoles)[number])) {
       return new Response(JSON.stringify({ error: "Invalid role" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    const desiredRole = requestedAction === "add"
+      ? role as (typeof allowedRoles)[number]
+      : null;
 
     // Resolve caller's own restaurant_id
     const { data: callerRest } = await callerClient
@@ -112,12 +141,202 @@ Deno.serve(async (req) => {
       });
     }
 
+    const upsertRoleAndLink = async (userId: string) => {
+      const { data: ownerRestaurant, error: ownerRestaurantErr } = await callerClient
+        .from("restaurants")
+        .select("id")
+        .eq("owner_id", userId)
+        .maybeSingle();
+
+      if (ownerRestaurantErr) throw ownerRestaurantErr;
+      if (ownerRestaurant && ownerRestaurant.id !== restId) {
+        throw new Error("This user is already linked to another restaurant");
+      }
+
+      const { data: staffLinks, error: staffLinksErr } = await callerClient
+        .from("staff_restaurants")
+        .select("id, restaurant_id")
+        .eq("user_id", userId);
+
+      if (staffLinksErr) throw staffLinksErr;
+
+      const linkedToOtherRestaurant = (staffLinks || []).some(
+        (link) => link.restaurant_id !== restId,
+      );
+
+      if (linkedToOtherRestaurant) {
+        throw new Error("This user is already linked to another restaurant");
+      }
+
+      const alreadyLinked = (staffLinks || []).some((link) => link.restaurant_id === restId);
+
+      const { data: existingRoles, error: existingRolesErr } = await callerClient
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId);
+
+      if (existingRolesErr) throw existingRolesErr;
+
+      if ((existingRoles || []).some((entry) => entry.role === "super_admin")) {
+        throw new Error("Super admin users cannot be added as restaurant staff");
+      }
+
+      const currentRole = (existingRoles || []).find((entry) =>
+        allowedRoles.includes(entry.role as (typeof allowedRoles)[number]),
+      )?.role;
+
+      if (currentRole && currentRole !== desiredRole) {
+        const { error: deleteRoleErr } = await callerClient
+          .from("user_roles")
+          .delete()
+          .eq("user_id", userId)
+          .in("role", [...allowedRoles]);
+
+        if (deleteRoleErr) throw deleteRoleErr;
+      }
+
+      if (!currentRole || currentRole !== desiredRole) {
+        const { error: insertRoleErr } = await callerClient
+          .from("user_roles")
+          .insert({ user_id: userId, role: desiredRole });
+
+        if (insertRoleErr) throw insertRoleErr;
+      }
+
+      const linkPayload = { user_id: userId, restaurant_id: restId, role: desiredRole };
+      let { error: linkErr } = await callerClient
+        .from("staff_restaurants")
+        .upsert(linkPayload, { onConflict: "user_id,restaurant_id" });
+
+      if (linkErr?.message?.toLowerCase().includes("role")) {
+        const retry = await callerClient
+          .from("staff_restaurants")
+          .upsert({ user_id: userId, restaurant_id: restId }, { onConflict: "user_id,restaurant_id" });
+        linkErr = retry.error;
+      }
+
+      if (linkErr) throw linkErr;
+
+      return {
+        already_exists: alreadyLinked && currentRole === desiredRole,
+        role_updated: !!currentRole && currentRole !== desiredRole,
+        user_id: userId,
+      };
+    };
+
+    const removeRoleAndLink = async (userId: string) => {
+      const { data: currentLinks, error: currentLinksErr } = await callerClient
+        .from("staff_restaurants")
+        .select("id, restaurant_id")
+        .eq("user_id", userId);
+
+      if (currentLinksErr) throw currentLinksErr;
+
+      const linkForRestaurant = (currentLinks || []).find((link) => link.restaurant_id === restId);
+      if (!linkForRestaurant) {
+        throw new Error("Staff member not found for this restaurant");
+      }
+
+      const hasOtherStaffLinks = (currentLinks || []).some((link) => link.restaurant_id !== restId);
+
+      const { data: existingRoles, error: existingRolesErr } = await callerClient
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId);
+
+      if (existingRolesErr) throw existingRolesErr;
+
+      const hasSuperAdminRole = (existingRoles || []).some((entry) => entry.role === "super_admin");
+
+      const { data: ownerRestaurant, error: ownerRestaurantErr } = await callerClient
+        .from("restaurants")
+        .select("id")
+        .eq("owner_id", userId)
+        .maybeSingle();
+
+      if (ownerRestaurantErr) throw ownerRestaurantErr;
+
+      let rolePreservedReason: "super_admin" | "restaurant_owner" | "other_staff_links" | null = null;
+      if (hasSuperAdminRole) {
+        rolePreservedReason = "super_admin";
+      } else if (ownerRestaurant) {
+        rolePreservedReason = "restaurant_owner";
+      } else if (hasOtherStaffLinks) {
+        rolePreservedReason = "other_staff_links";
+      }
+
+      let roleRevoked = false;
+      if (!rolePreservedReason) {
+        const { error: deleteRoleErr } = await callerClient
+          .from("user_roles")
+          .delete()
+          .eq("user_id", userId)
+          .in("role", [...allowedRoles]);
+
+        if (deleteRoleErr) throw deleteRoleErr;
+        roleRevoked = true;
+      }
+
+      const { error: deleteLinkErr } = await callerClient
+        .from("staff_restaurants")
+        .delete()
+        .eq("user_id", userId)
+        .eq("restaurant_id", restId);
+
+      if (deleteLinkErr) throw deleteLinkErr;
+
+      return {
+        link_removed: true,
+        role_revoked: roleRevoked,
+        role_preserved_reason: rolePreservedReason,
+        user_id: userId,
+      };
+    };
+
+    if (requestedAction === "remove") {
+      const result = await removeRoleAndLink(user_id as string);
+      return new Response(
+        JSON.stringify({ success: true, ...result }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    const { data: existingProfile, error: existingProfileErr } = await callerClient
+      .from("profiles")
+      .select("id")
+      .eq("email", normalizedEmail)
+      .maybeSingle();
+
+    if (existingProfileErr) {
+      return new Response(JSON.stringify({ error: existingProfileErr.message }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (existingProfile?.id) {
+      const result = await upsertRoleAndLink(existingProfile.id);
+      return new Response(
+        JSON.stringify({ success: true, ...result }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    if (typeof password !== "string" || !password) {
+      return new Response(JSON.stringify({
+        error: "No QRManager account found for this email. Ask the staff member to sign up first, then add them again.",
+      }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Create user
     const { data: newUser, error: createErr } = await callerClient.auth.admin.createUser({
-      email,
+      email: normalizedEmail,
       password,
       email_confirm: true,
-      user_metadata: { full_name: full_name || "" },
+      user_metadata: { full_name: typeof full_name === "string" ? full_name : "" },
     });
 
     if (createErr) {
@@ -127,32 +346,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Assign role
-    const { error: roleErr } = await callerClient
-      .from("user_roles")
-      .insert({ user_id: newUser.user.id, role });
-
-    if (roleErr) {
-      return new Response(JSON.stringify({ error: roleErr.message }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Link staff to restaurant
-    const { error: linkErr } = await callerClient
-      .from("staff_restaurants")
-      .insert({ user_id: newUser.user.id, restaurant_id: restId });
-
-    if (linkErr) {
-      return new Response(JSON.stringify({ error: linkErr.message }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const result = await upsertRoleAndLink(newUser.user.id);
 
     return new Response(
-      JSON.stringify({ success: true, user_id: newUser.user.id }),
+      JSON.stringify({ success: true, ...result }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err: unknown) {
