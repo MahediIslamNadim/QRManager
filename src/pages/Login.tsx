@@ -107,6 +107,31 @@ const Login = () => {
       await wait(250);
     }
 
+    // Fallback: check staff_restaurants directly (user_roles row may be missing)
+    authDebug("Login", "user_roles exhausted — falling back to staff_restaurants", { userId });
+    const { data: staffRow } = await authedClient
+      .from("staff_restaurants" as any)
+      .select("role")
+      .eq("user_id", userId)
+      .limit(1)
+      .maybeSingle();
+
+    const staffRole = (staffRow as any)?.role as string | undefined;
+    authDebug("Login", "staff_restaurants fallback result", { staffRole, userId });
+
+    if (staffRole) {
+      const fallbackRole = pickRedirectRole([{ role: staffRole }]);
+      if (fallbackRole) {
+        // Sync user_roles row so future logins work without fallback
+        await (authedClient.from("user_roles") as any).upsert(
+          { user_id: userId, role: staffRole, restaurant_id: (staffRow as any)?.restaurant_id ?? null },
+          { onConflict: "user_id,role" }
+        );
+        await refetchUserData(userId, accessToken);
+        return fallbackRole;
+      }
+    }
+
     authDebug("Login", "Direct role lookup exhausted all attempts without a usable role", {
       maxAttempts,
       userId,
@@ -262,7 +287,6 @@ const Login = () => {
           hasReturnedSession: Boolean(signInData.session),
           userId: signInData.user?.id ?? null,
         });
-        toast.success("স্বাগতম!");
 
         const sessionReady = await waitForSession();
         authDebug("Login", "waitForSession completed", { sessionReady });
@@ -297,10 +321,11 @@ const Login = () => {
           userId: currentUser.id,
         });
         if (!resolvedRole) {
-          toast.error("Login succeeded, but no usable account role was found for this user.");
+          toast.error("অ্যাকাউন্টে কোনো ভূমিকা পাওয়া যায়নি। অ্যাডমিনকে জানান।");
           return;
         }
 
+        toast.success("স্বাগতম!");
         const target = getRedirectPath(resolvedRole, inviteId);
         authDebug("Login", "Fallback redirect target chosen", {
           inviteId,
