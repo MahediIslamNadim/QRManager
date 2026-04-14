@@ -1,19 +1,16 @@
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
 import StatCard from "@/components/StatCard";
-import { ShoppingCart, DollarSign, Users, TrendingUp, Clock, Crown, ArrowRight, Banknote, Smartphone, TrendingDown, Star, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { ShoppingCart, DollarSign, Users, TrendingUp, Clock, Banknote, Smartphone, Star, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
-import { getPlanLimits, formatLimit } from "@/lib/planLimits";
-
 const AdminDashboard = () => {
-  const { user, restaurantId, restaurantPlan } = useAuth();
+  const { user, restaurantId } = useAuth();
   const navigate = useNavigate();
-  const limits = getPlanLimits(restaurantPlan);
 
   const { data: stats } = useQuery({
     queryKey: ["admin-stats", restaurantId],
@@ -223,37 +220,6 @@ const AdminDashboard = () => {
           </div>
         )}
 
-        {/* ✅ Upgrade Banner — stacked on mobile */}
-        {restaurantPlan !== "enterprise" && (
-          <Card className="border-primary/30 bg-gradient-to-r from-primary/5 via-primary/10 to-accent/5 overflow-hidden">
-            <CardContent className="p-4 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="flex items-start sm:items-center gap-3 sm:gap-4">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-primary/15 flex items-center justify-center flex-shrink-0">
-                  <Crown className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
-                </div>
-                <div className="min-w-0">
-                  <h3 className="font-display font-bold text-foreground text-base sm:text-lg leading-tight">
-                    {restaurantPlan === "basic" ? "প্রিমিয়ামে আপগ্রেড করুন" : "এন্টারপ্রাইজে আপগ্রেড করুন"}
-                  </h3>
-                  <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 leading-relaxed">
-                    বর্তমান প্ল্যান: <span className="font-semibold text-foreground capitalize">{limits.label}</span> —
-                    {restaurantPlan === "basic"
-                      ? ` আনলিমিটেড মেনু, রিয়েলটাইম অর্ডার পান`
-                      : ` মাল্টি-ব্রাঞ্চ সাপোর্ট পান`}
-                  </p>
-                  <div className="flex gap-2 sm:gap-3 mt-1.5 text-[10px] sm:text-xs text-muted-foreground flex-wrap">
-                    <span>মেনু: {formatLimit(limits.maxMenuItems)}</span>
-                    <span>টেবিল: {formatLimit(limits.maxTables)}</span>
-                    <span>কর্মী: {formatLimit(limits.maxStaff)}</span>
-                  </div>
-                </div>
-              </div>
-              <Button variant="hero" size="sm" onClick={() => navigate("/admin/settings")} className="w-full sm:w-auto flex-shrink-0">
-                আপগ্রেড <ArrowRight className="w-4 h-4" />
-              </Button>
-            </CardContent>
-          </Card>
-        )}
 
         {/* ✅ Recent Orders — mobile friendly */}
         <Card>
