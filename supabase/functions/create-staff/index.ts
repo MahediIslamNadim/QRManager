@@ -196,9 +196,11 @@ Deno.serve(async (req) => {
       }
 
       if (!currentRole || currentRole !== desiredRole) {
-        const { error: insertRoleErr } = await callerClient
-          .from("user_roles")
-          .insert({ user_id: userId, role: desiredRole, restaurant_id: restId });
+        const { error: insertRoleErr } = await (callerClient.from("user_roles") as any)
+          .upsert(
+            { user_id: userId, role: desiredRole, restaurant_id: restId },
+            { onConflict: "user_id,role" }
+          );
 
         if (insertRoleErr) throw insertRoleErr;
       }
