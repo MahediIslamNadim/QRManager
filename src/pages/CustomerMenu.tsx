@@ -200,7 +200,15 @@ const CustomerMenu = () => {
     setCart(prev => prev.map(c => {
       if (c.id !== id) return c;
       const newQty = c.quantity + delta;
-      if (newQty > MAX_ITEM_QTY) { toast.error(`সর্বোচ্চ ${MAX_ITEM_QTY}টি যোগ করা যায়`); return c; }
+      const maxQty = c.stock_quantity !== null && c.stock_quantity !== undefined
+        ? Math.min(MAX_ITEM_QTY, c.stock_quantity)
+        : MAX_ITEM_QTY;
+      if (newQty > maxQty) {
+        toast.error(c.stock_quantity !== null && c.stock_quantity !== undefined
+          ? `স্টকে মাত্র ${c.stock_quantity}টি আছে`
+          : `সর্বোচ্চ ${MAX_ITEM_QTY}টি যোগ করা যায়`);
+        return c;
+      }
       return { ...c, quantity: newQty };
     }).filter(c => c.quantity > 0));
   };
@@ -582,6 +590,16 @@ const CustomerMenu = () => {
                   {isOutOfStock ? <XCircle className="w-3 h-3" /> : <CheckCircle className="w-3 h-3" />}
                   {isOutOfStock ? "স্টক আউট" : "ইন স্টক"}
                 </div>
+                {/* Show remaining stock count if tracked and not out of stock */}
+                {!isOutOfStock && item.stock_quantity !== null && item.stock_quantity !== undefined && (
+                  <div className={`absolute bottom-3 right-3 px-2.5 py-1 rounded-lg text-[11px] font-bold backdrop-blur-md ${
+                    item.stock_quantity <= 5
+                      ? "bg-warning/90 text-warning-foreground"
+                      : "bg-background/80 text-foreground"
+                  }`}>
+                    {item.stock_quantity <= 5 ? `⚠ মাত্র ${item.stock_quantity}টি বাকি` : `${item.stock_quantity}টি আছে`}
+                  </div>
+                )}
                 {isOutOfStock && (
                   <div className="absolute inset-0 bg-foreground/20 backdrop-blur-[1px] flex items-center justify-center">
                     <span className="px-4 py-2 rounded-xl bg-destructive text-destructive-foreground font-bold text-sm shadow-lg">বর্তমানে পাওয়া যাচ্ছে না</span>
