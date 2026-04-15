@@ -52,57 +52,36 @@ const AdminStaff = () => {
     queryFn: async () => {
       if (!restaurantId) return [];
 
-      let staffRows: Array<{
-        id: string;
-        user_id: string;
-        restaurant_id: string;
-        created_at: string;
-        role?: string | null;
-      }> = [];
+      // Use SECURITY DEFINER RPC to bypass profiles RLS
+      const { data: rpcRows, error: rpcError } = await (supabase as any)
+        .rpc("get_restaurant_staff", { _restaurant_id: restaurantId });
 
-      const result = await supabase
-        .from("staff_restaurants")
-        .select("id, user_id, restaurant_id, role, created_at")
-        .eq("restaurant_id", restaurantId)
-        .order("created_at", { ascending: false });
-
-      if (result.error) {
-        const fallback = await supabase
+      if (rpcError) {
+        // Fallback: query staff_restaurants directly without profile join
+        const { data: fallbackRows, error: fallbackErr } = await supabase
           .from("staff_restaurants")
           .select("id, user_id, restaurant_id, created_at")
           .eq("restaurant_id", restaurantId)
           .order("created_at", { ascending: false });
 
-        if (fallback.error) throw fallback.error;
-        staffRows = (fallback.data || []).map((row) => ({ ...row, role: null }));
-      } else {
-        staffRows = result.data || [];
+        if (fallbackErr) throw fallbackErr;
+
+        return (fallbackRows || []).map((row: any) => ({
+          ...row,
+          role: "waiter",
+          users: null,
+        }));
       }
 
-      if (staffRows.length === 0) return [];
-
-      const userIds = staffRows.map((row) => row.user_id);
-      const [{ data: profiles }, { data: roleRows, error: roleError }] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("id, full_name, email")
-          .in("id", userIds),
-        supabase
-          .from("user_roles")
-          .select("user_id, role")
-          .in("user_id", userIds),
-      ]);
-
-      if (roleError) {
-        console.warn("Staff role lookup failed:", roleError.message);
-      }
-
-      const roleMap = new Map((roleRows || []).map((row) => [row.user_id, row.role]));
-
-      return staffRows.map((row) => ({
-        ...row,
-        role: row.role || roleMap.get(row.user_id) || "waiter",
-        users: profiles?.find((profile) => profile.id === row.user_id) || null,
+      return (rpcRows || []).map((row: any) => ({
+        id: row.id,
+        user_id: row.user_id,
+        restaurant_id: row.restaurant_id,
+        created_at: row.created_at,
+        role: row.role || "waiter",
+        users: row.email || row.full_name
+          ? { id: row.user_id, full_name: row.full_name || null, email: row.email || null }
+          : null,
       }));
     },
     enabled: !!restaurantId,
