@@ -26,12 +26,12 @@ BEGIN
   -- Caller must own the restaurant or be super_admin
   IF NOT (
     EXISTS (
-      SELECT 1 FROM public.restaurants
-      WHERE id = _restaurant_id AND owner_id = auth.uid()
+      SELECT 1 FROM public.restaurants r
+      WHERE r.id = _restaurant_id AND r.owner_id = auth.uid()
     )
     OR EXISTS (
-      SELECT 1 FROM public.user_roles
-      WHERE user_id = auth.uid() AND role = 'super_admin'::app_role
+      SELECT 1 FROM public.user_roles ur2
+      WHERE ur2.user_id = auth.uid() AND ur2.role = 'super_admin'::app_role
     )
   ) THEN
     RAISE EXCEPTION 'Permission denied';
