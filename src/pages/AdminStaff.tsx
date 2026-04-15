@@ -52,37 +52,73 @@ const AdminStaff = () => {
     queryFn: async () => {
       if (!restaurantId) return [];
 
-      // Use SECURITY DEFINER RPC to bypass profiles RLS
-      const { data: rpcRows, error: rpcError } = await (supabase as any)
-        .rpc("get_restaurant_staff", { _restaurant_id: restaurantId });
+      // Step 1: fetch staff rows
+      const { data: staffRows, error: staffErr } = await supabase
+        .from("staff_restaurants")
+        .select("id, user_id, restaurant_id, created_at")
+        .eq("restaurant_id", restaurantId)
+        .order("created_at", { ascending: false });
 
-      if (rpcError) {
-        // Fallback: query staff_restaurants directly without profile join
-        const { data: fallbackRows, error: fallbackErr } = await supabase
-          .from("staff_restaurants")
-          .select("id, user_id, restaurant_id, created_at")
-          .eq("restaurant_id", restaurantId)
-          .order("created_at", { ascending: false });
+      if (staffErr) throw staffErr;
+      if (!staffRows || staffRows.length === 0) return [];
 
-        if (fallbackErr) throw fallbackErr;
+      const userIds = staffRows.map((r) => r.user_id);
 
-        return (fallbackRows || []).map((row: any) => ({
-          ...row,
-          role: "waiter",
-          users: null,
-        }));
+      // Step 2: fetch profiles (RLS policy "Admins can view staff profiles" allows this)
+      const { data: profiles, error: profilesErr } = await supabase
+        .from("profiles")
+        .select("id, full_name, email")
+        .in("id", userIds);
+
+      if (profilesErr) {
+        console.error("profiles fetch error:", profilesErr);
       }
 
-      return (rpcRows || []).map((row: any) => ({
-        id: row.id,
-        user_id: row.user_id,
-        restaurant_id: row.restaurant_id,
-        created_at: row.created_at,
-        role: row.role || "waiter",
-        users: row.email || row.full_name
-          ? { id: row.user_id, full_name: row.full_name || null, email: row.email || null }
-          : null,
-      }));
+      // Step 3: fetch roles
+      const { data: roleRows, error: roleErr } = await supabase
+        .from("user_roles")
+        .select("user_id, role")
+        .in("user_id", userIds);
+
+      if (roleErr) {
+        console.error("user_roles fetch error:", roleErr);
+      }
+
+      // Step 4: try RPC as best-effort for email (gets from auth.users directly)
+      let rpcEmailMap: Record<string, string> = {};
+      try {
+        const { data: rpcRows, error: rpcError } = await (supabase as any)
+          .rpc("get_restaurant_staff", { _restaurant_id: restaurantId });
+        if (!rpcError && rpcRows) {
+          for (const row of rpcRows) {
+            if (row.email) rpcEmailMap[row.user_id] = row.email;
+          }
+        } else if (rpcError) {
+          console.error("get_restaurant_staff RPC error:", rpcError);
+        }
+      } catch (e) {
+        console.error("RPC call failed:", e);
+      }
+
+      const allowedRoles = ["admin", "waiter", "kitchen"] as const;
+      const roleMap = new Map(
+        (roleRows || [])
+          .filter((r) => allowedRoles.includes(r.role as any))
+          .map((r) => [r.user_id, r.role])
+      );
+
+      return staffRows.map((row) => {
+        const profile = profiles?.find((p) => p.id === row.user_id);
+        const email = profile?.email || rpcEmailMap[row.user_id] || null;
+        const fullName = profile?.full_name || null;
+        return {
+          ...row,
+          role: (roleMap.get(row.user_id) as string) || "waiter",
+          users: email || fullName
+            ? { id: row.user_id, full_name: fullName, email }
+            : null,
+        };
+      });
     },
     enabled: !!restaurantId,
   });
