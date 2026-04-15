@@ -44,32 +44,44 @@ const WaiterDashboard = () => {
   const [changingPassword, setChangingPassword] = useState(false);
 
   const prevOrderIdsRef = useRef<Set<string>>(new Set());
+  const prevNotifIdsRef = useRef<Set<string>>(new Set());
   const isFirstLoadRef = useRef(true);
+  const isFirstNotifLoadRef = useRef(true);
 
-  const playNotificationSound = useCallback(() => {
+  const playSound = useCallback((type: "order" | "service") => {
     if (!soundEnabled) return;
     try {
       const ctx = new AudioContext();
-      const playTone = (freq: number, start: number, dur: number) => {
+      const playTone = (freq: number, start: number, dur: number, vol = 0.4) => {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.connect(gain);
         gain.connect(ctx.destination);
         osc.frequency.value = freq;
         osc.type = "sine";
-        gain.gain.setValueAtTime(0.3, ctx.currentTime + start);
+        gain.gain.setValueAtTime(vol, ctx.currentTime + start);
         gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + start + dur);
         osc.start(ctx.currentTime + start);
         osc.stop(ctx.currentTime + start + dur);
       };
-      playTone(880, 0, 0.15);
-      playTone(1100, 0.15, 0.15);
-      playTone(1320, 0.3, 0.2);
+      if (type === "order") {
+        // নতুন অর্ডার — তিনটি ascending tone
+        playTone(880, 0, 0.15);
+        playTone(1100, 0.18, 0.15);
+        playTone(1320, 0.36, 0.25);
+      } else {
+        // ওয়েটার কল / বিল — দ্রুত দুইবার beep
+        playTone(1500, 0, 0.12, 0.5);
+        playTone(1500, 0.18, 0.12, 0.5);
+        playTone(1500, 0.36, 0.18, 0.5);
+      }
     } catch (err) {
       console.warn("Notification sound failed:", err);
-      toast.error("নোটিফিকেশন সাউন্ড চালু করা যায়নি। Browser permission দেখুন।");
     }
   }, [soundEnabled]);
+
+  // backward-compat alias
+  const playNotificationSound = useCallback(() => playSound("order"), [playSound]);
 
   // Fetch profile
   useEffect(() => {
@@ -98,7 +110,7 @@ const WaiterDashboard = () => {
       return data || [];
     },
     enabled: !!restaurantId,
-    refetchInterval: 15000,
+    refetchInterval: 8000,
   });
 
   // ✅ FIX Bug 1: Notification orders আলাদা query
@@ -112,11 +124,11 @@ const WaiterDashboard = () => {
         .eq("restaurant_id", restaurantId)
         .eq("status", "pending")
         .order("created_at", { ascending: false })
-        .limit(5);
+        .limit(20);
       return data || [];
     },
     enabled: !!restaurantId,
-    refetchInterval: 10000,
+    refetchInterval: 5000,
   });
 
   const { data: tables = [] } = useQuery({
@@ -133,7 +145,7 @@ const WaiterDashboard = () => {
     enabled: !!restaurantId,
   });
 
-  // ✅ FIX Bug 5: real order (total>0) এর জন্যই notification
+  // নতুন অর্ডার এলে sound + toast
   useEffect(() => {
     if (!orders.length && isFirstLoadRef.current) return;
     const currentIds = new Set(orders.map((o: any) => o.id));
@@ -146,11 +158,37 @@ const WaiterDashboard = () => {
       (o: any) => !prevOrderIdsRef.current.has(o.id) && o.status === "pending"
     );
     if (newOrders.length > 0) {
-      playNotificationSound();
-      toast.success(`🔔 ${newOrders.length} টি নতুন অর্ডার!`, { duration: 5000 });
+      playSound("order");
+      newOrders.forEach((o: any) => {
+        const table = o.restaurant_tables?.name || "?";
+        const seat  = o.table_seats?.seat_number ? ` সিট ${o.table_seats.seat_number}` : "";
+        toast.success(`🛎 নতুন অর্ডার — টেবিল ${table}${seat} — ৳${o.total}`, { duration: 7000 });
+      });
     }
     prevOrderIdsRef.current = currentIds;
-  }, [orders, playNotificationSound]);
+  }, [orders, playSound]);
+
+  // নতুন service request (ওয়েটার কল / বিল) এলে sound + toast
+  useEffect(() => {
+    if (!notifOrders.length && isFirstNotifLoadRef.current) return;
+    const currentIds = new Set(notifOrders.map((n: any) => n.id));
+    if (isFirstNotifLoadRef.current) {
+      prevNotifIdsRef.current = currentIds;
+      isFirstNotifLoadRef.current = false;
+      return;
+    }
+    const newReqs = notifOrders.filter((n: any) => !prevNotifIdsRef.current.has(n.id));
+    if (newReqs.length > 0) {
+      playSound("service");
+      newReqs.forEach((n: any) => {
+        const table = n.restaurant_tables?.name || "?";
+        const seat  = n.table_seats?.seat_number ? ` সিট ${n.table_seats.seat_number}` : "";
+        const label = n.request_type === "bill_request" ? "💳 বিল চাইছে" : "🔔 ওয়েটার ডাকছে";
+        toast.warning(`${label} — টেবিল ${table}${seat}`, { duration: 8000 });
+      });
+    }
+    prevNotifIdsRef.current = currentIds;
+  }, [notifOrders, playSound]);
 
   // ✅ FIX Bug 3: restaurant_id filter যোগ করো realtime channel এ
   useEffect(() => {
@@ -309,33 +347,51 @@ const WaiterDashboard = () => {
           </button>
         </div>
 
-        {/* ✅ FIX Bug 1: Notification Orders (waiter call / bill) আলাদা banner */}
+        {/* Service Requests — waiter call / bill request */}
         {notifOrders.length > 0 && (
           <div className="space-y-2">
-            {notifOrders.map((n: any) => (
-              <div key={n.id} className="flex items-center gap-3 p-3 rounded-xl bg-warning/10 border border-warning/30 animate-fade-in">
-                <Bell className="w-4 h-4 text-warning flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-foreground truncate">{n.note}</p>
-                  <p className="text-xs text-warning/90 capitalize">{n.request_type?.replace("_", " ")}</p>
-                  <p className="text-xs text-muted-foreground">{timeAgo(n.created_at)}</p>
+            <p className="text-xs font-semibold text-warning uppercase tracking-wide">
+              ⚡ {notifOrders.length}টি অপেক্ষমান রিকোয়েস্ট
+            </p>
+            {notifOrders.map((n: any) => {
+              const isBill = n.request_type === "bill_request";
+              const table = n.restaurant_tables?.name || "?";
+              const seat  = n.table_seats?.seat_number ? ` · সিট ${n.table_seats.seat_number}` : "";
+              return (
+                <div key={n.id} className={`flex items-center gap-3 p-3 rounded-xl border animate-fade-in ${
+                  isBill
+                    ? "bg-info/10 border-info/30"
+                    : "bg-warning/10 border-warning/30"
+                }`}>
+                  <span className="text-xl flex-shrink-0">{isBill ? "💳" : "🔔"}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-foreground">
+                      {isBill ? "বিল চাইছে" : "ওয়েটার ডাকছে"} — টেবিল {table}{seat}
+                    </p>
+                    {n.note && <p className="text-xs text-muted-foreground truncate">{n.note}</p>}
+                    <p className="text-xs text-muted-foreground">{timeAgo(n.created_at)}</p>
+                  </div>
+                  <button
+                    onClick={() => handleServiceRequest(n.id)}
+                    disabled={handlingRequestId === n.id}
+                    className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors flex-shrink-0 disabled:opacity-50 ${
+                      isBill
+                        ? "bg-info/20 text-info hover:bg-info/30"
+                        : "bg-warning/20 text-warning hover:bg-warning/30"
+                    }`}
+                  >
+                    {handlingRequestId === n.id ? "..." : "✓ সম্পন্ন"}
+                  </button>
                 </div>
-                <button
-                  onClick={() => handleServiceRequest(n.id)}
-                  disabled={handlingRequestId === n.id}
-                  className="text-xs px-2.5 py-1 rounded-lg bg-warning/20 text-warning font-semibold hover:bg-warning/30 transition-colors flex-shrink-0 disabled:opacity-50"
-                >
-                  ✓ Done
-                </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
         {/* ── Tab Navigation ── */}
         <div className="flex gap-1 p-1 bg-secondary/50 rounded-xl">
           {[
-            { key: "orders", label: `অর্ডার${pendingCount > 0 ? ` (${pendingCount})` : ""}`, icon: ShoppingCart },
+            { key: "orders", label: `অর্ডার${pendingCount > 0 ? ` (${pendingCount})` : ""}${notifOrders.length > 0 ? ` 🔔${notifOrders.length}` : ""}`, icon: ShoppingCart },
             { key: "tables", label: "টেবিল", icon: Users },
             { key: "profile", label: "প্রোফাইল", icon: User },
           ].map(({ key, label, icon: Icon }) => (
