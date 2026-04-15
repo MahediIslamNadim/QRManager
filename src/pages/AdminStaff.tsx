@@ -429,19 +429,64 @@ const AdminStaff = () => {
           </div>
         )}
 
-        <Card className="bg-blue-50 border-blue-200">
-          <CardHeader>
-            <CardTitle className="text-sm text-blue-900">Supported Staff Roles</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm text-blue-800">
-            <p>
-              <strong>Admin:</strong> Full access to menu, tables, staff, billing, and analytics.
-            </p>
-            <p>
-              <strong>Waiter:</strong> Can take orders, manage tables, and view kitchen status.
-            </p>
-          </CardContent>
-        </Card>
+        <div>
+          <h3 className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wide">স্টাফ রোলের বিবরণ</h3>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {/* Admin */}
+            <Card className="border-purple-200 bg-purple-50/50">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
+                    <Crown className="w-4 h-4 text-purple-600" />
+                  </div>
+                  <span className="font-semibold text-purple-700">অ্যাডমিন</span>
+                </div>
+                <ul className="text-xs text-purple-800 space-y-1">
+                  <li>✓ মেনু ও টেবিল ম্যানেজমেন্ট</li>
+                  <li>✓ স্টাফ যোগ/বাদ দেওয়া</li>
+                  <li>✓ অর্ডার ও অ্যানালিটিক্স</li>
+                  <li>✓ বিলিং ও সেটিংস</li>
+                </ul>
+              </CardContent>
+            </Card>
+
+            {/* Waiter */}
+            <Card className="border-blue-200 bg-blue-50/50">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                    <Users className="w-4 h-4 text-blue-600" />
+                  </div>
+                  <span className="font-semibold text-blue-700">ওয়েটার</span>
+                </div>
+                <ul className="text-xs text-blue-800 space-y-1">
+                  <li>✓ অর্ডার গ্রহণ ও পরিচালনা</li>
+                  <li>✓ টেবিল ও সিট ম্যানেজমেন্ট</li>
+                  <li>✓ বিল ও পেমেন্ট গ্রহণ</li>
+                  <li>✓ সার্ভিস রিকোয়েস্ট দেখা</li>
+                </ul>
+              </CardContent>
+            </Card>
+
+            {/* Kitchen */}
+            <Card className="border-orange-200 bg-orange-50/50">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center">
+                    <Shield className="w-4 h-4 text-orange-600" />
+                  </div>
+                  <span className="font-semibold text-orange-700">কিচেন</span>
+                </div>
+                <ul className="text-xs text-orange-800 space-y-1">
+                  <li>✓ কিচেন ডিসপ্লে দেখা</li>
+                  <li>✓ অর্ডার স্ট্যাটাস আপডেট</li>
+                  <li>✓ রান্না সম্পন্ন মার্ক করা</li>
+                  <li className="text-orange-400">✗ বিলিং ও স্টাফ অ্যাক্সেস নেই</li>
+                </ul>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </div>
     </DashboardLayout>
   );
