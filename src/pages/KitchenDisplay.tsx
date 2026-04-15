@@ -3,8 +3,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrderActions } from "@/hooks/useOrderActions";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChefHat, Clock, CheckCircle2, RefreshCw } from "lucide-react";
+import { ChefHat, Clock, RefreshCw, User, LogOut, Save, KeyRound, X, Phone, Mail } from "lucide-react";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 
 interface OrderItem {
   name: string;
@@ -53,7 +54,8 @@ function elapsed(date: string) {
 }
 
 const KitchenDisplay = () => {
-  const { restaurantId } = useAuth();
+  const { restaurantId, user, signOut } = useAuth();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const kitchenQueryKey = ["kitchen-orders", restaurantId];
   const { updateStatus } = useOrderActions([kitchenQueryKey]);
@@ -61,6 +63,68 @@ const KitchenDisplay = () => {
   const [, setNow] = useState(Date.now());
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<string>("");
+
+  // Profile panel state
+  const [showProfile, setShowProfile] = useState(false);
+  const [profileName, setProfileName] = useState("");
+  const [profilePhone, setProfilePhone] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
+
+  // Load profile
+  useEffect(() => {
+    if (!user) return;
+    supabase.from("profiles").select("full_name, phone").eq("id", user.id).maybeSingle()
+      .then(({ data }) => {
+        if (data) {
+          setProfileName(data.full_name || "");
+          setProfilePhone((data as any).phone || "");
+        }
+      });
+  }, [user]);
+
+  const saveProfile = async () => {
+    if (!user) return;
+    setSavingProfile(true);
+    try {
+      const { error } = await supabase.from("profiles")
+        .update({ full_name: profileName, phone: profilePhone })
+        .eq("id", user.id);
+      if (error) throw error;
+      toast.success("প্রোফাইল সেভ হয়েছে ✅");
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  const changePassword = async () => {
+    if (!newPassword || newPassword.length < 6) {
+      toast.error("পাসওয়ার্ড কমপক্ষে ৬ অক্ষর হতে হবে");
+      return;
+    }
+    setChangingPassword(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      toast.success("পাসওয়ার্ড পরিবর্তন হয়েছে ✅");
+      setNewPassword("");
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setChangingPassword(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate("/login");
+  };
+
+  const staffName = profileName || user?.email || "কিচেন স্টাফ";
+  const staffInitial = staffName.charAt(0).toUpperCase();
 
   // Auto refresh every 10 seconds
   useEffect(() => {
@@ -129,6 +193,108 @@ const KitchenDisplay = () => {
 
   return (
     <div className="min-h-screen bg-[#0f1117] text-white flex flex-col">
+
+      {/* ── Profile Slide-out Panel ── */}
+      {showProfile && (
+        <div className="fixed inset-0 z-50 flex">
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowProfile(false)} />
+          {/* Panel */}
+          <div className="relative ml-auto w-full max-w-sm bg-[#16181f] border-l border-white/10 flex flex-col h-full shadow-2xl animate-slide-in-right">
+            {/* Panel Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-orange-500/20 flex items-center justify-center text-orange-400 font-bold text-lg">
+                  {staffInitial}
+                </div>
+                <div>
+                  <p className="font-semibold text-white text-sm">{staffName}</p>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400 font-semibold">কিচেন</span>
+                </div>
+              </div>
+              <button onClick={() => setShowProfile(false)} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors">
+                <X className="w-4 h-4 text-white/50" />
+              </button>
+            </div>
+
+            {/* Panel Body */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-5">
+              {/* Email display */}
+              <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white/5 border border-white/10">
+                <Mail className="w-4 h-4 text-white/30" />
+                <span className="text-sm text-white/50">{user?.email}</span>
+              </div>
+
+              {/* Edit name */}
+              <div className="space-y-2">
+                <label className="text-xs text-white/40 uppercase tracking-wider">পুরো নাম</label>
+                <input
+                  value={profileName}
+                  onChange={e => setProfileName(e.target.value)}
+                  placeholder="আপনার নাম"
+                  className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm placeholder-white/20 focus:outline-none focus:border-orange-500/50"
+                />
+              </div>
+
+              {/* Edit phone */}
+              <div className="space-y-2">
+                <label className="text-xs text-white/40 uppercase tracking-wider flex items-center gap-1.5">
+                  <Phone className="w-3 h-3" /> ফোন নম্বর
+                </label>
+                <input
+                  value={profilePhone}
+                  onChange={e => setProfilePhone(e.target.value)}
+                  placeholder="+880 1XXX XXXXXX"
+                  className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm placeholder-white/20 focus:outline-none focus:border-orange-500/50"
+                />
+              </div>
+
+              <button
+                onClick={saveProfile}
+                disabled={savingProfile}
+                className="w-full py-2.5 rounded-xl bg-orange-500 hover:bg-orange-500/90 text-white font-semibold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                <Save className="w-4 h-4" />
+                {savingProfile ? "সেভ হচ্ছে..." : "প্রোফাইল সেভ করুন"}
+              </button>
+
+              {/* Divider */}
+              <div className="border-t border-white/10 pt-1">
+                <p className="text-xs text-white/30 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                  <KeyRound className="w-3 h-3" /> পাসওয়ার্ড পরিবর্তন
+                </p>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={e => setNewPassword(e.target.value)}
+                  placeholder="নতুন পাসওয়ার্ড (ন্যূনতম ৬ অক্ষর)"
+                  className="w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm placeholder-white/20 focus:outline-none focus:border-orange-500/50 mb-2"
+                />
+                <button
+                  onClick={changePassword}
+                  disabled={changingPassword || !newPassword}
+                  className="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white font-semibold text-sm transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+                >
+                  <KeyRound className="w-4 h-4" />
+                  {changingPassword ? "পরিবর্তন হচ্ছে..." : "পাসওয়ার্ড পরিবর্তন করুন"}
+                </button>
+              </div>
+            </div>
+
+            {/* Logout */}
+            <div className="p-5 border-t border-white/10">
+              <button
+                onClick={handleLogout}
+                className="w-full py-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 font-semibold text-sm transition-colors flex items-center justify-center gap-2"
+              >
+                <LogOut className="w-4 h-4" />
+                অ্যাকাউন্ট পরিবর্তন / লগআউট
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <header className="flex items-center justify-between px-5 py-3 border-b border-white/10 bg-[#16181f]">
         <div className="flex items-center gap-3">
@@ -140,9 +306,9 @@ const KitchenDisplay = () => {
             <p className="text-[11px] text-white/40">Kitchen Display System</p>
           </div>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           {lastUpdate && (
-            <div className="text-xs text-white/40">
+            <div className="text-xs text-white/40 hidden sm:block">
               শেষ আপডেট: {lastUpdate}
             </div>
           )}
@@ -150,15 +316,14 @@ const KitchenDisplay = () => {
             <button
               onClick={() => setAutoRefresh(!autoRefresh)}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                autoRefresh 
-                  ? 'bg-success/20 text-success border border-success/30' 
+                autoRefresh
+                  ? 'bg-success/20 text-success border border-success/30'
                   : 'bg-white/10 text-white/50 border border-white/10'
               }`}
-              title="অটো রিফ্রেশ চালু/বন্ধ"
             >
               {autoRefresh ? '✓ অটো' : 'অটো বন্ধ'}
             </button>
-            <div className="flex items-center gap-2 text-sm text-white/60">
+            <div className="hidden sm:flex items-center gap-2 text-sm text-white/60">
               <span className="w-2 h-2 rounded-full bg-warning animate-pulse" />
               <span>{pending.length} নতুন</span>
               <span className="mx-1 text-white/20">·</span>
@@ -173,9 +338,16 @@ const KitchenDisplay = () => {
               toast.success('রিফ্রেশ করা হয়েছে!');
             }}
             className="p-2 rounded-lg hover:bg-white/10 transition-colors"
-            title="রিফ্রেশ"
           >
             <RefreshCw className="w-4 h-4 text-white/50" />
+          </button>
+          {/* Profile button */}
+          <button
+            onClick={() => setShowProfile(true)}
+            className="w-9 h-9 rounded-xl bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/30 flex items-center justify-center text-orange-400 font-bold text-sm transition-all"
+            title="প্রোফাইল / অ্যাকাউন্ট"
+          >
+            {staffInitial}
           </button>
         </div>
       </header>
