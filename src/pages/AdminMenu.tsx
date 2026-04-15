@@ -29,7 +29,7 @@ const AdminMenu = () => {
   const [activeCategory, setActiveCategory] = useState("সব");
   const [showForm, setShowForm] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
-  const [form, setForm] = useState({ name: "", price: "", category: "other", description: "", available: true });
+  const [form, setForm] = useState({ name: "", price: "", category: "other", description: "", available: true, hasStock: false, stockQty: "" });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -113,6 +113,7 @@ const AdminMenu = () => {
         description: form.description,
         available: form.available,
         image_url,
+        stock_quantity: form.hasStock ? (Number(form.stockQty) || 0) : null,
       };
 
       if (editingItem) {
@@ -154,7 +155,7 @@ const AdminMenu = () => {
   });
 
   const resetForm = () => {
-    setForm({ name: "", price: "", category: "other", description: "", available: true });
+    setForm({ name: "", price: "", category: "other", description: "", available: true, hasStock: false, stockQty: "" });
     setEditingItem(null);
     setShowForm(false);
     setImageFile(null);
@@ -162,7 +163,8 @@ const AdminMenu = () => {
   };
 
   const openEdit = (item: any) => {
-    setForm({ name: item.name, price: String(item.price), category: item.category, description: item.description || "", available: item.available });
+    const hasStock = item.stock_quantity !== null && item.stock_quantity !== undefined;
+    setForm({ name: item.name, price: String(item.price), category: item.category, description: item.description || "", available: item.available, hasStock, stockQty: hasStock ? String(item.stock_quantity) : "" });
     setEditingItem(item);
     setImageFile(null);
     setImagePreview(item.image_url ? getImageUrl(item.image_url) : null);
@@ -275,6 +277,32 @@ const AdminMenu = () => {
                 <Switch checked={form.available} onCheckedChange={v => setForm(f => ({ ...f, available: v }))} />
                 <Label>উপলব্ধ</Label>
               </div>
+
+              {/* Stock quantity */}
+              <div className="border border-border rounded-xl p-3 space-y-3 bg-secondary/20">
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={form.hasStock}
+                    onCheckedChange={v => setForm(f => ({ ...f, hasStock: v, stockQty: v ? f.stockQty : "" }))}
+                  />
+                  <Label>পরিমাণ সীমা আছে (স্টক ট্র্যাক করুন)</Label>
+                </div>
+                {form.hasStock && (
+                  <div>
+                    <Label className="text-xs text-muted-foreground">বর্তমান স্টক পরিমাণ</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      placeholder="যেমন: ৫০"
+                      value={form.stockQty}
+                      onChange={e => setForm(f => ({ ...f, stockQty: e.target.value }))}
+                      className="mt-1"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">স্টক ০ হলে কাস্টমার অর্ডার করতে পারবে না।</p>
+                  </div>
+                )}
+              </div>
+
               <Button type="submit" variant="hero" className="w-full" disabled={saveMutation.isPending || uploading}>
                 {uploading ? "আপলোড হচ্ছে..." : saveMutation.isPending ? "সেভ হচ্ছে..." : "সেভ করুন"}
               </Button>
@@ -310,6 +338,18 @@ const AdminMenu = () => {
                       {isAvailable ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
                       {isAvailable ? "ইন স্টক" : "স্টক আউট"}
                     </div>
+                    {/* Stock quantity badge */}
+                    {item.stock_quantity !== null && item.stock_quantity !== undefined && (
+                      <div className={`absolute bottom-2 left-2 px-2.5 py-1 rounded-lg text-[11px] font-bold ${
+                        item.stock_quantity === 0
+                          ? "bg-destructive/90 text-destructive-foreground"
+                          : item.stock_quantity <= 5
+                          ? "bg-warning/90 text-warning-foreground"
+                          : "bg-background/80 text-foreground"
+                      }`}>
+                        স্টক: {item.stock_quantity}
+                      </div>
+                    )}
                     {/* Popular badge */}
                     {isPopular && (
                       <div className="absolute top-2 right-2 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-gradient-to-r from-orange-500 to-red-500 text-white flex items-center gap-1">

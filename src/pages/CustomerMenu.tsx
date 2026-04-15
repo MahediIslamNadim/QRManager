@@ -25,6 +25,7 @@ interface MenuItem {
   description: string;
   available: boolean;
   image_url?: string | null;
+  stock_quantity?: number | null;
 }
 
 interface CartItem extends MenuItem {
@@ -173,10 +174,21 @@ const CustomerMenu = () => {
   // ── Cart helpers ───────────────────────────────────────────────────────────
   const addToCart = (item: MenuItem) => {
     if (!item.available) { toast.error("এই আইটেমটি এখন পাওয়া যাচ্ছে না"); return; }
+    if (item.stock_quantity !== null && item.stock_quantity !== undefined && item.stock_quantity <= 0) {
+      toast.error("এই আইটেমের স্টক শেষ হয়ে গেছে"); return;
+    }
     setCart(prev => {
       const existing = prev.find(c => c.id === item.id);
+      const maxQty = item.stock_quantity !== null && item.stock_quantity !== undefined
+        ? Math.min(MAX_ITEM_QTY, item.stock_quantity)
+        : MAX_ITEM_QTY;
       if (existing) {
-        if (existing.quantity >= MAX_ITEM_QTY) { toast.error(`সর্বোচ্চ ${MAX_ITEM_QTY}টি যোগ করা যায়`); return prev; }
+        if (existing.quantity >= maxQty) {
+          toast.error(item.stock_quantity !== null && item.stock_quantity !== undefined
+            ? `স্টকে মাত্র ${item.stock_quantity}টি আছে`
+            : `সর্বোচ্চ ${MAX_ITEM_QTY}টি যোগ করা যায়`);
+          return prev;
+        }
         return prev.map(c => c.id === item.id ? { ...c, quantity: c.quantity + 1 } : c);
       }
       return [...prev, { ...item, quantity: 1 }];
@@ -543,7 +555,7 @@ const CustomerMenu = () => {
           const cartItem = cart.find(c => c.id === item.id);
           const imgUrl = getImageUrl(item.image_url || null);
           const catColor = getCategoryColor(item.category);
-          const isOutOfStock = !item.available;
+          const isOutOfStock = !item.available || (item.stock_quantity !== null && item.stock_quantity !== undefined && item.stock_quantity <= 0);
           return (
             <div key={item.id}
               className={`group bg-card rounded-2xl border overflow-hidden transition-all duration-500 animate-fade-up ${
