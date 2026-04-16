@@ -1,8 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
 import StatCard from "@/components/StatCard";
-import RestaurantBrandBanner from "@/components/RestaurantBrandBanner";
-import { useRestaurantBranding } from "@/hooks/useRestaurantBranding";
 import { ShoppingCart, DollarSign, Users, TrendingUp, Clock, Banknote, Smartphone, Star, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,9 +11,6 @@ import { useQuery } from "@tanstack/react-query";
 const AdminDashboard = () => {
   const { user, restaurantId } = useAuth();
   const navigate = useNavigate();
-  const branding = useRestaurantBranding(restaurantId);
-  const { isHighSmart, logoUrl, restaurantName } = branding;
-
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ["admin-stats", restaurantId],
     queryFn: async () => {
@@ -127,16 +122,6 @@ const AdminDashboard = () => {
   return (
     <DashboardLayout role="admin" title="অ্যাডমিন ড্যাশবোর্ড">
       <div className="space-y-5 sm:space-y-8 animate-fade-up">
-
-        {/* ── Branding Banner (High Smart only) ── */}
-        {isHighSmart && (
-          <RestaurantBrandBanner
-            logoUrl={logoUrl}
-            restaurantName={restaurantName}
-            brandPrimary={branding.brandPrimary}
-            brandSecondary={branding.brandSecondary}
-          />
-        )}
 
         {/* Stats — 2x2 on mobile, 4 cols on lg */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">

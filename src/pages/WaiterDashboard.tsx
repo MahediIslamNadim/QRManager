@@ -13,7 +13,6 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useOrderActions } from "@/hooks/useOrderActions";
 import { useRestaurantBranding } from "@/hooks/useRestaurantBranding";
-import RestaurantBrandBanner from "@/components/RestaurantBrandBanner";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -328,16 +327,6 @@ const WaiterDashboard = () => {
   return (
     <DashboardLayout role="waiter" title="ওয়েটার ড্যাশবোর্ড">
       <div className="space-y-5 animate-fade-up">
-
-        {/* ── Branding Banner (High Smart only) ── */}
-        {isHighSmart && (
-          <RestaurantBrandBanner
-            logoUrl={logoUrl}
-            restaurantName={restaurantName}
-            brandPrimary={branding.brandPrimary}
-            brandSecondary={branding.brandSecondary}
-          />
-        )}
 
         {/* ── Header ── */}
         <div className="flex items-center justify-between">
