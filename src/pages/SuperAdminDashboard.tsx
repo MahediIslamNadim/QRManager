@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 
 const SuperAdminDashboard = () => {
-  const { data: stats } = useQuery({
+  const { data: stats, isError } = useQuery({
     queryKey: ["super-dashboard-stats"],
     queryFn: async () => {
       const [{ data: restaurants }, { data: orders }, { data: profiles }] = await Promise.all([
@@ -57,6 +57,11 @@ const SuperAdminDashboard = () => {
   return (
     <DashboardLayout role="super_admin" title="সুপার অ্যাডমিন ড্যাশবোর্ড">
       <div className="space-y-8 animate-fade-up">
+        {isError && (
+          <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+            ডেটা লোড করতে সমস্যা হয়েছে। পেজ রিফ্রেশ করুন।
+          </div>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatCard title="মোট রেস্টুরেন্ট" value={stats?.totalRestaurants ?? 0} icon={Store} colorScheme="primary" />
           <StatCard title="মোট ব্যবহারকারী" value={stats?.totalUsers ?? 0} icon={Users} colorScheme="info" />

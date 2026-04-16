@@ -79,7 +79,7 @@ const SuperAdminRestaurants = () => {
     setFormAddress(r.address || "");
     setFormPhone(r.phone || "");
     setFormStatus(r.status);
-    setFormPlan(r.plan);
+    setFormPlan(r.tier || r.plan || "medium_smart");
     setDialogOpen(true);
   };
 
@@ -88,13 +88,13 @@ const SuperAdminRestaurants = () => {
       if (editingId) {
         const { error } = await supabase
           .from("restaurants")
-          .update({ name: formName, address: formAddress, phone: formPhone, status: formStatus, plan: formPlan, updated_at: new Date().toISOString() })
+          .update({ name: formName, address: formAddress, phone: formPhone, status: formStatus, tier: formPlan, updated_at: new Date().toISOString() })
           .eq("id", editingId);
         if (error) throw error;
       } else {
         const { error } = await supabase
           .from("restaurants")
-          .insert({ name: formName, address: formAddress, phone: formPhone, status: formStatus, plan: formPlan });
+          .insert({ name: formName, address: formAddress, phone: formPhone, status: formStatus, tier: formPlan, subscription_status: "trial" });
         if (error) throw error;
       }
     },
@@ -162,7 +162,7 @@ const SuperAdminRestaurants = () => {
                 </thead>
                 <tbody>
                   {filtered.length === 0 && !isLoading && (
-                    <tr><td colSpan={6} className="p-8 text-center text-muted-foreground">কোনো রেস্টুরেন্ট নেই</td></tr>
+                    <tr><td colSpan={7} className="p-8 text-center text-muted-foreground">কোনো রেস্টুরেন্ট নেই</td></tr>
                   )}
                   {filtered.map((r) => (
                     <tr key={r.id} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">

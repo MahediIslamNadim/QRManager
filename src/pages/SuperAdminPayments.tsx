@@ -51,7 +51,7 @@ const SuperAdminPayments = () => {
 
   const [selectedPayment, setSelectedPayment] = useState<PaymentRequest | null>(null);
   const [adminNotes, setAdminNotes] = useState("");
-  const [editPlan, setEditPlan] = useState<"basic" | "premium" | "enterprise">("basic");
+  const [editPlan, setEditPlan] = useState<"medium_smart" | "high_smart">("medium_smart");
   const [editAmount, setEditAmount] = useState(0);
   const [editStatus, setEditStatus] = useState<"pending" | "approved" | "rejected">("pending");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -161,7 +161,7 @@ const SuperAdminPayments = () => {
   const openReview = (p: PaymentRequest) => {
     setSelectedPayment(p);
     setAdminNotes(p.admin_notes || "");
-    setEditPlan((p.plan as "basic" | "premium" | "enterprise") || "basic");
+    setEditPlan((p.plan as "medium_smart" | "high_smart") || "medium_smart");
     setEditAmount(Number(p.amount) || 0);
     setEditStatus((p.status as "pending" | "approved" | "rejected") || "pending");
     setDialogOpen(true);

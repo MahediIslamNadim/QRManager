@@ -7,7 +7,7 @@ import { BarChart3, Store, Users, ShoppingCart, DollarSign } from "lucide-react"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 const SuperAdminAnalytics = () => {
-  const { data: stats } = useQuery({
+  const { data: stats, isError } = useQuery({
     queryKey: ["super-analytics"],
     queryFn: async () => {
       const [{ data: restaurants }, { data: orders }, { data: profiles }] = await Promise.all([
@@ -44,6 +44,11 @@ const SuperAdminAnalytics = () => {
   return (
     <DashboardLayout role="super_admin" title="অ্যানালিটিক্স">
       <div className="space-y-6 animate-fade-up">
+        {isError && (
+          <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+            ডেটা লোড করতে সমস্যা হয়েছে। পেজ রিফ্রেশ করুন।
+          </div>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <StatCard title="মোট রেস্টুরেন্ট" value={stats?.totalRestaurants ?? 0} icon={Store} />
           <StatCard title="মোট ব্যবহারকারী" value={stats?.totalUsers ?? 0} icon={Users} />
