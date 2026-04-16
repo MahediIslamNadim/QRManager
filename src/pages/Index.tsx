@@ -295,47 +295,74 @@ export default function Index() {
       <section id="pricing" style={{ padding:"clamp(56px,10vw,120px) clamp(16px,5vw,32px)", backgroundColor:"#0d0d0d" }}>
         <div style={{ maxWidth:1100, margin:"0 auto" }}>
           <Reveal>
-            <div style={{ textAlign:"center", marginBottom:"clamp(36px,6vw,72px)" }}>
+            <div style={{ textAlign:"center", marginBottom:"clamp(28px,5vw,52px)" }}>
               <div style={{ fontSize:11, letterSpacing:"0.4em", color:"#f5d780", textTransform:"uppercase", fontFamily:"monospace", marginBottom:14, fontWeight:600 }}>✦ মূল্য পরিকল্পনা ✦</div>
               <h2 style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:"clamp(30px,5vw,60px)", fontWeight:700, color:"#FFFFFF", marginBottom:10 }}>সাশ্রয়ী <span style={goldText}>প্রাইসিং</span></h2>
-              <p style={{ fontSize:"clamp(13px,3vw,16px)", color:"rgba(255,255,255,0.65)", fontFamily:"'DM Sans', sans-serif" }}>আপনার রেস্টুরেন্টের আকার অনুযায়ী প্ল্যান বেছে নিন</p>
+              <p style={{ fontSize:"clamp(13px,3vw,16px)", color:"rgba(255,255,255,0.65)", fontFamily:"'DM Sans', sans-serif", marginBottom:28 }}>আপনার রেস্টুরেন্টের আকার অনুযায়ী প্ল্যান বেছে নিন</p>
+
+              {/* Billing cycle toggle */}
+              <div style={{ display:"inline-flex", alignItems:"center", gap:0, borderRadius:100, border:"1px solid rgba(201,168,76,0.3)", padding:4, background:"rgba(201,168,76,0.05)" }}>
+                {(["monthly","yearly"] as const).map(cycle => (
+                  <button key={cycle} onClick={() => setBillingCycle(cycle)}
+                    style={{ padding:"8px 22px", borderRadius:100, fontSize:13, fontWeight:600, border:"none", cursor:"pointer", transition:"all 0.25s", fontFamily:"'DM Sans', sans-serif",
+                      background: billingCycle === cycle ? gold : "transparent",
+                      color: billingCycle === cycle ? "#0a0a0a" : "rgba(255,255,255,0.6)",
+                    }}>
+                    {cycle === "monthly" ? "মাসিক" : (
+                      <span style={{ display:"flex", alignItems:"center", gap:6 }}>
+                        বার্ষিক
+                        <span style={{ fontSize:10, fontWeight:700, padding:"2px 7px", borderRadius:20, background:"rgba(34,197,94,0.2)", color:"#4ade80" }}>২০% ছাড়</span>
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
             </div>
           </Reveal>
-          <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3,1fr)", gap:20 }}>
-            {[
-              { name:"বেসিক", price:"১৯৯", desc:"ছোট রেস্টুরেন্টের জন্য", features:["৫০টি মেনু আইটেম","৫টি টেবিল","৩ জন স্টাফ","QR অর্ডারিং","রিয়েলটাইম নোটিফিকেশন"], hot:false, delay:0 },
-              { name:"প্রিমিয়াম", price:"২৯৯", desc:"বড় রেস্টুরেন্টের সেরা চয়েস", features:["২০০টি মেনু আইটেম","২০টি টেবিল","১৫ জন স্টাফ","সব বেসিক ফিচার","অ্যানালিটিক্স ড্যাশবোর্ড","প্রায়োরিটি সাপোর্ট"], hot:true, delay:0.1 },
-              { name:"এন্টারপ্রাইজ", price:"৪৯৯", desc:"চেইন রেস্টুরেন্টের জন্য", features:["আনলিমিটেড মেনু","আনলিমিটেড টেবিল","আনলিমিটেড স্টাফ","সব প্রিমিয়াম ফিচার","মাল্টি-ব্রাঞ্চ","ডেডিকেটেড সাপোর্ট"], hot:false, delay:0.2 },
-            ].map((p, i) => (
-              <Reveal key={i} delay={p.delay}>
-                <div style={{ borderRadius:20, padding:"clamp(28px,5vw,40px) clamp(20px,4vw,32px)", backgroundColor: p.hot ? "#141414" : "#111111", border: p.hot ? "1px solid rgba(201,168,76,0.5)" : "1px solid rgba(201,168,76,0.15)", boxShadow: p.hot ? "0 0 60px rgba(201,168,76,0.1), inset 0 1px 0 rgba(201,168,76,0.2)" : "none", position:"relative", display:"flex", flexDirection:"column", transition:"all 0.3s" }}
-                  onMouseEnter={e => { e.currentTarget.style.transform="translateY(-4px)"; }}
-                  onMouseLeave={e => { e.currentTarget.style.transform="translateY(0)"; }}>
-                  {p.hot && <div style={{ position:"absolute", top:-14, left:"50%", transform:"translateX(-50%)", padding:"5px 18px", borderRadius:100, fontSize:11, fontWeight:700, background:gold, color:"#0a0a0a", letterSpacing:"0.05em", boxShadow:"0 4px 20px rgba(201,168,76,0.4)", whiteSpace:"nowrap", fontFamily:"'DM Sans', sans-serif" }}>✦ সবচেয়ে জনপ্রিয়</div>}
-                  <div style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:24, fontWeight:700, color: p.hot ? "#f5d780" : "#FFFFFF", marginBottom:4, marginTop: p.hot ? 8 : 0 }}>{p.name}</div>
-                  <div style={{ fontSize:13, color:"rgba(255,255,255,0.55)", marginBottom:24, fontFamily:"'DM Sans', sans-serif" }}>{p.desc}</div>
-                  <div style={{ marginBottom:28, display:"flex", alignItems:"baseline", gap:4 }}>
-                    <span style={{ fontSize:17, color:"rgba(201,168,76,0.8)", fontFamily:"'DM Sans', sans-serif", fontWeight:600 }}>৳</span>
-                    <span style={{ fontSize:"clamp(40px,8vw,56px)", fontWeight:700, fontFamily:"'Cormorant Garamond', serif", lineHeight:1, ...( p.hot ? goldText : { color:"#FFFFFF" }) }}>{p.price}</span>
-                    <span style={{ fontSize:14, color:"rgba(255,255,255,0.5)", fontFamily:"'DM Sans', sans-serif" }}>/মাস</span>
-                  </div>
-                  <div style={{ borderTop:"1px solid rgba(201,168,76,0.15)", paddingTop:24, marginBottom:24, flex:1 }}>
-                    {p.features.map((f, fi) => (
-                      <div key={fi} style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
-                        <span style={{ ...goldText, fontSize:12, fontWeight:800, flexShrink:0 }}>✦</span>
-                        <span style={{ fontSize:"clamp(12px,2.5vw,14px)", color:"rgba(255,255,255,0.8)", fontFamily:"'DM Sans', sans-serif" }}>{f}</span>
+
+          <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2,1fr)", gap:20, maxWidth:800, margin:"0 auto" }}>
+            {plans.map((p, i) => {
+              const price = billingCycle === "monthly" ? p.price_monthly : p.price_yearly;
+              return (
+                <Reveal key={p.key} delay={i * 0.12}>
+                  <div style={{ borderRadius:20, padding:"clamp(28px,5vw,40px) clamp(20px,4vw,32px)", backgroundColor: p.hot ? "#141414" : "#111111", border: p.hot ? "1px solid rgba(201,168,76,0.5)" : "1px solid rgba(201,168,76,0.15)", boxShadow: p.hot ? "0 0 60px rgba(201,168,76,0.1), inset 0 1px 0 rgba(201,168,76,0.2)" : "none", position:"relative", display:"flex", flexDirection:"column", transition:"all 0.3s" }}
+                    onMouseEnter={e => { e.currentTarget.style.transform="translateY(-4px)"; }}
+                    onMouseLeave={e => { e.currentTarget.style.transform="translateY(0)"; }}>
+                    {p.hot && <div style={{ position:"absolute", top:-14, left:"50%", transform:"translateX(-50%)", padding:"5px 18px", borderRadius:100, fontSize:11, fontWeight:700, background:gold, color:"#0a0a0a", letterSpacing:"0.05em", boxShadow:"0 4px 20px rgba(201,168,76,0.4)", whiteSpace:"nowrap", fontFamily:"'DM Sans', sans-serif" }}>✦ সবচেয়ে জনপ্রিয়</div>}
+                    <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:6, marginTop: p.hot ? 8 : 0 }}>
+                      <span style={{ fontSize:24 }}>{p.icon}</span>
+                      <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:24, fontWeight:700, color: p.hot ? "#f5d780" : "#FFFFFF" }}>{p.name}</span>
+                    </div>
+                    <div style={{ fontSize:13, color:"rgba(255,255,255,0.55)", marginBottom:24, fontFamily:"'DM Sans', sans-serif" }}>{p.desc}</div>
+                    <div style={{ marginBottom:8, display:"flex", alignItems:"baseline", gap:4 }}>
+                      <span style={{ fontSize:17, color:"rgba(201,168,76,0.8)", fontFamily:"'DM Sans', sans-serif", fontWeight:600 }}>৳</span>
+                      <span style={{ fontSize:"clamp(40px,8vw,56px)", fontWeight:700, fontFamily:"'Cormorant Garamond', serif", lineHeight:1, ...(p.hot ? goldText : { color:"#FFFFFF" }) }}>{price.toLocaleString("bn-BD")}</span>
+                      <span style={{ fontSize:14, color:"rgba(255,255,255,0.5)", fontFamily:"'DM Sans', sans-serif" }}>/{billingCycle === "monthly" ? "মাস" : "বছর"}</span>
+                    </div>
+                    {billingCycle === "yearly" && (
+                      <div style={{ fontSize:12, color:"#4ade80", fontFamily:"'DM Sans', sans-serif", marginBottom:20 }}>
+                        ৳{(p.price_monthly * 12 - p.price_yearly).toLocaleString("bn-BD")} সাশ্রয় হচ্ছে বার্ষিকে
                       </div>
-                    ))}
+                    )}
+                    <div style={{ borderTop:"1px solid rgba(201,168,76,0.15)", paddingTop:24, marginBottom:24, flex:1, marginTop: billingCycle === "yearly" ? 0 : 16 }}>
+                      {p.features.map((f, fi) => (
+                        <div key={fi} style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
+                          <span style={{ ...goldText, fontSize:12, fontWeight:800, flexShrink:0 }}>✦</span>
+                          <span style={{ fontSize:"clamp(12px,2.5vw,14px)", color:"rgba(255,255,255,0.8)", fontFamily:"'DM Sans', sans-serif" }}>{f}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <a href="/login" style={{ display:"block", textAlign:"center", padding:"13px", borderRadius:10, fontSize:14, fontWeight:700, textDecoration:"none", background: p.hot ? gold : "transparent", color: p.hot ? "#0a0a0a" : "#f5d780", border: p.hot ? "none" : "1px solid rgba(201,168,76,0.4)", boxShadow: p.hot ? "0 6px 24px rgba(201,168,76,0.3)" : "none", fontFamily:"'DM Sans', sans-serif", transition:"all 0.2s" }}
+                      onMouseEnter={e => { e.currentTarget.style.opacity="0.85"; }}
+                      onMouseLeave={e => { e.currentTarget.style.opacity="1"; }}>
+                      {FREE_TRIAL_DAYS} দিন ফ্রিতে শুরু করুন →
+                    </a>
                   </div>
-                  <a href="/login" style={{ display:"block", textAlign:"center", padding:"13px", borderRadius:10, fontSize:14, fontWeight:700, textDecoration:"none", background: p.hot ? gold : "transparent", color: p.hot ? "#0a0a0a" : "#f5d780", border: p.hot ? "none" : "1px solid rgba(201,168,76,0.4)", boxShadow: p.hot ? "0 6px 24px rgba(201,168,76,0.3)" : "none", fontFamily:"'DM Sans', sans-serif", transition:"all 0.2s" }}
-                    onMouseEnter={e => { e.currentTarget.style.opacity="0.85"; }}
-                    onMouseLeave={e => { e.currentTarget.style.opacity="1"; }}>
-                    শুরু করুন →
-                  </a>
-                </div>
-              </Reveal>
-            ))}
+                </Reveal>
+              );
+            })}
           </div>
+
           <Reveal delay={0.35}>
             <p style={{ textAlign:"center", color:"rgba(245,215,128,0.65)", fontSize:"clamp(12px,2.5vw,14px)", marginTop:28, fontFamily:"'DM Sans', sans-serif" }}>
               ✦ সব প্ল্যানে <span style={{ color:"#f5d780", fontWeight:700 }}>{FREE_TRIAL_DAYS} দিনের ফ্রি ট্রায়াল</span> — কোনো ক্রেডিট কার্ড লাগবে না
