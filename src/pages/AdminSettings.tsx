@@ -16,17 +16,79 @@ const BrandingGate = ({ restaurantId, children }: { restaurantId: string | undef
   if (loading) return <div className="animate-pulse bg-muted rounded-2xl h-40" />;
   if (hasAccess) return <>{children}</>;
   return (
-    <div className="flex flex-col items-center justify-center py-16 text-center space-y-4 border-2 border-dashed border-muted rounded-2xl">
-      <div className="w-16 h-16 rounded-full bg-purple-500/10 flex items-center justify-center">
-        <Lock className="w-8 h-8 text-purple-500" />
+    <div className="relative rounded-2xl overflow-hidden">
+      {/* Blurred preview of the branding UI */}
+      <div className="pointer-events-none select-none blur-sm opacity-40 space-y-4 p-1">
+        {/* Fake logo card */}
+        <div className="border rounded-2xl p-5 bg-card">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-5 h-5 rounded bg-purple-400/60" />
+            <div className="h-4 w-32 bg-muted rounded" />
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="w-24 h-24 rounded-2xl border-2 border-dashed border-border bg-secondary/30" />
+            <div className="space-y-2 flex-1">
+              <div className="h-9 rounded-xl border border-border bg-secondary/40 w-40" />
+              <div className="h-3 w-28 bg-muted rounded" />
+            </div>
+          </div>
+        </div>
+        {/* Fake color card */}
+        <div className="border rounded-2xl p-5 bg-card">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-5 h-5 rounded bg-purple-400/60" />
+            <div className="h-4 w-24 bg-muted rounded" />
+          </div>
+          <div className="grid grid-cols-6 gap-2">
+            {['#f97316','#22c55e','#3b82f6','#a855f7','#ef4444','#14b8a6'].map(c => (
+              <div key={c} className="h-10 rounded-xl border border-border" style={{ background: c + '40' }} />
+            ))}
+          </div>
+        </div>
       </div>
-      <div>
-        <p className="font-display font-semibold text-lg text-foreground">কাস্টম ব্র্যান্ডিং</p>
-        <p className="text-sm text-muted-foreground mt-1 max-w-sm mx-auto">লোগো, রং এবং ফন্ট কাস্টমাইজ করতে সাবস্ক্রিপশন সক্রিয় করুন।</p>
+
+      {/* Lock overlay */}
+      <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/70 backdrop-blur-[2px] rounded-2xl px-6 py-10">
+        <div className="w-full max-w-sm text-center space-y-5">
+          {/* Icon */}
+          <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center mx-auto shadow-2xl shadow-purple-500/40">
+            <Crown className="w-10 h-10 text-white" />
+          </div>
+
+          {/* Title */}
+          <div>
+            <p className="font-display font-bold text-xl text-foreground">কাস্টম ব্র্যান্ডিং</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              এই ফিচারটি শুধুমাত্র <span className="font-semibold text-purple-500">High Smart Package</span>-এ পাওয়া যায়
+            </p>
+          </div>
+
+          {/* Features list */}
+          <div className="text-left space-y-2 bg-purple-500/5 border border-purple-500/20 rounded-2xl px-4 py-3">
+            {[
+              "🖼️ রেস্টুরেন্টের লোগো আপলোড করুন",
+              "🎨 নিজের রং (Primary & Secondary) বেছে নিন",
+              "✍️ ফন্ট স্টাইল কাস্টমাইজ করুন",
+              "📱 কিচেন, ওয়েটার ও কাস্টমার মেনুতে দেখাবে",
+            ].map(f => (
+              <p key={f} className="text-sm text-foreground flex items-start gap-2">{f}</p>
+            ))}
+          </div>
+
+          {/* CTA */}
+          <a
+            href="/upgrade?tier=high_smart"
+            className="flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl text-white font-bold text-base shadow-xl shadow-purple-500/30 hover:opacity-90 active:scale-[.98] transition-all"
+            style={{ background: 'linear-gradient(135deg, #a855f7, #7c3aed)' }}
+          >
+            <Crown className="w-5 h-5" />
+            High Smart Package কিনুন
+          </a>
+          <p className="text-xs text-muted-foreground">
+            মাত্র ৳১৯৯৯/মাস — সব প্রিমিয়াম ফিচার আনলক হবে
+          </p>
+        </div>
       </div>
-      <a href="/upgrade" className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-purple-600 text-white text-sm font-semibold hover:opacity-90 transition-opacity">
-        আপগ্রেড করুন
-      </a>
     </div>
   );
 };

@@ -1,5 +1,6 @@
 // UpgradePage.tsx - Tier upgrade and payment page
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import DashboardLayout from '@/components/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,9 +16,15 @@ import TierSelection from '@/components/TierSelection';
 const UpgradePage = () => {
   const { restaurantId } = useAuth();
   const queryClient = useQueryClient();
-  
+  const [searchParams] = useSearchParams();
+
   const [selectedTier, setSelectedTier] = useState<TierName>('medium_smart');
   const [selectedBillingCycle, setSelectedBillingCycle] = useState<BillingCycle>('yearly');
+
+  useEffect(() => {
+    const tierParam = searchParams.get('tier');
+    if (tierParam === 'high_smart') setSelectedTier('high_smart');
+  }, [searchParams]);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
 
   // Get current subscription info
