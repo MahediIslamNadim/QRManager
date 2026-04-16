@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Crown, Mail, Shield, Trash2, UserPlus, Users } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
@@ -28,6 +29,7 @@ type StaffMember = {
 
 const AdminStaff = () => {
   const { restaurantId } = useAuth();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
 
   const {

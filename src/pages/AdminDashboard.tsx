@@ -40,7 +40,7 @@ const AdminDashboard = () => {
           .not("rating", "is", null)
           .gte("created_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()),
         supabase.from("menu_items")
-          .select("id, name, available")
+          .select("id, name, available, stock_quantity")
           .eq("restaurant_id", restaurantId),
       ]);
 
@@ -50,6 +50,9 @@ const AdminDashboard = () => {
       const menuItems = menuRes.data || [];
       const soldOutItems = menuItems.filter((m: any) => !m.available);
       const inStockItems = menuItems.filter((m: any) => m.available);
+      const lowStockItems = menuItems.filter((m: any) =>
+        m.available && m.stock_quantity !== null && m.stock_quantity !== undefined && m.stock_quantity > 0 && m.stock_quantity <= 5
+      );
       const avgRating = ratingRows.length > 0
         ? Math.round((ratingRows.reduce((s, r) => s + (r.rating || 0), 0) / ratingRows.length) * 10) / 10
         : null;
@@ -91,6 +94,8 @@ const AdminDashboard = () => {
         soldOutItems: soldOutItems.slice(0, 5),
         totalMenuItems: menuItems.length,
         inStockCount: inStockItems.length,
+        lowStockCount: lowStockItems.length,
+        lowStockItems: lowStockItems.slice(0, 5),
       };
     },
     enabled: !!restaurantId,
@@ -213,6 +218,30 @@ const AdminDashboard = () => {
               <Button size="sm" variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/10 text-xs h-7"
                 onClick={() => navigate('/admin/menu')}>
                 মেনু আপডেট করুন →
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Low stock warning */}
+        {stats && stats.lowStockCount > 0 && (
+          <div className="rounded-2xl border border-warning/30 bg-warning/5 px-4 py-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-3">
+                <AlertTriangle className="w-5 h-5 text-warning flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold text-warning">
+                    {stats.lowStockCount}টি আইটেমে কম স্টক!
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {stats.lowStockItems.map((i: any) => i.name).join(', ')}
+                    {stats.lowStockCount > 5 ? ` এবং আরো...` : ''}
+                  </p>
+                </div>
+              </div>
+              <Button size="sm" variant="outline" className="border-warning/40 text-warning hover:bg-warning/10 text-xs h-7"
+                onClick={() => navigate('/admin/menu')}>
+                স্টক আপডেট করুন →
               </Button>
             </div>
           </div>
