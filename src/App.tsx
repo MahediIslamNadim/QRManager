@@ -68,9 +68,9 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
 
       return (
         <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6 bg-background">
-          <h1 className="text-2xl font-bold text-destructive">à¦•à¦¿à¦›à§ à¦à¦•à¦Ÿà¦¾ à¦­à§à¦² à¦¹à¦¯à¦¼à§‡à¦›à§‡</h1>
+          <h1 className="text-2xl font-bold text-destructive">কিছু একটা ভুল হয়েছে</h1>
           <p className="text-sm text-muted-foreground max-w-md text-center">
-            à¦…à¦ªà§à¦°à¦¤à§à¦¯à¦¾à¦¶à¦¿à¦¤ à¦¸à¦®à¦¸à§à¦¯à¦¾ à¦¹à¦¯à¦¼à§‡à¦›à§‡à¥¤ à¦ªà§‡à¦œà¦Ÿà¦¿ à¦°à¦¿à¦²à§‹à¦¡ à¦•à¦°à§à¦¨ à¦…à¦¥à¦¬à¦¾ à¦¹à§‹à¦®à§‡ à¦«à¦¿à¦°à§à¦¨à¥¤
+            অপ্রত্যাশিত সমস্যা হয়েছে। পেজটি রিলোড করুন অথবা হোমে ফিরুন।
           </p>
           {showDebugDetails && this.state.error && (
             <div className="text-xs text-red-400 bg-red-950/30 border border-red-800 rounded-lg p-3 max-w-lg w-full overflow-auto space-y-3">
@@ -86,7 +86,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
               )}
               <div>
                 <div className="font-semibold mb-1">Exact Error</div>
-                <pre>{this.state.error.message}\n{this.state.error.stack}</pre>
+                <pre>{this.state.error.message}{"\n"}{this.state.error.stack}</pre>
               </div>
             </div>
           )}
@@ -95,13 +95,13 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
               onClick={() => window.location.reload()}
               className="px-4 py-2 rounded-lg bg-secondary text-secondary-foreground text-sm"
             >
-              à¦°à¦¿à¦²à§‹à¦¡ à¦•à¦°à§à¦¨
+              রিলোড করুন
             </button>
             <button
               onClick={() => { window.location.href = "/"; }}
               className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm"
             >
-              à¦¹à§‹à¦®à§‡ à¦«à¦¿à¦°à§à¦¨
+              হোমে ফিরুন
             </button>
           </div>
         </div>
