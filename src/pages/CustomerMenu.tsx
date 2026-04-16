@@ -310,22 +310,22 @@ const CustomerMenu = () => {
     );
   }
 
-  // ── Premium header gradient ─────────────────────────────────────────────────
+  // Header: always starts dark, blends into brand color (or deep blue)
   const headerBg = brandPrimary
-    ? `linear-gradient(160deg, ${brandPrimary}ee 0%, ${brandSecondary ?? brandPrimary}cc 100%)`
-    : "linear-gradient(160deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)";
+    ? `linear-gradient(160deg, #111111 0%, ${brandPrimary}dd 60%, ${brandSecondary ?? brandPrimary}bb 100%)`
+    : "linear-gradient(160deg, #0f0c1a 0%, #1a1040 55%, #0f2460 100%)";
 
   // ── Main UI ────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen" style={{ background: "#f4f4f8" }}>
 
       {/* ══ HERO HEADER ══════════════════════════════════════════════════════ */}
-      <div className="relative" style={{ background: headerBg }}>
+      <div className="relative rounded-b-[2.5rem] overflow-hidden shadow-2xl" style={{ background: headerBg }}>
         {/* Subtle pattern overlay */}
         <div className="absolute inset-0 opacity-10"
           style={{ backgroundImage: "radial-gradient(circle at 20% 50%, white 1px, transparent 1px), radial-gradient(circle at 80% 20%, white 1px, transparent 1px)", backgroundSize: "40px 40px" }} />
 
-        <div className="relative max-w-2xl mx-auto px-5 pt-8 pb-10">
+        <div className="relative max-w-2xl mx-auto px-5 pt-7 pb-8">
           {/* Top row */}
           <div className="flex items-center justify-between mb-5">
             {/* Logo + name */}
@@ -408,12 +408,6 @@ const CustomerMenu = () => {
           )}
         </div>
 
-        {/* Wave bottom */}
-        <div className="h-6 relative overflow-hidden">
-          <svg viewBox="0 0 1440 24" className="absolute bottom-0 w-full" preserveAspectRatio="none">
-            <path d="M0,24 C360,0 1080,0 1440,24 L1440,24 L0,24 Z" fill="hsl(var(--background))" />
-          </svg>
-        </div>
       </div>
 
       {/* ══ AI Recommendations ═══════════════════════════════════════════════ */}
@@ -462,7 +456,7 @@ const CustomerMenu = () => {
       )}
 
       {/* ══ Category tabs ════════════════════════════════════════════════════ */}
-      <div className="sticky top-0 z-20 bg-background/90 backdrop-blur-xl border-b border-border/40 shadow-sm">
+      <div className="sticky top-0 z-20 border-b border-black/8 shadow-sm" style={{ background: "#f4f4f8" }}>
         <div className="max-w-2xl mx-auto px-4 py-2.5 flex gap-2 overflow-x-auto scrollbar-hide">
           {categories.map(cat => {
             const isAll = cat === "সব";
@@ -476,7 +470,7 @@ const CustomerMenu = () => {
                   isActive
                     ? "gradient-primary text-primary-foreground shadow-md shadow-primary/25 scale-105"
                     : isAll
-                      ? "bg-secondary text-muted-foreground hover:text-foreground hover:bg-accent border border-border/50"
+                      ? "bg-white text-gray-500 hover:text-gray-800 border border-gray-200 shadow-sm"
                       : `${color!.bg} ${color!.text} border ${color!.border} hover:scale-105`
                 }`}
               >
@@ -491,7 +485,7 @@ const CustomerMenu = () => {
       </div>
 
       {/* ══ Menu items ═══════════════════════════════════════════════════════ */}
-      <div className="max-w-2xl mx-auto px-4 py-5 space-y-4 pb-36">
+      <div className="max-w-2xl mx-auto px-4 py-4 space-y-4 pb-36">
         {filtered.length === 0 && (
           <div className="text-center py-16">
             <UtensilsCrossed className="w-12 h-12 text-muted-foreground/20 mx-auto mb-3" />
@@ -510,8 +504,8 @@ const CustomerMenu = () => {
           return (
             <div
               key={item.id}
-              className={`group bg-card rounded-3xl border overflow-hidden transition-all duration-300 animate-fade-up ${
-                isOOS ? "border-border/30 opacity-55" : "border-border/60 hover:shadow-xl hover:shadow-black/8 hover:-translate-y-1"
+              className={`group bg-white rounded-3xl overflow-hidden transition-all duration-300 animate-fade-up ${
+                isOOS ? "opacity-55 shadow-sm" : "shadow-md hover:shadow-xl hover:shadow-black/10 hover:-translate-y-1"
               }`}
               style={{ animationDelay: `${index * 50}ms` }}
             >
@@ -618,7 +612,7 @@ const CustomerMenu = () => {
 
       {/* ══ Floating action row ═══════════════════════════════════════════════ */}
       {!showCart && !showOrderStatus && (
-        <div className="fixed bottom-24 right-4 z-20 flex flex-col gap-2.5">
+        <div className="fixed bottom-24 left-4 z-20 flex flex-col gap-2.5">
           <button
             onClick={handleCallWaiter}
             className="flex items-center gap-2 pl-3 pr-4 h-10 rounded-full bg-sky-500 text-white text-sm font-bold shadow-lg shadow-sky-500/40 hover:scale-105 active:scale-95 transition-all"
