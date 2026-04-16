@@ -12,23 +12,28 @@ const AdminDashboard = () => {
   const { user, restaurantId } = useAuth();
   const navigate = useNavigate();
 
-  const { data: stats } = useQuery({
+  const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ["admin-stats", restaurantId],
     queryFn: async () => {
       if (!restaurantId) return null;
 
-      const todayDate = new Date();
-      const yesterdayDate = new Date(todayDate);
-      yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-      const today = todayDate.toISOString().split("T")[0];
-      const yesterday = yesterdayDate.toISOString().split("T")[0];
+      // Bangladesh is UTC+6 — shift timestamps so date boundaries are correct
+      const BD_OFFSET_MS = 6 * 60 * 60 * 1000;
+      const toBDDate = (d: Date) =>
+        new Date(d.getTime() + BD_OFFSET_MS).toISOString().split("T")[0];
+
+      const nowDate = new Date();
+      const prevDate = new Date(nowDate);
+      prevDate.setDate(prevDate.getDate() - 1);
+      const today = toBDDate(nowDate);
+      const yesterday = toBDDate(prevDate);
 
       const [ordersRes, tablesRes, ratingsRes, menuRes] = await Promise.all([
         supabase.from("orders")
           .select("id, total, status, created_at")
           .eq("restaurant_id", restaurantId)
-          .gte("created_at", `${yesterday}T00:00:00`)
-          .lte("created_at", `${today}T23:59:59`),
+          .gte("created_at", `${yesterday}T00:00:00+06:00`)
+          .lte("created_at", `${today}T23:59:59+06:00`),
         supabase.from("restaurant_tables").select("id, status").eq("restaurant_id", restaurantId),
         supabase.from("orders")
           .select("rating")
@@ -50,8 +55,9 @@ const AdminDashboard = () => {
         ? Math.round((ratingRows.reduce((s, r) => s + (r.rating || 0), 0) / ratingRows.length) * 10) / 10
         : null;
 
-      const todayOrders = orders.filter(o => o.created_at?.startsWith(today));
-      const yesterdayOrders = orders.filter(o => o.created_at?.startsWith(yesterday));
+      const utcToBDDate = (utc: string) => toBDDate(new Date(utc));
+      const todayOrders = orders.filter(o => o.created_at && utcToBDDate(o.created_at) === today);
+      const yesterdayOrders = orders.filter(o => o.created_at && utcToBDDate(o.created_at) === yesterday);
 
       const todayRevenue = todayOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
       const yesterdayRevenue = yesterdayOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
@@ -89,7 +95,7 @@ const AdminDashboard = () => {
       };
     },
     enabled: !!restaurantId,
-    refetchInterval: 30000,
+    refetchInterval: 60000,
   });
 
   const { data: recentOrders } = useQuery({
@@ -120,54 +126,72 @@ const AdminDashboard = () => {
 
         {/* Stats — 2x2 on mobile, 4 cols on lg */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
-          <StatCard
-            title="আজকের অর্ডার"
-            value={stats?.todayOrders ?? 0}
-            icon={ShoppingCart}
-            colorScheme="primary"
-            trend={stats?.orderChange?.text}
-            trendUp={stats?.orderChange?.up}
-          />
-          <StatCard
-            title="আজকের আয়"
-            value={`৳${stats?.todayRevenue ?? 0}`}
-            icon={DollarSign}
-            colorScheme="success"
-            trend={stats?.revenueChange?.text}
-            trendUp={stats?.revenueChange?.up}
-          />
-          <StatCard
-            title="অ্যাক্টিভ টেবিল"
-            value={`${stats?.activeTables ?? 0}/${stats?.totalTables ?? 0}`}
-            icon={Users}
-            colorScheme="info"
-          />
-          <StatCard
-            title="গড় অর্ডার"
-            value={`৳${stats?.avgOrder ?? 0}`}
-            icon={TrendingUp}
-            colorScheme="rose"
-            trend={stats?.avgChange?.text}
-            trendUp={stats?.avgChange?.up}
-          />
+          {statsLoading ? (
+            Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="stat-card border-l-4 border-border animate-pulse">
+                <div className="w-12 h-12 rounded-xl bg-muted mb-4" />
+                <div className="h-3 bg-muted rounded w-2/3 mb-2" />
+                <div className="h-8 bg-muted rounded w-1/2" />
+              </div>
+            ))
+          ) : (
+            <>
+              <StatCard
+                title="আজকের অর্ডার"
+                value={stats?.todayOrders ?? 0}
+                icon={ShoppingCart}
+                colorScheme="primary"
+                trend={stats?.orderChange?.text}
+                trendUp={stats?.orderChange?.up}
+              />
+              <StatCard
+                title="আজকের আয়"
+                value={`৳${stats?.todayRevenue ?? 0}`}
+                icon={DollarSign}
+                colorScheme="success"
+                trend={stats?.revenueChange?.text}
+                trendUp={stats?.revenueChange?.up}
+              />
+              <StatCard
+                title="অ্যাক্টিভ টেবিল"
+                value={`${stats?.activeTables ?? 0}/${stats?.totalTables ?? 0}`}
+                icon={Users}
+                colorScheme="info"
+              />
+              <StatCard
+                title="গড় অর্ডার"
+                value={`৳${stats?.avgOrder ?? 0}`}
+                icon={TrendingUp}
+                colorScheme="rose"
+                trend={stats?.avgChange?.text}
+                trendUp={stats?.avgChange?.up}
+              />
+            </>
+          )}
         </div>
 
         {/* Yesterday comparison row */}
-        {stats && (stats.yesterdayOrders > 0 || stats.yesterdayRevenue > 0) && (
+        {stats && (
           <div className="grid grid-cols-3 gap-3">
-            {[
-              { label: "গতকাল অর্ডার", value: stats.yesterdayOrders, icon: ShoppingCart },
-              { label: "গতকাল আয়", value: `৳${stats.yesterdayRevenue}`, icon: DollarSign },
-              { label: "গতকাল গড়", value: `৳${stats.yesterdayAvg}`, icon: TrendingUp },
-            ].map((item) => (
-              <div key={item.label} className="rounded-2xl bg-secondary/40 border border-border/40 px-4 py-3 flex items-center gap-3">
-                <item.icon className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                <div className="min-w-0">
-                  <p className="text-[11px] text-muted-foreground truncate">{item.label}</p>
-                  <p className="text-sm font-bold text-foreground">{item.value}</p>
+            {(stats.yesterdayOrders > 0 || stats.yesterdayRevenue > 0) ? (
+              [
+                { label: "গতকাল অর্ডার", value: stats.yesterdayOrders, icon: ShoppingCart },
+                { label: "গতকাল আয়", value: `৳${stats.yesterdayRevenue}`, icon: DollarSign },
+                { label: "গতকাল গড়", value: `৳${stats.yesterdayAvg}`, icon: TrendingUp },
+              ].map((item) => (
+                <div key={item.label} className="rounded-2xl bg-secondary/40 border border-border/40 px-4 py-3 flex items-center gap-3">
+                  <item.icon className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-[11px] text-muted-foreground truncate">{item.label}</p>
+                    <p className="text-sm font-bold text-foreground">{item.value}</p>
+                  </div>
                 </div>
+              ))
+            ) : (
+              <div className="col-span-3 rounded-2xl bg-secondary/40 border border-border/40 px-4 py-3 text-center">
+                <p className="text-xs text-muted-foreground">গতকাল কোনো অর্ডার ছিল না</p>
               </div>
-            ))}
+            )}
           </div>
         )}
 

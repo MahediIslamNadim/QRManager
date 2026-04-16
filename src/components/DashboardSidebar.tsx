@@ -3,7 +3,7 @@ import { APP_NAME } from "@/constants/app";
 import {
   LayoutDashboard, UtensilsCrossed, Store, Users, BarChart3,
   CreditCard, Menu, QrCode, ShoppingCart, UserCheck, Bell,
-  Settings, LogOut, ChevronLeft, X, ChefHat, Sparkles, Zap, Receipt
+  Settings, LogOut, ChevronLeft, X, ChefHat, Sparkles, Receipt
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -35,14 +35,13 @@ const navItems: Record<Role, { title: string; href: string; icon: any }[]> = {
     { title: "কর্মী ম্যানেজমেন্ট", href: "/admin/staff", icon: UserCheck },
     { title: "অ্যানালিটিক্স", href: "/admin/analytics", icon: BarChart3 },
     { title: "AI Insights", href: "/admin/ai-insights", icon: Sparkles },
-    { title: "Billing", href: "/billing", icon: Receipt },
-    { title: "Upgrade", href: "/upgrade", icon: Zap },
+    { title: "প্ল্যান ও বিলিং", href: "/billing", icon: Receipt },
     { title: "সেটিংস", href: "/admin/settings", icon: Settings },
   ],
   waiter: [
     { title: "অ্যাক্টিভ অর্ডার", href: "/waiter", icon: ShoppingCart },
     { title: "সিট রিকোয়েস্ট", href: "/waiter/seats", icon: UserCheck },
-    { title: "কিচেন ডিসপ্লে", href: "/admin/kitchen", icon: ChefHat },
+    { title: "কিচেন ডিসপ্লে", href: "/waiter/kitchen", icon: ChefHat },
     { title: "নোটিফিকেশন", href: "/waiter/notifications", icon: Bell },
   ],
 };

@@ -24,8 +24,8 @@ const BrandingGate = ({ restaurantId, children }: { restaurantId: string | undef
         <p className="font-display font-semibold text-lg text-foreground">কাস্টম ব্র্যান্ডিং</p>
         <p className="text-sm text-muted-foreground mt-1 max-w-sm mx-auto">লোগো, রং এবং ফন্ট কাস্টমাইজ করতে সাবস্ক্রিপশন সক্রিয় করুন।</p>
       </div>
-      <a href="/admin/settings" className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-purple-600 text-white text-sm font-semibold hover:opacity-90 transition-opacity">
-        সাবস্ক্রিপশন দেখুন
+      <a href="/upgrade" className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-purple-600 text-white text-sm font-semibold hover:opacity-90 transition-opacity">
+        আপগ্রেড করুন
       </a>
     </div>
   );
@@ -34,7 +34,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { TIERS, formatPrice, type TierName, type BillingCycle } from "@/constants/tiers";
 
-const BKASH_NUMBER = import.meta.env.VITE_BKASH_NUMBER || "01786130439";
+if (!import.meta.env.VITE_BKASH_NUMBER) {
+  console.warn("VITE_BKASH_NUMBER env var is not set — payments will fail");
+}
+const BKASH_NUMBER = import.meta.env.VITE_BKASH_NUMBER as string;
 
 const plans = [
   {
@@ -124,30 +127,40 @@ const AdminSettings = () => {
 
   useEffect(() => {
     if (!user) return;
-    Promise.resolve(supabase.from("profiles").select("*").eq("id", user.id).maybeSingle()).then(({ data }) => {
-      if (data) {
-        setProfileName(data.full_name || "");
-        setProfileEmail(data.email || "");
-        setProfilePhone(data.phone || "");
+
+    const loadSettings = async () => {
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles").select("*").eq("id", user.id).maybeSingle();
+      if (profileError) {
+        toast.error("প্রোফাইল লোড করতে সমস্যা হয়েছে");
+      } else if (profile) {
+        setProfileName(profile.full_name || "");
+        setProfileEmail(profile.email || "");
+        setProfilePhone(profile.phone || "");
       }
-    }).catch(console.error);
-    if (restaurantId) {
-      Promise.resolve(supabase.from("restaurants").select("*").eq("id", restaurantId).maybeSingle()).then(({ data }) => {
-        if (data) {
-          setRestName(data.name || "");
-          setRestAddress(data.address || "");
-          setRestPhone(data.phone || "");
-          setCurrentPlan(data.plan || "medium_smart");
-          setBrandLogo(data.logo_url || null);
-          setBrandPrimary(data.brand_primary || "#f97316");
-          setBrandSecondary(data.brand_secondary || "#fb923c");
-          setBrandFont(data.brand_font || "default");
-          setWapiKey(data.whatsapp_api_key || "");
-          setNotifyNewOrder(!!data.notify_new_order);
-          setNotifyDailyReport(!!data.notify_daily_report);
+
+      if (restaurantId) {
+        const { data: restaurant, error: restaurantError } = await supabase
+          .from("restaurants").select("*").eq("id", restaurantId).maybeSingle();
+        if (restaurantError) {
+          toast.error("রেস্টুরেন্ট তথ্য লোড করতে সমস্যা হয়েছে");
+        } else if (restaurant) {
+          setRestName(restaurant.name || "");
+          setRestAddress(restaurant.address || "");
+          setRestPhone(restaurant.phone || "");
+          setCurrentPlan(restaurant.plan || "medium_smart");
+          setBrandLogo(restaurant.logo_url || null);
+          setBrandPrimary(restaurant.brand_primary || "#f97316");
+          setBrandSecondary(restaurant.brand_secondary || "#fb923c");
+          setBrandFont(restaurant.brand_font || "default");
+          setWapiKey(restaurant.whatsapp_api_key || "");
+          setNotifyNewOrder(!!restaurant.notify_new_order);
+          setNotifyDailyReport(!!restaurant.notify_daily_report);
         }
-      }).catch(console.error);
-    }
+      }
+    };
+
+    loadSettings();
   }, [user, restaurantId]);
 
   const saveProfile = async () => {
@@ -262,7 +275,7 @@ const AdminSettings = () => {
     const plan = plans.find(p => p.id === selectedPlan);
     const amount = billingCycle === "monthly" ? plan?.monthlyPrice : plan?.yearlyPrice;
     try {
-      const { error } = await supabase.from("payment_requests" as any).insert({
+      const { error } = await supabase.from("payment_requests").insert({
         user_id: user.id,
         restaurant_id: restaurantId,
         plan: selectedPlan,
@@ -271,7 +284,7 @@ const AdminSettings = () => {
         payment_method: "bkash",
         transaction_id: transactionId.trim(),
         phone_number: payPhone.trim() || null,
-      } as any);
+      });
       if (error) throw error;
       toast.success("✅ পেমেন্ট রিকোয়েস্ট পাঠানো হয়েছে! ২৪ ঘন্টার মধ্যে অনুমোদন হবে।");
       setPayDialog(false);
@@ -293,12 +306,27 @@ const AdminSettings = () => {
     <DashboardLayout role="admin" title="সেটিংস">
       <div className="max-w-4xl space-y-6 animate-fade-up">
         <Tabs defaultValue="profile">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="profile" className="flex items-center gap-2"><User className="w-4 h-4" /><span className="hidden sm:inline">প্রোফাইল</span></TabsTrigger>
-            <TabsTrigger value="restaurant" className="flex items-center gap-2"><Store className="w-4 h-4" /><span className="hidden sm:inline">রেস্টুরেন্ট</span></TabsTrigger>
-            <TabsTrigger value="plan" className="flex items-center gap-2"><Crown className="w-4 h-4" /><span className="hidden sm:inline">প্ল্যান</span></TabsTrigger>
-            <TabsTrigger value="branding" className="flex items-center gap-2"><Palette className="w-4 h-4" /><span className="hidden sm:inline">ব্র্যান্ডিং</span></TabsTrigger>
-            <TabsTrigger value="notifications" className="flex items-center gap-2"><Bell className="w-4 h-4" /><span className="hidden sm:inline">নোটিফিকেশন</span></TabsTrigger>
+          <TabsList className="w-full flex h-auto p-1 gap-0.5">
+            <TabsTrigger value="profile" className="flex-1 flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 py-2 sm:py-1.5 h-auto min-w-0">
+              <User className="w-4 h-4 shrink-0" />
+              <span className="text-[10px] sm:text-sm leading-tight truncate">প্রোফাইল</span>
+            </TabsTrigger>
+            <TabsTrigger value="restaurant" className="flex-1 flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 py-2 sm:py-1.5 h-auto min-w-0">
+              <Store className="w-4 h-4 shrink-0" />
+              <span className="text-[10px] sm:text-sm leading-tight truncate">রেস্টুরেন্ট</span>
+            </TabsTrigger>
+            <TabsTrigger value="plan" className="flex-1 flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 py-2 sm:py-1.5 h-auto min-w-0">
+              <Crown className="w-4 h-4 shrink-0" />
+              <span className="text-[10px] sm:text-sm leading-tight truncate">প্ল্যান</span>
+            </TabsTrigger>
+            <TabsTrigger value="branding" className="flex-1 flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 py-2 sm:py-1.5 h-auto min-w-0">
+              <Palette className="w-4 h-4 shrink-0" />
+              <span className="text-[10px] sm:text-sm leading-tight truncate">ব্র্যান্ডিং</span>
+            </TabsTrigger>
+            <TabsTrigger value="notifications" className="flex-1 flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 py-2 sm:py-1.5 h-auto min-w-0">
+              <Bell className="w-4 h-4 shrink-0" />
+              <span className="text-[10px] sm:text-sm leading-tight truncate">নোটিফিকেশন</span>
+            </TabsTrigger>
           </TabsList>
 
           {/* ── Profile Tab ── */}

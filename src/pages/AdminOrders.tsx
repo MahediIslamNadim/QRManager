@@ -74,7 +74,21 @@ const AdminOrders = () => {
         .range(from, to);
 
       if (statusFilter !== "all") q = q.eq("status", statusFilter);
-      if (search) q = (q as any).filter("id::text", "ilike", `%${search}%`);
+
+      if (search) {
+        const { data: matchingTables } = await supabase
+          .from("restaurant_tables")
+          .select("id")
+          .eq("restaurant_id", restaurantId)
+          .ilike("name", `%${search}%`);
+
+        const tableIds = matchingTables?.map(t => t.id) ?? [];
+        if (tableIds.length > 0) {
+          q = q.in("table_id", tableIds);
+        } else {
+          return { orders: [], count: 0 };
+        }
+      }
 
       const { data: rows, error, count } = await q;
       if (error) throw error;
@@ -168,7 +182,7 @@ const AdminOrders = () => {
           <div className="relative sm:ml-auto sm:w-56">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
             <Input
-              placeholder="অর্ডার ID খুঁজুন..."
+              placeholder="টেবিল নাম খুঁজুন..."
               value={searchInput}
               onChange={e => setSearchInput(e.target.value)}
               className="pl-8 h-9 text-sm"

@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,6 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 
 const AdminTables = () => {
   const { restaurantId } = useAuth();
+  const navigate = useNavigate();
   
   // ✅ New tier-based table limit system
   const { 
@@ -246,22 +248,19 @@ const AdminTables = () => {
           <div className="bg-warning/10 border border-warning/30 rounded-xl p-4 text-sm">
             <div className="flex items-center gap-2 mb-2">
               <span className="text-warning text-lg">⚠️</span>
-              <span className="font-semibold text-warning">Table Limit Reached!</span>
+              <span className="font-semibold text-warning">টেবিল সীমা পূর্ণ হয়েছে!</span>
             </div>
             <p className="text-muted-foreground mb-3">
-              {upgradeMessage || `You've reached the maximum of ${maxTables} tables for your current tier.`}
+              {upgradeMessage || `আপনার বর্তমান প্ল্যানে সর্বোচ্চ ${maxTables}টি টেবিল যোগ করা যাবে।`}
             </p>
             {tier === 'medium_smart' && (
-              <Button 
-                variant="default" 
-                size="sm" 
+              <Button
+                variant="default"
+                size="sm"
                 className="bg-purple-600 hover:bg-purple-700 text-white"
-                onClick={() => {
-                  // TODO: Navigate to upgrade page
-                  toast.info('Upgrade feature coming soon!');
-                }}
+                onClick={() => navigate('/upgrade')}
               >
-                Upgrade to High Smart → Unlimited Tables
+                হাই স্মার্টে আপগ্রেড করুন → আনলিমিটেড টেবিল
               </Button>
             )}
           </div>

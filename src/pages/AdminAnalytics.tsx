@@ -6,7 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { printDailyReport } from "@/utils/printDailyReport";
-import { BarChart3, TrendingUp, ShoppingCart, DollarSign, Printer } from "lucide-react";
+import { BarChart3, TrendingUp, ShoppingCart, DollarSign, Printer, RefreshCw } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
 const COLORS = ["hsl(28, 80%, 52%)", "hsl(38, 90%, 55%)", "hsl(142, 76%, 36%)", "hsl(0, 72%, 51%)", "hsl(220, 70%, 50%)"];
@@ -24,7 +24,7 @@ const AdminAnalytics = () => {
     enabled: !!restaurantId,
   });
 
-  const { data: stats } = useQuery({
+  const { data: stats, isFetching, refetch } = useQuery({
     queryKey: ["analytics", restaurantId],
     queryFn: async () => {
       if (!restaurantId) return null;
@@ -42,13 +42,17 @@ const AdminAnalytics = () => {
       const totalOrders = allOrders.length;
       const avgOrder = totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0;
 
-      // Daily data (last 7 days)
+      // Daily data (last 7 days) — BD timezone UTC+6
+      const BD_OFFSET_MS = 6 * 60 * 60 * 1000;
+      const toBDDate = (d: Date) => new Date(d.getTime() + BD_OFFSET_MS).toISOString().split("T")[0];
+      const utcToBDDate = (utc: string) => toBDDate(new Date(utc));
+
       const dailyData: { day: string; orders: number; revenue: number }[] = [];
       for (let i = 6; i >= 0; i--) {
         const d = new Date();
         d.setDate(d.getDate() - i);
-        const dateStr = d.toISOString().split("T")[0];
-        const dayOrders = allOrders.filter(o => o.created_at?.startsWith(dateStr));
+        const dateStr = toBDDate(d);
+        const dayOrders = allOrders.filter(o => o.created_at && utcToBDDate(o.created_at) === dateStr);
         dailyData.push({
           day: d.toLocaleDateString("bn-BD", { weekday: "short" }),
           orders: dayOrders.length,
@@ -60,7 +64,7 @@ const AdminAnalytics = () => {
       const categoryMap: Record<string, number> = {};
       allItems.forEach(item => {
         const name = item.name || "অন্যান্য";
-        categoryMap[name] = (categoryMap[name] || 0) + item.quantity;
+        categoryMap[name] = (categoryMap[name] || 0) + (Number(item.quantity) || 0);
       });
       const topItems = Object.entries(categoryMap)
         .sort((a, b) => b[1] - a[1])
@@ -76,7 +80,6 @@ const AdminAnalytics = () => {
       return { totalRevenue, totalOrders, avgOrder, dailyData, topItems, statusMap };
     },
     enabled: !!restaurantId,
-    refetchInterval: 300000,
   });
 
   const handlePrintReport = () => {
@@ -102,9 +105,15 @@ const AdminAnalytics = () => {
             <StatCard title="মোট অর্ডার" value={stats?.totalOrders ?? 0} icon={ShoppingCart} />
             <StatCard title="গড় অর্ডার মূল্য" value={`৳${stats?.avgOrder ?? 0}`} icon={TrendingUp} />
           </div>
-          <Button variant="outline" size="sm" onClick={handlePrintReport} disabled={!stats} className="flex-shrink-0 flex items-center gap-2">
-            <Printer className="w-4 h-4" /> রিপোর্ট
-          </Button>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching} className="flex items-center gap-2">
+              <RefreshCw className={`w-4 h-4 ${isFetching ? "animate-spin" : ""}`} />
+              <span className="hidden sm:inline">রিফ্রেশ</span>
+            </Button>
+            <Button variant="outline" size="sm" onClick={handlePrintReport} disabled={!stats} className="flex items-center gap-2">
+              <Printer className="w-4 h-4" /> রিপোর্ট
+            </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -144,7 +153,7 @@ const AdminAnalytics = () => {
               {stats?.topItems && stats.topItems.length > 0 ? (
                 <ResponsiveContainer width="100%" height={300}>
                   <PieChart>
-                    <Pie data={stats.topItems} cx="50%" cy="50%" outerRadius={100} dataKey="value" nameKey="name" label={({ name, value }) => `${name}: ${value}`}>
+                    <Pie data={stats.topItems} cx="50%" cy="50%" outerRadius={100} dataKey="value" nameKey="name" label={({ name, value }) => (name && value != null) ? `${name}: ${value}` : ""}>
                       {stats.topItems.map((_, i) => (
                         <Cell key={i} fill={COLORS[i % COLORS.length]} />
                       ))}

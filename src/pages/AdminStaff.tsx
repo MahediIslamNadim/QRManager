@@ -198,16 +198,16 @@ const AdminStaff = () => {
       queryClient.invalidateQueries({ queryKey: ["staff", restaurantId] });
 
       if (result?.role_revoked) {
-        toast.success("Staff member removed and their restaurant staff access was revoked.");
+        toast.success("স্টাফ সরানো হয়েছে এবং অ্যাক্সেস বাতিল করা হয়েছে।");
       } else if (result?.role_preserved_reason === "other_staff_links") {
-        toast.success("Staff member removed from this restaurant. Their app role was kept because they still belong to another restaurant.");
+        toast.success("স্টাফ সরানো হয়েছে। অন্য রেস্টুরেন্টে থাকায় অ্যাপ রোল বহাল রাখা হয়েছে।");
       } else if (
         result?.role_preserved_reason === "restaurant_owner" ||
         result?.role_preserved_reason === "super_admin"
       ) {
-        toast.success("Staff link removed. Elevated access was preserved for this user.");
+        toast.success("স্টাফ লিংক সরানো হয়েছে। উচ্চতর অ্যাক্সেস বহাল রাখা হয়েছে।");
       } else {
-        toast.success("Staff member removed.");
+        toast.success("স্টাফ সরানো হয়েছে।");
       }
     },
     onError: (err: Error) => {
@@ -242,19 +242,19 @@ const AdminStaff = () => {
   };
 
   return (
-    <DashboardLayout role="admin" title="Staff Management">
+    <DashboardLayout role="admin" title="স্টাফ ম্যানেজমেন্ট">
       <div className="space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
-            <h2 className="text-2xl font-bold">Team Members</h2>
+            <h2 className="text-2xl font-bold">টিম মেম্বার</h2>
             <p className="text-sm text-muted-foreground">
-              Add existing QRManager accounts to your restaurant and manage their roles.
+              বিদ্যমান QRManager অ্যাকাউন্ট যোগ করুন এবং রোল নির্ধারণ করুন।
             </p>
           </div>
 
           <div className="flex items-center gap-3">
             <span className="text-xs text-muted-foreground bg-secondary px-3 py-1.5 rounded-full">
-              {staffCount}/{maxStaff} staff members
+              {staffCount}/{maxStaff} জন স্টাফ
             </span>
             <Button
               onClick={() => setShowInviteDialog(true)}
@@ -262,7 +262,7 @@ const AdminStaff = () => {
               variant="hero"
             >
               <UserPlus className="w-4 h-4 mr-2" />
-              Add Staff
+              স্টাফ যোগ করুন
             </Button>
           </div>
         </div>
@@ -271,21 +271,19 @@ const AdminStaff = () => {
           <div className="bg-warning/10 border border-warning/30 rounded-xl p-4">
             <div className="flex items-center gap-2 mb-2">
               <AlertTriangle className="w-5 h-5 text-warning" />
-              <span className="font-semibold text-warning">Staff Limit Reached</span>
+              <span className="font-semibold text-warning">স্টাফ সীমা পূর্ণ হয়েগেছে</span>
             </div>
             <p className="text-sm text-muted-foreground mb-3">
-              {upgradeMessage || `You've reached the maximum of ${maxStaff} staff members for your current tier.`}
+              {upgradeMessage || `আপনার বর্তমান প্ল্যানে সর্বোচ্চ ${maxStaff} জন স্টাফ যোগ করা যাবে।`}
             </p>
             {tier === "medium_smart" && (
               <Button
                 variant="default"
                 size="sm"
                 className="bg-purple-600 hover:bg-purple-700 text-white"
-                onClick={() => {
-                  toast.info("Upgrade feature coming soon!");
-                }}
+                onClick={() => navigate('/upgrade')}
               >
-                Upgrade to High Smart
+                হাই স্মার্টে আপগ্রেড করুন
               </Button>
             )}
           </div>
@@ -364,7 +362,7 @@ const AdminStaff = () => {
         </Dialog>
 
         {isLoading ? (
-          <div className="text-center py-12 text-muted-foreground">Loading staff members...</div>
+          <div className="text-center py-12 text-muted-foreground">স্টাফ তালিকা লোড হচ্ছে...</div>
         ) : staffMembers.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center">
@@ -374,7 +372,7 @@ const AdminStaff = () => {
               </p>
               <Button onClick={() => setShowInviteDialog(true)} variant="outline">
                 <UserPlus className="w-4 h-4 mr-2" />
-                Add First Staff Member
+                প্রথম স্টাফ যোগ করুন
               </Button>
             </CardContent>
           </Card>
@@ -394,10 +392,10 @@ const AdminStaff = () => {
                         </div>
 
                         <div>
-                          <h3 className="font-semibold text-lg">{staff.users?.full_name || "Unknown User"}</h3>
+                          <h3 className="font-semibold text-lg">{staff.users?.full_name || "নাম নেই"}</h3>
                           <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             <Mail className="w-3 h-3" />
-                            {staff.users?.email || "No email"}
+                            {staff.users?.email || "ইমেইল নেই"}
                           </div>
                         </div>
                       </div>
@@ -405,7 +403,9 @@ const AdminStaff = () => {
                       <div className="flex items-center gap-3">
                         <div className={`px-3 py-1.5 rounded-full flex items-center gap-1.5 ${roleColor}`}>
                           <RoleIcon className="w-4 h-4" />
-                          <span className="text-xs font-medium capitalize">{staff.role}</span>
+                          <span className="text-xs font-medium">
+                            {{ admin: "অ্যাডমিন", waiter: "ওয়েটার", kitchen: "কিচেন" }[staff.role] ?? staff.role}
+                          </span>
                         </div>
 
                         <Button
@@ -413,7 +413,7 @@ const AdminStaff = () => {
                           size="sm"
                           className="text-destructive hover:text-destructive hover:bg-destructive/10"
                           onClick={() => {
-                            if (confirm(`Remove ${staff.users?.full_name || "this staff member"}?`)) {
+                            if (confirm(`"${staff.users?.full_name || "এই স্টাফ"}" কে সরিয়ে দেবেন?`)) {
                               removeMutation.mutate({ id: staff.id, user_id: staff.user_id });
                             }
                           }}

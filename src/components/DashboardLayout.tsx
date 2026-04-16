@@ -76,7 +76,7 @@ const DashboardLayout = ({ children, role, title }: DashboardLayoutProps) => {
       {/* Trial Expired Modal */}
       <TrialExpiredModal
         open={isExpired && !trialLoading}
-        tier={tier as any}
+        tier={tier}
         onUpgradeClick={handleUpgradeClick}
         onLogoutClick={handleLogout}
       />
