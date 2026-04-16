@@ -1,18 +1,29 @@
+import { useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import StatCard from "@/components/StatCard";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { printDailyReport } from "@/utils/printDailyReport";
-import { BarChart3, TrendingUp, ShoppingCart, DollarSign, Printer, RefreshCw } from "lucide-react";
+import { exportOrdersCSV } from "@/utils/exportOrdersCSV";
+import { BarChart3, TrendingUp, ShoppingCart, DollarSign, Printer, RefreshCw, Download } from "lucide-react";
+import { toast } from "sonner";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
 const COLORS = ["hsl(28, 80%, 52%)", "hsl(38, 90%, 55%)", "hsl(142, 76%, 36%)", "hsl(0, 72%, 51%)", "hsl(220, 70%, 50%)"];
 
 const AdminAnalytics = () => {
   const { restaurantId } = useAuth();
+
+  // Date range for CSV export — default: last 30 days
+  const today = new Date().toISOString().split("T")[0];
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+  const [fromDate, setFromDate] = useState(thirtyDaysAgo);
+  const [toDate, setToDate] = useState(today);
+  const [exporting, setExporting] = useState(false);
 
   const { data: restaurantName = "রেস্টুরেন্ট" } = useQuery({
     queryKey: ["restaurant-name-analytics", restaurantId],
@@ -82,6 +93,40 @@ const AdminAnalytics = () => {
     enabled: !!restaurantId,
   });
 
+  const handleExportCSV = async () => {
+    if (!restaurantId) return;
+    setExporting(true);
+    try {
+      const { data: orders, error } = await supabase
+        .from("orders")
+        .select("id, created_at, total, status, payment_status, payment_method, restaurant_tables(name), order_items(name, quantity)")
+        .eq("restaurant_id", restaurantId)
+        .gte("created_at", `${fromDate}T00:00:00+06:00`)
+        .lte("created_at", `${toDate}T23:59:59+06:00`)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      const rows = (orders || []).map((o: any) => ({
+        id: o.id,
+        created_at: o.created_at,
+        total: Number(o.total),
+        status: o.status,
+        payment_status: o.payment_status,
+        payment_method: o.payment_method,
+        table_name: o.restaurant_tables?.name || "—",
+        items: (o.order_items || []).map((i: any) => `${i.name}×${i.quantity}`).join("; "),
+      }));
+
+      exportOrdersCSV(rows, `orders_${fromDate}_${toDate}.csv`);
+      toast.success(`${rows.length}টি অর্ডার export হয়েছে`);
+    } catch (err: any) {
+      toast.error(err.message || "Export ব্যর্থ হয়েছে");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const handlePrintReport = () => {
     if (!stats) return;
     printDailyReport({
@@ -105,7 +150,7 @@ const AdminAnalytics = () => {
             <StatCard title="মোট অর্ডার" value={stats?.totalOrders ?? 0} icon={ShoppingCart} />
             <StatCard title="গড় অর্ডার মূল্য" value={`৳${stats?.avgOrder ?? 0}`} icon={TrendingUp} />
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
             <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching} className="flex items-center gap-2">
               <RefreshCw className={`w-4 h-4 ${isFetching ? "animate-spin" : ""}`} />
               <span className="hidden sm:inline">রিফ্রেশ</span>
@@ -186,6 +231,34 @@ const AdminAnalytics = () => {
                 <p className="col-span-full text-center text-muted-foreground py-4">কোনো অর্ডার ডেটা নেই</p>
               )}
             </div>
+          </CardContent>
+        </Card>
+
+        {/* CSV Export */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="font-display text-lg flex items-center gap-2">
+              <Download className="w-5 h-5 text-primary" /> সেলস রিপোর্ট CSV Export
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col sm:flex-row items-start sm:items-end gap-4">
+              <div className="space-y-1.5">
+                <p className="text-xs text-muted-foreground font-medium">শুরুর তারিখ</p>
+                <Input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className="w-44" />
+              </div>
+              <div className="space-y-1.5">
+                <p className="text-xs text-muted-foreground font-medium">শেষের তারিখ</p>
+                <Input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="w-44" />
+              </div>
+              <Button variant="hero" onClick={handleExportCSV} disabled={exporting} className="flex items-center gap-2 sm:mb-0">
+                <Download className="w-4 h-4" />
+                {exporting ? "Export হচ্ছে..." : "CSV ডাউনলোড"}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-3">
+              নির্বাচিত তারিখ সীমার সকল অর্ডার CSV ফাইলে export হবে। Excel-এ খুলুন।
+            </p>
           </CardContent>
         </Card>
       </div>
