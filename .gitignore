@@ -27,3 +27,15 @@ dist-ssr
 .env
 .env.local
 .env.production
+
+# Claude Code
+.claude/settings.local.json
+.claude/worktrees/
+
+# Supabase temp
+supabase/.temp/
+
+# Python
+backend/venv/
+backend/__pycache__/
+*.pyc
