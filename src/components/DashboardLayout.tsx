@@ -4,6 +4,7 @@ import NotificationBell from "./NotificationBell";
 import { Menu } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useTrialStatus } from "@/hooks/useTrialStatus";
+import { useRestaurantBranding } from "@/hooks/useRestaurantBranding";
 import TrialWarningBanner from "@/components/TrialWarningBanner";
 import TrialExpiredModal from "@/components/TrialExpiredModal";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -31,6 +32,8 @@ const DashboardLayout = ({ children, role, title }: DashboardLayoutProps) => {
     tier,
     loading: trialLoading
   } = useTrialStatus(restaurantId);
+
+  const { logoUrl, restaurantName, isHighSmart } = useRestaurantBranding(restaurantId);
 
   const handleUpgradeClick = () => {
     navigate('/upgrade');
@@ -102,7 +105,15 @@ const DashboardLayout = ({ children, role, title }: DashboardLayoutProps) => {
             {title}
           </h1>
 
-          <div className="ml-auto flex-shrink-0">
+          {isHighSmart && logoUrl && (
+            <img
+              src={logoUrl}
+              alt={restaurantName}
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl object-contain border border-border/50 bg-card flex-shrink-0"
+            />
+          )}
+
+          <div className="ml-1 flex-shrink-0">
             <NotificationBell />
           </div>
         </header>

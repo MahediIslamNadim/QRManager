@@ -110,11 +110,12 @@ const CustomerMenu = () => {
     onRatingRequest,
   });
 
-  // ── Branding (custom colors/logo from DB) ──────────────────────────────
-  const brandPrimary   = restaurant?.brand_primary   || null;
-  const brandSecondary = restaurant?.brand_secondary || null;
-  const brandFont      = restaurant?.brand_font      || 'default';
-  const brandLogo      = restaurant?.logo_url        || null;
+  // ── Branding (custom colors/logo from DB — High Smart only) ───────────
+  const isHighSmart    = restaurant?.tier === 'high_smart';
+  const brandPrimary   = isHighSmart ? (restaurant?.brand_primary   || null) : null;
+  const brandSecondary = isHighSmart ? (restaurant?.brand_secondary || null) : null;
+  const brandFont      = isHighSmart ? (restaurant?.brand_font      || 'default') : 'default';
+  const brandLogo      = isHighSmart ? (restaurant?.logo_url        || null) : null;
 
   const fontStyle = brandFont === 'serif'   ? { fontFamily: 'Georgia, serif' }
                   : brandFont === 'mono'    ? { fontFamily: 'monospace' }

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrderActions } from "@/hooks/useOrderActions";
+import { useRestaurantBranding } from "@/hooks/useRestaurantBranding";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChefHat, Clock, RefreshCw, User, LogOut, Save, KeyRound, X, Phone, Mail } from "lucide-react";
 import { toast } from "sonner";
@@ -58,6 +59,7 @@ const KitchenDisplay = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const kitchenQueryKey = ["kitchen-orders", restaurantId];
+  const { logoUrl, restaurantName, isHighSmart } = useRestaurantBranding(restaurantId);
   const { updateStatus } = useOrderActions([kitchenQueryKey]);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const [, setNow] = useState(Date.now());
@@ -298,11 +300,16 @@ const KitchenDisplay = () => {
       {/* Header */}
       <header className="flex items-center justify-between px-5 py-3 border-b border-white/10 bg-[#16181f]">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-primary/20 flex items-center justify-center">
-            <ChefHat className="w-5 h-5 text-primary" />
+          <div className="w-9 h-9 rounded-xl bg-primary/20 flex items-center justify-center overflow-hidden flex-shrink-0">
+            {isHighSmart && logoUrl
+              ? <img src={logoUrl} alt={restaurantName} className="w-full h-full object-contain p-1" />
+              : <ChefHat className="w-5 h-5 text-primary" />
+            }
           </div>
           <div>
-            <h1 className="font-display font-bold text-lg leading-tight">কিচেন ডিসপ্লে</h1>
+            <h1 className="font-display font-bold text-lg leading-tight">
+              {isHighSmart && restaurantName ? restaurantName : "কিচেন ডিসপ্লে"}
+            </h1>
             <p className="text-[11px] text-white/40">Kitchen Display System</p>
           </div>
         </div>

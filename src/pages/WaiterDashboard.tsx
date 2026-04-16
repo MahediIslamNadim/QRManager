@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrderActions } from "@/hooks/useOrderActions";
+import { useRestaurantBranding } from "@/hooks/useRestaurantBranding";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -27,6 +28,7 @@ const WaiterDashboard = () => {
   const { restaurantId, user } = useAuth();
   const queryClient = useQueryClient();
   const waiterQueryKey = ["waiter-orders", restaurantId];
+  const { logoUrl, restaurantName, isHighSmart } = useRestaurantBranding(restaurantId);
   const { updateStatus, completePayment, saveOrderEdit } = useOrderActions([waiterQueryKey]);
   const [editOrder, setEditOrder] = useState<any>(null);
   const [editItems, setEditItems] = useState<any[]>([]);
@@ -339,12 +341,21 @@ const WaiterDashboard = () => {
               <p className="text-xs text-muted-foreground">ওয়েটার</p>
             </div>
           </div>
-          <button
-            onClick={() => setSoundEnabled(!soundEnabled)}
-            className={`p-2.5 rounded-xl transition-all ${soundEnabled ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}
-          >
-            {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-          </button>
+          <div className="flex items-center gap-2">
+            {isHighSmart && logoUrl && (
+              <img
+                src={logoUrl}
+                alt={restaurantName}
+                className="w-9 h-9 rounded-xl object-contain border border-border/50 bg-card"
+              />
+            )}
+            <button
+              onClick={() => setSoundEnabled(!soundEnabled)}
+              className={`p-2.5 rounded-xl transition-all ${soundEnabled ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}
+            >
+              {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+            </button>
+          </div>
         </div>
 
         {/* Service Requests — waiter call / bill request */}
