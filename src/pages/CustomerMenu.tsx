@@ -1,7 +1,11 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ShoppingCart, Plus, Minus, UtensilsCrossed, X, Send, Image as ImageIcon, Flame, CheckCircle, XCircle, Search, QrCode, Lock, ClipboardList, ChefHat, Bell, Bike, MessageSquare, Phone, Receipt, Clock, ArrowLeft, Star } from "lucide-react";
+import {
+  ShoppingCart, Plus, Minus, UtensilsCrossed, X, Send, Image as ImageIcon,
+  Flame, CheckCircle, XCircle, Search, QrCode, Lock, ClipboardList,
+  ChefHat, Bell, Bike, MessageSquare, Phone, Receipt, Clock, ArrowLeft, Star,
+} from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useMenuSession } from "@/hooks/useMenuSession";
@@ -38,78 +42,58 @@ interface MenuItem {
   stock_quantity?: number | null;
 }
 
-interface CartItem extends MenuItem {
-  quantity: number;
-}
+interface CartItem extends MenuItem { quantity: number; }
 
 const colorPalette = [
-  { bg: "bg-primary/10", text: "text-primary", border: "border-primary/30", dot: "bg-primary" },
-  { bg: "bg-info/10", text: "text-info", border: "border-info/30", dot: "bg-info" },
-  { bg: "bg-success/10", text: "text-success", border: "border-success/30", dot: "bg-success" },
-  { bg: "bg-rose-500/10", text: "text-rose-500", border: "border-rose-500/30", dot: "bg-rose-500" },
-  { bg: "bg-amber-500/10", text: "text-amber-500", border: "border-amber-500/30", dot: "bg-amber-500" },
-  { bg: "bg-accent", text: "text-accent-foreground", border: "border-accent-foreground/20", dot: "bg-accent-foreground" },
+  { bg: "bg-orange-500/15", text: "text-orange-600", border: "border-orange-500/30" },
+  { bg: "bg-blue-500/15",   text: "text-blue-600",   border: "border-blue-500/30"   },
+  { bg: "bg-green-500/15",  text: "text-green-600",  border: "border-green-500/30"  },
+  { bg: "bg-purple-500/15", text: "text-purple-600", border: "border-purple-500/30" },
+  { bg: "bg-rose-500/15",   text: "text-rose-600",   border: "border-rose-500/30"   },
+  { bg: "bg-teal-500/15",   text: "text-teal-600",   border: "border-teal-500/30"   },
 ];
 
 const CustomerMenu = () => {
   const { restaurantId } = useParams();
-  const [searchParams] = useSearchParams();
-  const tableId   = searchParams.get("table");
-  const seatId    = searchParams.get("seat");
+  const [searchParams]   = useSearchParams();
+  const tableId    = searchParams.get("table");
+  const seatId     = searchParams.get("seat");
   const tokenParam = searchParams.get("token");
-  const isDemo = !restaurantId;
+  const isDemo     = !restaurantId;
 
-  const [menuItems, setMenuItems]     = useState<MenuItem[]>([]);
-  const [restaurant, setRestaurant]   = useState<Restaurant | null>(null);
-  const [categories, setCategories]   = useState<string[]>(["সব"]);
+  const [menuItems, setMenuItems]         = useState<MenuItem[]>([]);
+  const [restaurant, setRestaurant]       = useState<Restaurant | null>(null);
+  const [categories, setCategories]       = useState<string[]>(["সব"]);
   const [activeCategory, setActiveCategory] = useState("সব");
-  const [loading, setLoading]         = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [showSearch, setShowSearch]   = useState(false);
+  const [loading, setLoading]             = useState(true);
+  const [searchQuery, setSearchQuery]     = useState("");
+  const [showSearch, setShowSearch]       = useState(false);
 
-  const [cart, setCart]               = useState<CartItem[]>([]);
-  const [showCart, setShowCart]       = useState(false);
-  const [submitting, setSubmitting]   = useState(false);
+  const [cart, setCart]           = useState<CartItem[]>([]);
+  const [showCart, setShowCart]   = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [specialNote, setSpecialNote] = useState("");
 
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [lastOrderId, setLastOrderId]           = useState<string | null>(null);
   const [lastOrderTotal, setLastOrderTotal]     = useState(0);
   const [lastOrderItems, setLastOrderItems]     = useState<CartItem[]>([]);
+  const [showOrderStatus, setShowOrderStatus]   = useState(false);
 
-  const [showOrderStatus, setShowOrderStatus] = useState(false);
+  const { recommendations: aiRecs, explanations: aiExp, loading: aiLoading, trackClick: trackAI } =
+    useAIRecommendations({ restaurantId: restaurantId || "demo", menuItems, strategy: "balanced" });
 
-  const {
-    recommendations: aiRecommendations,
-    explanations: aiExplanations,
-    loading: aiLoading,
-    trackClick: trackAIClick,
-  } = useAIRecommendations({
-    restaurantId: restaurantId || "demo",
-    menuItems,
-    strategy: "balanced",
-  });
-
-  const [ratingOrderId, setRatingOrderId]       = useState<string | null>(null);
-  const [ratingValue, setRatingValue]           = useState(0);
-  const [ratingComment, setRatingComment]       = useState("");
+  const [ratingOrderId, setRatingOrderId] = useState<string | null>(null);
+  const [ratingValue, setRatingValue]     = useState(0);
+  const [ratingComment, setRatingComment] = useState("");
   const [ratingSubmitting, setRatingSubmitting] = useState(false);
 
-  const {
-    tableName, tableIsOpen, seatNumber,
-    tokenValid, tokenChecking, tableChecked, sessionToken,
-  } = useMenuSession({ restaurantId, tableId, seatId, tokenParam, isDemo });
+  const { tableName, tableIsOpen, seatNumber, tokenValid, tokenChecking, tableChecked, sessionToken } =
+    useMenuSession({ restaurantId, tableId, seatId, tokenParam, isDemo });
 
-  const onRatingRequest = useCallback((orderId: string) => setRatingOrderId(orderId), []);
-
-  const {
-    myOrders, ordersLoading, activeOrdersCount,
-    submitOrder, callWaiter, requestBill,
-  } = useMenuOrders({
-    restaurantId, tableId, seatId, sessionToken,
-    isDemo, tokenValid, tableChecked,
-    onRatingRequest,
-  });
+  const onRatingRequest = useCallback((id: string) => setRatingOrderId(id), []);
+  const { myOrders, ordersLoading, activeOrdersCount, submitOrder, callWaiter, requestBill } =
+    useMenuOrders({ restaurantId, tableId, seatId, sessionToken, isDemo, tokenValid, tableChecked, onRatingRequest });
 
   // Branding — High Smart only
   const isHighSmart    = restaurant?.tier === "high_smart";
@@ -117,20 +101,16 @@ const CustomerMenu = () => {
   const brandSecondary = isHighSmart ? (restaurant?.brand_secondary ?? null) : null;
   const brandFont      = isHighSmart ? (restaurant?.brand_font      ?? "default") : "default";
   const brandLogo      = isHighSmart ? (restaurant?.logo_url        ?? null) : null;
-
   const fontStyle = brandFont === "serif"   ? { fontFamily: "Georgia, serif" }
                   : brandFont === "mono"    ? { fontFamily: "monospace" }
                   : brandFont === "rounded" ? { fontFamily: "system-ui, sans-serif", fontWeight: 700 as const }
                   : {};
 
-  const categoryColors = useMemo<Record<string, typeof colorPalette[number]>>(() => {
+  const categoryColors = useMemo(() => {
     const map: Record<string, typeof colorPalette[number]> = {};
-    categories.filter(c => c !== "সব").forEach((cat, i) => {
-      map[cat] = colorPalette[i % colorPalette.length];
-    });
+    categories.filter(c => c !== "সব").forEach((cat, i) => { map[cat] = colorPalette[i % colorPalette.length]; });
     return map;
   }, [categories]);
-
   const getCategoryColor = (cat: string) => categoryColors[cat] ?? colorPalette[0];
 
   useEffect(() => {
@@ -138,26 +118,24 @@ const CustomerMenu = () => {
       if (isDemo) {
         setRestaurant({ id: "demo", name: "Spice Garden" });
         const demoItems: MenuItem[] = [
-          { id: "1", name: "চিকেন বিরিয়ানি",  price: 350, category: "বিরিয়ানি", description: "সুগন্ধি বাসমতি চালে রান্না করা মুরগির বিরিয়ানি", available: true },
-          { id: "2", name: "বটি কাবাব",        price: 180, category: "কাবাব",    description: "মশলাযুক্ত গরুর মাংসের কাবাব", available: true },
-          { id: "3", name: "মটন বিরিয়ানি",    price: 450, category: "বিরিয়ানি", description: "খাসির মাংস দিয়ে তৈরি বিরিয়ানি", available: false },
-          { id: "4", name: "প্লেইন ভাত",       price: 60,  category: "ভাত",      description: "সাদা ভাত", available: true },
-          { id: "5", name: "মাংগো লাচ্ছি",    price: 120, category: "পানীয়",   description: "তাজা আমের লাচ্ছি", available: true },
-          { id: "6", name: "ফিরনি",            price: 100, category: "ডেজার্ট",  description: "ঐতিহ্যবাহী দুধের ফিরনি", available: true },
-          { id: "7", name: "শিক কাবাব",        price: 220, category: "কাবাব",    description: "কাঠকয়লায় ভাজা শিক কাবাব", available: true },
-          { id: "8", name: "বোরহানি",          price: 80,  category: "পানীয়",   description: "ঐতিহ্যবাহী মশলা পানীয়", available: false },
+          { id: "1", name: "চিকেন বিরিয়ানি", price: 350, category: "বিরিয়ানি", description: "সুগন্ধি বাসমতি চালে রান্না করা মুরগির বিরিয়ানি", available: true, stock_quantity: 8 },
+          { id: "2", name: "বটি কাবাব",       price: 180, category: "কাবাব",    description: "মশলাযুক্ত গরুর মাংসের কাবাব", available: true, stock_quantity: 3 },
+          { id: "3", name: "মটন বিরিয়ানি",   price: 450, category: "বিরিয়ানি", description: "খাসির মাংস দিয়ে তৈরি বিরিয়ানি", available: false, stock_quantity: 0 },
+          { id: "4", name: "প্লেইন ভাত",      price: 60,  category: "ভাত",      description: "সাদা ভাত", available: true, stock_quantity: null },
+          { id: "5", name: "মাংগো লাচ্ছি",   price: 120, category: "পানীয়",   description: "তাজা আমের লাচ্ছি", available: true, stock_quantity: 12 },
+          { id: "6", name: "ফিরনি",           price: 100, category: "ডেজার্ট",  description: "ঐতিহ্যবাহী দুধের ফিরনি", available: true, stock_quantity: null },
+          { id: "7", name: "শিক কাবাব",       price: 220, category: "কাবাব",    description: "কাঠকয়লায় ভাজা শিক কাবাব", available: true, stock_quantity: 2 },
+          { id: "8", name: "বোরহানি",         price: 80,  category: "পানীয়",   description: "ঐতিহ্যবাহী মশলা পানীয়", available: false, stock_quantity: 0 },
         ];
         setMenuItems(demoItems);
         setCategories(["সব", ...new Set(demoItems.map(i => i.category))]);
         setLoading(false);
         return;
       }
-
       const [restRes, menuRes] = await Promise.all([
-        supabase.from("restaurants").select("id, name, tier, logo_url, brand_primary, brand_secondary, brand_font").eq("id", restaurantId!).maybeSingle(),
-        supabase.from("menu_items").select("id, name, price, category, description, available, image_url, stock_quantity").eq("restaurant_id", restaurantId!).order("sort_order"),
+        supabase.from("restaurants").select("id,name,tier,logo_url,brand_primary,brand_secondary,brand_font").eq("id", restaurantId!).maybeSingle(),
+        supabase.from("menu_items").select("id,name,price,category,description,available,image_url,stock_quantity").eq("restaurant_id", restaurantId!).order("sort_order"),
       ]);
-
       if (restRes.data) setRestaurant(restRes.data as Restaurant);
       if (menuRes.data) {
         setMenuItems(menuRes.data as MenuItem[]);
@@ -168,18 +146,14 @@ const CustomerMenu = () => {
     fetchData();
   }, [restaurantId, isDemo]);
 
-  // Cart helpers
   const addToCart = (item: MenuItem) => {
     if (!item.available) { toast.error("এই আইটেমটি এখন পাওয়া যাচ্ছে না"); return; }
     if (item.stock_quantity != null && item.stock_quantity <= 0) { toast.error("এই আইটেমের স্টক শেষ হয়ে গেছে"); return; }
     setCart(prev => {
-      const existing = prev.find(c => c.id === item.id);
       const maxQty = item.stock_quantity != null ? Math.min(MAX_ITEM_QTY, item.stock_quantity) : MAX_ITEM_QTY;
+      const existing = prev.find(c => c.id === item.id);
       if (existing) {
-        if (existing.quantity >= maxQty) {
-          toast.error(item.stock_quantity != null ? `স্টকে মাত্র ${item.stock_quantity}টি আছে` : `সর্বোচ্চ ${MAX_ITEM_QTY}টি যোগ করা যায়`);
-          return prev;
-        }
+        if (existing.quantity >= maxQty) { toast.error(`সর্বোচ্চ ${maxQty}টি যোগ করা যায়`); return prev; }
         return prev.map(c => c.id === item.id ? { ...c, quantity: c.quantity + 1 } : c);
       }
       return [...prev, { ...item, quantity: 1 }];
@@ -190,24 +164,22 @@ const CustomerMenu = () => {
   const updateQuantity = (id: string, delta: number) => {
     setCart(prev => prev.map(c => {
       if (c.id !== id) return c;
-      const newQty = c.quantity + delta;
       const maxQty = c.stock_quantity != null ? Math.min(MAX_ITEM_QTY, c.stock_quantity) : MAX_ITEM_QTY;
-      if (newQty > maxQty) {
-        toast.error(c.stock_quantity != null ? `স্টকে মাত্র ${c.stock_quantity}টি আছে` : `সর্বোচ্চ ${MAX_ITEM_QTY}টি যোগ করা যায়`);
-        return c;
-      }
+      const newQty = c.quantity + delta;
+      if (newQty > maxQty) { toast.error(`সর্বোচ্চ ${maxQty}টি যোগ করা যায়`); return c; }
       return { ...c, quantity: newQty };
     }).filter(c => c.quantity > 0));
   };
 
   const removeFromCart = (id: string) => setCart(prev => prev.filter(c => c.id !== id));
+  const totalItems = cart.reduce((s, c) => s + c.quantity, 0);
+  const totalPrice = cart.reduce((s, c) => s + c.price * c.quantity, 0);
 
-  const totalItems = cart.reduce((sum, c) => sum + c.quantity, 0);
-  const totalPrice = cart.reduce((sum, c) => sum + c.price * c.quantity, 0);
-
-  const filtered = menuItems
-    .filter(i => activeCategory === "সব" || i.category === activeCategory)
-    .filter(i => !searchQuery || i.name.toLowerCase().includes(searchQuery.toLowerCase()) || i.description?.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filtered = useMemo(() =>
+    menuItems
+      .filter(i => activeCategory === "সব" || i.category === activeCategory)
+      .filter(i => !searchQuery || i.name.toLowerCase().includes(searchQuery.toLowerCase()) || i.description?.toLowerCase().includes(searchQuery.toLowerCase())),
+  [menuItems, activeCategory, searchQuery]);
 
   const categoryItemCounts = useMemo(() =>
     categories.reduce<Record<string, number>>((acc, cat) => {
@@ -218,70 +190,48 @@ const CustomerMenu = () => {
 
   const handleSubmitOrder = async () => {
     if (isDemo) {
-      setLastOrderId("DEMO-001");
-      setLastOrderTotal(totalPrice);
-      setLastOrderItems([...cart]);
-      setShowCart(false);
-      setShowConfirmation(true);
-      setCart([]);
-      setSpecialNote("");
-      return;
+      setLastOrderId("DEMO-001"); setLastOrderTotal(totalPrice); setLastOrderItems([...cart]);
+      setShowCart(false); setShowConfirmation(true); setCart([]); setSpecialNote(""); return;
     }
     if (!tableIsOpen) { toast.error("এই টেবিলটি এখন বন্ধ আছে"); return; }
-    if (!sessionToken) { toast.error("সেশন টোকেন নেই। QR কোড স্ক্যান করুন।"); return; }
-
+    if (!sessionToken) { toast.error("QR কোড স্ক্যান করুন।"); return; }
     setSubmitting(true);
     try {
       const result = await submitOrder({
-        restaurantId: restaurantId!,
-        tableId, seatId, sessionToken,
-        cart: cart.map(c => ({ id: c.id, quantity: c.quantity, name: c.name, price: c.price })),
-        specialNote,
+        restaurantId: restaurantId!, tableId, seatId, sessionToken,
+        cart: cart.map(c => ({ id: c.id, quantity: c.quantity, name: c.name, price: c.price })), specialNote,
       });
       if (!result) return;
-      setLastOrderId(result.orderId.slice(0, 8).toUpperCase());
-      setLastOrderTotal(result.confirmedTotal);
-      setLastOrderItems([...cart]);
-      setShowCart(false);
-      setShowConfirmation(true);
-      setCart([]);
-      setSpecialNote("");
+      setLastOrderId(result.orderId.slice(0, 8).toUpperCase()); setLastOrderTotal(result.confirmedTotal);
+      setLastOrderItems([...cart]); setShowCart(false); setShowConfirmation(true); setCart([]); setSpecialNote("");
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "অর্ডার পাঠাতে সমস্যা হয়েছে");
-    } finally {
-      setSubmitting(false);
-    }
+    } finally { setSubmitting(false); }
   };
 
   const handleCallWaiter = async () => {
     if (isDemo) { toast.success("🔔 ওয়েটারকে ডাকা হয়েছে! (ডেমো)"); return; }
-    if (!sessionToken) { toast.error("সেশন টোকেন নেই। QR কোড স্ক্যান করুন।"); return; }
-    try {
-      await callWaiter({ restaurantId: restaurantId!, tableId, seatId, sessionToken, tableName, seatNumber });
-      toast.success("🔔 ওয়েটারকে ডাকা হয়েছে! একটু অপেক্ষা করুন।");
-    } catch {
-      toast.error("ওয়েটার ডাকতে সমস্যা হয়েছে");
-    }
+    if (!sessionToken) { toast.error("QR কোড স্ক্যান করুন।"); return; }
+    try { await callWaiter({ restaurantId: restaurantId!, tableId, seatId, sessionToken, tableName, seatNumber }); toast.success("🔔 ওয়েটারকে ডাকা হয়েছে!"); }
+    catch { toast.error("ওয়েটার ডাকতে সমস্যা হয়েছে"); }
   };
 
   const handleRequestBill = async () => {
     if (isDemo) { toast.success("🧾 বিলের জন্য অনুরোধ পাঠানো হয়েছে! (ডেমো)"); return; }
-    if (!sessionToken) { toast.error("সেশন টোকেন নেই। QR কোড স্ক্যান করুন।"); return; }
-    try {
-      await requestBill({ restaurantId: restaurantId!, tableId, seatId, sessionToken, tableName, seatNumber });
-      toast.success("🧾 বিলের জন্য অনুরোধ পাঠানো হয়েছে!");
-    } catch {
-      toast.error("বিল অনুরোধ পাঠাতে সমস্যা হয়েছে");
-    }
+    if (!sessionToken) { toast.error("QR কোড স্ক্যান করুন।"); return; }
+    try { await requestBill({ restaurantId: restaurantId!, tableId, seatId, sessionToken, tableName, seatNumber }); toast.success("🧾 বিলের জন্য অনুরোধ পাঠানো হয়েছে!"); }
+    catch { toast.error("বিল অনুরোধ পাঠাতে সমস্যা হয়েছে"); }
   };
 
-  // ── Gates ─────────────────────────────────────────────────────────────────
+  // ── Gates ──────────────────────────────────────────────────────────────────
   if (loading || tokenChecking) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "linear-gradient(135deg, #0f0c29, #302b63, #24243e)" }}>
         <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-          <p className="text-muted-foreground font-medium animate-pulse">মেনু লোড হচ্ছে...</p>
+          <div className="w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center">
+            <UtensilsCrossed className="w-7 h-7 text-white animate-pulse" />
+          </div>
+          <p className="text-white/70 font-medium">মেনু লোড হচ্ছে...</p>
         </div>
       </div>
     );
@@ -295,7 +245,7 @@ const CustomerMenu = () => {
             <Lock className="w-10 h-10 text-destructive" />
           </div>
           <h2 className="font-display font-bold text-2xl text-foreground mb-3">টেবিল বন্ধ আছে</h2>
-          <p className="text-muted-foreground text-sm leading-relaxed">এই টেবিলটি এখন অর্ডারের জন্য খোলা নেই।<br />ওয়েটারকে জানান অথবা একটু অপেক্ষা করুন।</p>
+          <p className="text-muted-foreground text-sm leading-relaxed">এই টেবিলটি এখন অর্ডারের জন্য খোলা নেই।<br />ওয়েটারকে জানান।</p>
         </div>
       </div>
     );
@@ -309,7 +259,7 @@ const CustomerMenu = () => {
             <QrCode className="w-10 h-10 text-warning" />
           </div>
           <h2 className="font-display font-bold text-2xl text-foreground mb-3">সেশন মেয়াদ শেষ</h2>
-          <p className="text-muted-foreground text-sm leading-relaxed mb-6">আপনার অর্ডার সেশনের সময় শেষ হয়ে গেছে।<br />অর্ডার করতে টেবিলের QR কোড আবার স্ক্যান করুন।</p>
+          <p className="text-muted-foreground text-sm leading-relaxed mb-6">QR কোড আবার স্ক্যান করুন।</p>
           <div className="flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-primary/10 border border-primary/20">
             <QrCode className="w-5 h-5 text-primary" />
             <span className="text-sm font-semibold text-primary">QR কোড স্ক্যান করুন</span>
@@ -331,41 +281,27 @@ const CustomerMenu = () => {
           <p className="text-muted-foreground text-sm mb-6">আপনার অর্ডার রান্নাঘরে পাঠানো হয়েছে</p>
           <div className="bg-card rounded-2xl border border-border/60 p-5 mb-6 text-left">
             <div className="flex items-center justify-between mb-4">
-              <div>
-                <p className="text-xs text-muted-foreground">অর্ডার নম্বর</p>
-                <p className="font-display font-bold text-lg text-foreground">#{lastOrderId}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-xs text-muted-foreground">মোট</p>
-                <p className="font-bold text-lg text-primary">৳{lastOrderTotal}</p>
-              </div>
+              <div><p className="text-xs text-muted-foreground">অর্ডার নম্বর</p><p className="font-display font-bold text-lg">#{lastOrderId}</p></div>
+              <div className="text-right"><p className="text-xs text-muted-foreground">মোট</p><p className="font-bold text-lg text-primary">৳{lastOrderTotal}</p></div>
             </div>
-            <div className="border-t border-border/30 pt-3 mb-3">
-              <p className="text-xs text-muted-foreground mb-2">আইটেম সমূহ:</p>
-              <div className="space-y-1.5">
-                {lastOrderItems.map(item => (
-                  <div key={item.id} className="flex justify-between text-sm">
-                    <span className="text-foreground">{item.name} ×{item.quantity}</span>
-                    <span className="text-muted-foreground">৳{item.price * item.quantity}</span>
-                  </div>
-                ))}
-              </div>
+            <div className="border-t border-border/30 pt-3 mb-3 space-y-1.5">
+              {lastOrderItems.map(item => (
+                <div key={item.id} className="flex justify-between text-sm">
+                  <span>{item.name} ×{item.quantity}</span>
+                  <span className="text-muted-foreground">৳{item.price * item.quantity}</span>
+                </div>
+              ))}
             </div>
             <div className="flex items-center gap-3 p-3 rounded-xl bg-warning/10 border border-warning/20">
               <Clock className="w-5 h-5 text-warning flex-shrink-0" />
-              <div>
-                <p className="text-sm font-semibold text-foreground">আনুমানিক ২০–৩০ মিনিট</p>
-                <p className="text-xs text-muted-foreground">আপনার খাবার তৈরি হচ্ছে</p>
-              </div>
+              <div><p className="text-sm font-semibold">আনুমানিক ২০–৩০ মিনিট</p><p className="text-xs text-muted-foreground">খাবার তৈরি হচ্ছে</p></div>
             </div>
           </div>
           <div className="space-y-3">
-            <Button variant="hero" size="lg" className="w-full h-12 rounded-2xl"
-              onClick={() => { setShowConfirmation(false); setShowOrderStatus(true); }}>
+            <Button variant="hero" size="lg" className="w-full h-12 rounded-2xl" onClick={() => { setShowConfirmation(false); setShowOrderStatus(true); }}>
               <ClipboardList className="w-5 h-5" /> অর্ডার ট্র্যাক করুন
             </Button>
-            <Button variant="outline" size="lg" className="w-full h-12 rounded-2xl"
-              onClick={() => setShowConfirmation(false)}>
+            <Button variant="outline" size="lg" className="w-full h-12 rounded-2xl" onClick={() => setShowConfirmation(false)}>
               <ArrowLeft className="w-5 h-5" /> মেনুতে ফিরুন
             </Button>
           </div>
@@ -374,137 +310,147 @@ const CustomerMenu = () => {
     );
   }
 
-  // ── Main menu UI ───────────────────────────────────────────────────────────
+  // ── Premium header gradient ─────────────────────────────────────────────────
+  const headerBg = brandPrimary
+    ? `linear-gradient(160deg, ${brandPrimary}ee 0%, ${brandSecondary ?? brandPrimary}cc 100%)`
+    : "linear-gradient(160deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)";
+
+  // ── Main UI ────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background via-background to-accent/20">
+    <div className="min-h-screen bg-background">
 
-      {/* ── Header ── */}
-      <header
-        className="sticky top-0 z-20 bg-card/80 backdrop-blur-2xl border-b border-border/50 shadow-sm"
-        style={brandPrimary ? { background: `linear-gradient(135deg, ${brandPrimary}15, ${brandSecondary ?? brandPrimary}08, rgba(255,255,255,0.88))` } : undefined}
-      >
-        <div className="max-w-2xl mx-auto px-4 py-3.5 flex items-center justify-between gap-3">
-          {/* Logo + name */}
-          <div className="flex items-center gap-3 min-w-0">
-            <div
-              className="w-11 h-11 rounded-2xl flex items-center justify-center shadow-md overflow-hidden flex-shrink-0"
-              style={brandPrimary
-                ? { background: `linear-gradient(135deg, ${brandPrimary}30, ${brandSecondary ?? brandPrimary}20)`, border: `2px solid ${brandPrimary}40`, boxShadow: `0 4px 12px ${brandPrimary}30` }
-                : undefined}
-            >
-              {brandLogo
-                ? <img src={brandLogo} alt={restaurant?.name ?? "logo"} className="w-full h-full object-contain p-1" />
-                : <div className="w-full h-full gradient-primary flex items-center justify-center">
-                    <UtensilsCrossed className="w-5 h-5 text-primary-foreground" />
-                  </div>
-              }
-            </div>
-            <div className="min-w-0">
-              <h1 className="font-bold text-foreground text-base leading-tight truncate" style={fontStyle}>
-                {restaurant?.name ?? "Restaurant"}
-              </h1>
-              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse inline-block" />
-                টেবিল {tableName}{seatNumber ? ` • সিট ${seatNumber}` : ""} • লাইভ মেনু
-              </p>
-            </div>
-          </div>
+      {/* ══ HERO HEADER ══════════════════════════════════════════════════════ */}
+      <div className="relative" style={{ background: headerBg }}>
+        {/* Subtle pattern overlay */}
+        <div className="absolute inset-0 opacity-10"
+          style={{ backgroundImage: "radial-gradient(circle at 20% 50%, white 1px, transparent 1px), radial-gradient(circle at 80% 20%, white 1px, transparent 1px)", backgroundSize: "40px 40px" }} />
 
-          {/* Actions */}
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <button
-              onClick={() => setShowSearch(!showSearch)}
-              className="w-10 h-10 rounded-xl bg-secondary hover:bg-accent flex items-center justify-center transition-all"
-            >
-              <Search className="w-4.5 h-4.5 text-muted-foreground" />
-            </button>
-            {myOrders.length > 0 && (
+        <div className="relative max-w-2xl mx-auto px-5 pt-8 pb-10">
+          {/* Top row */}
+          <div className="flex items-center justify-between mb-5">
+            {/* Logo + name */}
+            <div className="flex items-center gap-3">
+              {brandLogo ? (
+                <div className="w-14 h-14 rounded-2xl bg-white/20 overflow-hidden border-2 border-white/30 shadow-xl flex-shrink-0">
+                  <img src={brandLogo} alt={restaurant?.name ?? "logo"} className="w-full h-full object-contain p-1" />
+                </div>
+              ) : (
+                <div className="w-14 h-14 rounded-2xl bg-white/15 border-2 border-white/25 flex items-center justify-center flex-shrink-0 shadow-xl">
+                  <UtensilsCrossed className="w-7 h-7 text-white" />
+                </div>
+              )}
+              <div>
+                <h1 className="font-display font-bold text-white text-xl leading-tight drop-shadow-md" style={fontStyle}>
+                  {restaurant?.name ?? "Restaurant"}
+                </h1>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                  <span className="text-white/75 text-xs font-medium">লাইভ মেনু</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Action icons */}
+            <div className="flex items-center gap-2">
               <button
-                onClick={() => setShowOrderStatus(true)}
-                className="relative w-10 h-10 rounded-xl bg-warning/10 hover:bg-warning/20 flex items-center justify-center transition-all"
+                onClick={() => setShowSearch(!showSearch)}
+                className="w-10 h-10 rounded-xl bg-white/15 hover:bg-white/25 flex items-center justify-center transition-all backdrop-blur-sm border border-white/20"
               >
-                <ClipboardList className="w-4.5 h-4.5 text-warning" />
-                {activeOrdersCount > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4.5 h-4.5 rounded-full bg-warning text-warning-foreground text-[9px] flex items-center justify-center font-bold animate-pulse">
-                    {activeOrdersCount}
+                <Search className="w-4.5 h-4.5 text-white" />
+              </button>
+              {myOrders.length > 0 && (
+                <button
+                  onClick={() => setShowOrderStatus(true)}
+                  className="relative w-10 h-10 rounded-xl bg-white/15 hover:bg-white/25 flex items-center justify-center transition-all backdrop-blur-sm border border-white/20"
+                >
+                  <ClipboardList className="w-4.5 h-4.5 text-white" />
+                  {activeOrdersCount > 0 && (
+                    <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-orange-400 text-white text-[9px] flex items-center justify-center font-bold">
+                      {activeOrdersCount}
+                    </span>
+                  )}
+                </button>
+              )}
+              <button
+                onClick={() => setShowCart(true)}
+                className="relative w-10 h-10 rounded-xl bg-white/15 hover:bg-white/25 flex items-center justify-center transition-all backdrop-blur-sm border border-white/20 active:scale-95"
+              >
+                <ShoppingCart className="w-4.5 h-4.5 text-white" />
+                {totalItems > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[20px] h-5 rounded-full bg-orange-400 text-white text-[10px] flex items-center justify-center font-bold px-1 animate-bounce shadow-md">
+                    {totalItems}
                   </span>
                 )}
               </button>
-            )}
-            <button
-              onClick={() => setShowCart(true)}
-              className="relative w-10 h-10 rounded-xl bg-primary/10 hover:bg-primary/20 flex items-center justify-center transition-all active:scale-95"
-            >
-              <ShoppingCart className="w-4.5 h-4.5 text-primary" />
-              {totalItems > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full gradient-primary text-primary-foreground text-[10px] flex items-center justify-center font-bold shadow-md animate-bounce px-1">
-                  {totalItems}
-                </span>
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* Search bar */}
-        {showSearch && (
-          <div className="max-w-2xl mx-auto px-4 pb-3 animate-fade-in">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder="খাবার খুঁজুন..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-secondary/60 border border-border/50 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-                autoFocus
-              />
             </div>
           </div>
-        )}
-      </header>
 
-      {/* ── AI Recommendations ── */}
-      {!aiLoading && aiRecommendations.length > 0 && (
-        <div className="max-w-2xl mx-auto px-4 pt-4">
-          <div className="bg-gradient-to-r from-purple-500/8 via-pink-500/8 to-blue-500/8 rounded-2xl border border-purple-500/20 p-4 mb-2">
+          {/* Table info pill */}
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/15 border border-white/25 backdrop-blur-sm">
+            <span className="text-white/80 text-sm font-medium">🪑 টেবিল {tableName}{seatNumber ? ` • সিট ${seatNumber}` : ""}</span>
+          </div>
+
+          {/* Search bar */}
+          {showSearch && (
+            <div className="mt-3 animate-fade-in">
+              <div className="relative">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
+                <input
+                  type="text"
+                  placeholder="খাবার খুঁজুন..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-white/15 border border-white/25 text-white placeholder:text-white/40 text-sm focus:outline-none focus:ring-2 focus:ring-white/30 backdrop-blur-sm"
+                  autoFocus
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Wave bottom */}
+        <div className="h-6 relative overflow-hidden">
+          <svg viewBox="0 0 1440 24" className="absolute bottom-0 w-full" preserveAspectRatio="none">
+            <path d="M0,24 C360,0 1080,0 1440,24 L1440,24 L0,24 Z" fill="hsl(var(--background))" />
+          </svg>
+        </div>
+      </div>
+
+      {/* ══ AI Recommendations ═══════════════════════════════════════════════ */}
+      {!aiLoading && aiRecs.length > 0 && (
+        <div className="max-w-2xl mx-auto px-4 pt-4 pb-1">
+          <div className="relative overflow-hidden rounded-2xl border border-purple-500/20 bg-gradient-to-r from-purple-500/8 via-pink-500/6 to-indigo-500/8 p-4">
             <div className="flex items-center gap-2 mb-3">
-              <div className="w-8 h-8 rounded-lg bg-purple-500/15 flex items-center justify-center flex-shrink-0">
+              <div className="w-8 h-8 rounded-xl bg-purple-500/20 flex items-center justify-center">
                 <Flame className="w-4 h-4 text-purple-500" />
               </div>
               <div>
-                <h3 className="font-bold text-foreground text-sm">আপনার জন্য বাছাই করা</h3>
-                <p className="text-xs text-muted-foreground">AI-এর সাজেশন</p>
+                <p className="font-bold text-foreground text-sm">আপনার জন্য বাছাই করা</p>
+                <p className="text-[11px] text-muted-foreground">স্মার্ট সাজেশন</p>
               </div>
             </div>
             <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1">
-              {aiRecommendations.slice(0, 4).map(item => {
-                const explanation = aiExplanations[item.id] ?? "⭐ জনপ্রিয়";
+              {aiRecs.slice(0, 5).map(item => {
                 const cartItem = cart.find(c => c.id === item.id);
+                const isOOS = !item.available || (item.stock_quantity != null && item.stock_quantity <= 0);
                 return (
                   <div
                     key={item.id}
-                    onClick={() => { trackAIClick(item.id); if (item.available && !cartItem) addToCart(item); }}
-                    className="flex-shrink-0 w-36 bg-card rounded-xl border border-border/40 overflow-hidden cursor-pointer hover:shadow-lg transition-all hover:-translate-y-0.5 active:scale-95"
+                    onClick={() => { trackAI(item.id); if (!isOOS && !cartItem) addToCart(item); }}
+                    className="flex-shrink-0 w-32 bg-card rounded-xl border border-border/50 overflow-hidden cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all active:scale-95"
                   >
-                    <div className="h-24 relative overflow-hidden bg-gradient-to-br from-accent to-secondary">
-                      {getImageUrl(item.image_url ?? null) ? (
-                        <img src={getImageUrl(item.image_url ?? null)!} alt={item.name} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <UtensilsCrossed className="w-8 h-8 text-muted-foreground/20" />
-                        </div>
-                      )}
-                      <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded-lg bg-black/60 text-white text-[11px] font-bold">
-                        ৳{item.price}
-                      </div>
-                      <div className="absolute top-2 left-2 px-1.5 py-0.5 rounded-lg bg-purple-500/90 text-white text-[10px] font-semibold">
-                        {explanation}
-                      </div>
+                    <div className="h-20 relative overflow-hidden bg-gradient-to-br from-accent to-secondary">
+                      {getImageUrl(item.image_url ?? null)
+                        ? <img src={getImageUrl(item.image_url ?? null)!} alt={item.name} className="w-full h-full object-cover" />
+                        : <div className="w-full h-full flex items-center justify-center"><UtensilsCrossed className="w-6 h-6 text-muted-foreground/20" /></div>
+                      }
+                      <div className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded-md bg-black/60 text-white text-[10px] font-bold">৳{item.price}</div>
+                      <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded-md bg-purple-500/90 text-white text-[9px] font-semibold">{aiExp[item.id] ?? "⭐"}</div>
                     </div>
-                    <div className="p-2">
-                      <p className="font-semibold text-xs text-foreground truncate">{item.name}</p>
-                      <span className={`text-[10px] font-medium ${cartItem ? "text-success" : "text-primary"}`}>
-                        {cartItem ? "✓ যোগ হয়েছে" : "+ যোগ করুন"}
+                    <div className="px-2 py-1.5">
+                      <p className="font-semibold text-[11px] text-foreground truncate">{item.name}</p>
+                      <span className={`text-[10px] font-medium ${isOOS ? "text-destructive" : cartItem ? "text-success" : "text-primary"}`}>
+                        {isOOS ? "স্টক নেই" : cartItem ? "✓ যোগ হয়েছে" : "+ যোগ করুন"}
                       </span>
                     </div>
                   </div>
@@ -515,27 +461,27 @@ const CustomerMenu = () => {
         </div>
       )}
 
-      {/* ── Category tabs ── */}
-      <div className="sticky top-[62px] z-10 bg-background/85 backdrop-blur-xl border-b border-border/30">
+      {/* ══ Category tabs ════════════════════════════════════════════════════ */}
+      <div className="sticky top-0 z-20 bg-background/90 backdrop-blur-xl border-b border-border/40 shadow-sm">
         <div className="max-w-2xl mx-auto px-4 py-2.5 flex gap-2 overflow-x-auto scrollbar-hide">
           {categories.map(cat => {
-            const isAll    = cat === "সব";
-            const color    = isAll ? null : getCategoryColor(cat);
+            const isAll = cat === "সব";
+            const color = isAll ? null : getCategoryColor(cat);
             const isActive = activeCategory === cat;
             return (
               <button
                 key={cat}
                 onClick={() => setActiveCategory(cat)}
-                className={`px-3.5 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                className={`px-3.5 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 flex-shrink-0 ${
                   isActive
-                    ? "gradient-primary text-primary-foreground shadow-md shadow-primary/20 scale-105"
+                    ? "gradient-primary text-primary-foreground shadow-md shadow-primary/25 scale-105"
                     : isAll
-                      ? "bg-card text-muted-foreground hover:text-foreground hover:bg-accent border border-border/50"
+                      ? "bg-secondary text-muted-foreground hover:text-foreground hover:bg-accent border border-border/50"
                       : `${color!.bg} ${color!.text} border ${color!.border} hover:scale-105`
                 }`}
               >
                 {cat}
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${isActive ? "bg-primary-foreground/20 text-primary-foreground" : "bg-foreground/8 text-muted-foreground"}`}>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold leading-none ${isActive ? "bg-white/20 text-primary-foreground" : "bg-foreground/8 text-muted-foreground"}`}>
                   {categoryItemCounts[cat] ?? 0}
                 </span>
               </button>
@@ -544,110 +490,122 @@ const CustomerMenu = () => {
         </div>
       </div>
 
-      {/* ── Menu items ── */}
+      {/* ══ Menu items ═══════════════════════════════════════════════════════ */}
       <div className="max-w-2xl mx-auto px-4 py-5 space-y-4 pb-36">
         {filtered.length === 0 && (
           <div className="text-center py-16">
-            <UtensilsCrossed className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-            <p className="text-muted-foreground font-medium">কোনো আইটেম পাওয়া যায়নি</p>
+            <UtensilsCrossed className="w-12 h-12 text-muted-foreground/20 mx-auto mb-3" />
+            <p className="text-muted-foreground">কোনো আইটেম পাওয়া যায়নি</p>
           </div>
         )}
+
         {filtered.map((item, index) => {
           const cartItem   = cart.find(c => c.id === item.id);
           const imgUrl     = getImageUrl(item.image_url ?? null);
           const catColor   = getCategoryColor(item.category);
-          const isOutOfStock = !item.available || (item.stock_quantity != null && item.stock_quantity <= 0);
-          const lowStock   = !isOutOfStock && item.stock_quantity != null && item.stock_quantity <= 5;
+          const isOOS      = !item.available || (item.stock_quantity != null && item.stock_quantity <= 0);
+          const lowStock   = !isOOS && item.stock_quantity != null && item.stock_quantity <= 5;
+          const hasStock   = item.stock_quantity != null;
 
           return (
             <div
               key={item.id}
-              className={`group bg-card rounded-2xl border overflow-hidden transition-all duration-300 animate-fade-up ${
-                isOutOfStock
-                  ? "border-border/30 opacity-60"
-                  : "border-border/60 hover:shadow-lg hover:shadow-primary/8 hover:-translate-y-0.5"
+              className={`group bg-card rounded-3xl border overflow-hidden transition-all duration-300 animate-fade-up ${
+                isOOS ? "border-border/30 opacity-55" : "border-border/60 hover:shadow-xl hover:shadow-black/8 hover:-translate-y-1"
               }`}
-              style={{ animationDelay: `${index * 60}ms` }}
+              style={{ animationDelay: `${index * 50}ms` }}
             >
-              {/* Image */}
-              <div className="relative h-44 sm:h-48 w-full overflow-hidden bg-gradient-to-br from-accent via-secondary to-accent">
+              {/* ── Image area ── */}
+              <div className="relative h-48 sm:h-52 w-full overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900">
                 {imgUrl ? (
                   <img
                     src={imgUrl}
                     alt={item.name}
-                    className={`w-full h-full object-cover transition-transform duration-500 ${isOutOfStock ? "grayscale" : "group-hover:scale-105"}`}
+                    className={`w-full h-full object-cover transition-transform duration-500 ${isOOS ? "grayscale" : "group-hover:scale-[1.04]"}`}
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
-                    <UtensilsCrossed className="w-10 h-10 text-muted-foreground/20" />
+                    <ImageIcon className="w-12 h-12 text-muted-foreground/15" />
                   </div>
                 )}
 
-                {/* Price badge */}
-                <div className={`absolute top-3 right-3 px-3 py-1.5 rounded-xl text-sm font-bold shadow-md ${isOutOfStock ? "bg-muted/80 text-muted-foreground" : "bg-black/65 text-white backdrop-blur-sm"}`}>
+                {/* Price — top right */}
+                <div className={`absolute top-3 right-3 px-3 py-1.5 rounded-xl font-bold text-sm shadow-lg ${isOOS ? "bg-black/40 text-white/60" : "bg-black/70 text-white backdrop-blur-sm"}`}>
                   ৳{item.price}
                 </div>
 
-                {/* Category badge */}
-                <div className={`absolute top-3 left-3 px-2.5 py-1 rounded-lg text-xs font-semibold border backdrop-blur-md ${catColor.bg} ${catColor.text} ${catColor.border}`}>
+                {/* Category — top left */}
+                <div className={`absolute top-3 left-3 px-2.5 py-1 rounded-lg text-xs font-semibold backdrop-blur-md border ${catColor.bg} ${catColor.text} ${catColor.border}`}>
                   {item.category}
                 </div>
 
-                {/* Low stock warning */}
+                {/* Stock status — bottom left */}
+                <div className={`absolute bottom-3 left-3 flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold backdrop-blur-md shadow-md ${
+                  isOOS ? "bg-red-500/90 text-white" : "bg-green-500/90 text-white"
+                }`}>
+                  {isOOS
+                    ? <><XCircle className="w-3.5 h-3.5" /> স্টক আউট</>
+                    : <><CheckCircle className="w-3.5 h-3.5" /> স্টকে আছে</>
+                  }
+                </div>
+
+                {/* Low stock warning — bottom right */}
                 {lowStock && (
-                  <div className="absolute bottom-3 right-3 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-warning/90 text-warning-foreground backdrop-blur-sm">
+                  <div className="absolute bottom-3 right-3 px-2.5 py-1.5 rounded-xl text-xs font-bold bg-amber-500/90 text-white backdrop-blur-md shadow-md">
                     ⚠ মাত্র {item.stock_quantity}টি
                   </div>
                 )}
 
                 {/* Out of stock overlay */}
-                {isOutOfStock && (
-                  <div className="absolute inset-0 bg-black/35 backdrop-blur-[1px] flex items-center justify-center">
-                    <span className="px-4 py-2 rounded-xl bg-destructive/90 text-destructive-foreground font-bold text-sm shadow-lg">
+                {isOOS && (
+                  <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center">
+                    <span className="px-4 py-2 rounded-2xl bg-red-600/95 text-white font-bold text-sm shadow-xl">
                       বর্তমানে পাওয়া যাচ্ছে না
                     </span>
                   </div>
                 )}
 
-                <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-card/90 to-transparent" />
+                <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-card to-transparent" />
               </div>
 
-              {/* Content */}
-              <div className="px-4 pb-4 pt-2">
+              {/* ── Card body ── */}
+              <div className="px-4 pt-3 pb-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <h3 className="font-display font-bold text-foreground text-base leading-snug" style={fontStyle}>{item.name}</h3>
+                    <h3 className="font-display font-bold text-foreground text-base leading-snug" style={fontStyle}>
+                      {item.name}
+                    </h3>
                     {item.description && (
                       <p className="text-sm text-muted-foreground mt-1 line-clamp-2 leading-relaxed">{item.description}</p>
                     )}
+                    {/* Stock count text */}
+                    {!isOOS && hasStock && (
+                      <p className={`text-xs mt-1.5 font-medium ${lowStock ? "text-amber-500" : "text-green-600"}`}>
+                        {lowStock ? `⚠ মাত্র ${item.stock_quantity}টি বাকি আছে` : `${item.stock_quantity}টি স্টকে আছে`}
+                      </p>
+                    )}
                   </div>
 
-                  {/* Add / quantity control */}
-                  <div className="flex-shrink-0 mt-0.5">
-                    {isOutOfStock ? (
-                      <span className="px-3 py-1.5 rounded-xl bg-muted text-muted-foreground text-xs font-medium">অপ্রাপ্য</span>
+                  {/* Add to cart */}
+                  <div className="flex-shrink-0 mt-1">
+                    {isOOS ? (
+                      <span className="px-3 py-2 rounded-xl bg-muted text-muted-foreground text-xs font-medium">অপ্রাপ্য</span>
                     ) : cartItem ? (
-                      <div className="flex items-center gap-1 bg-secondary rounded-xl p-1">
-                        <button
-                          onClick={() => updateQuantity(item.id, -1)}
-                          className="w-8 h-8 rounded-lg bg-card hover:bg-accent flex items-center justify-center transition-colors border border-border/50 active:scale-90"
-                        >
-                          <Minus className="w-3.5 h-3.5 text-foreground" />
+                      <div className="flex items-center gap-1 bg-secondary rounded-2xl p-1">
+                        <button onClick={() => updateQuantity(item.id, -1)} className="w-9 h-9 rounded-xl bg-card hover:bg-accent flex items-center justify-center border border-border/50 active:scale-90 transition-all">
+                          <Minus className="w-3.5 h-3.5" />
                         </button>
-                        <span className="text-sm font-bold text-foreground w-7 text-center">{cartItem.quantity}</span>
-                        <button
-                          onClick={() => updateQuantity(item.id, 1)}
-                          className="w-8 h-8 rounded-lg gradient-primary flex items-center justify-center shadow-sm active:scale-90 transition-transform"
-                        >
+                        <span className="w-8 text-center text-sm font-bold">{cartItem.quantity}</span>
+                        <button onClick={() => updateQuantity(item.id, 1)} className="w-9 h-9 rounded-xl gradient-primary flex items-center justify-center shadow-md active:scale-90 transition-all">
                           <Plus className="w-3.5 h-3.5 text-primary-foreground" />
                         </button>
                       </div>
                     ) : (
                       <button
                         onClick={() => addToCart(item)}
-                        className="px-4 py-2 rounded-xl gradient-primary text-primary-foreground text-sm font-semibold flex items-center gap-1.5 shadow-md shadow-primary/20 hover:shadow-lg transition-all active:scale-95"
+                        className="px-4 py-2.5 rounded-2xl gradient-primary text-primary-foreground text-sm font-bold flex items-center gap-1.5 shadow-lg shadow-primary/25 hover:shadow-xl hover:scale-105 active:scale-95 transition-all"
                       >
-                        <Plus className="w-4 h-4" /> যোগ করুন
+                        <Plus className="w-4 h-4" /> যোগ
                       </button>
                     )}
                   </div>
@@ -658,91 +616,72 @@ const CustomerMenu = () => {
         })}
       </div>
 
-      {/* ── Floating action buttons (waiter + bill) ── */}
+      {/* ══ Floating action row ═══════════════════════════════════════════════ */}
       {!showCart && !showOrderStatus && (
-        <div className="fixed bottom-24 right-4 z-20 flex flex-col gap-2">
+        <div className="fixed bottom-24 right-4 z-20 flex flex-col gap-2.5">
           <button
             onClick={handleCallWaiter}
-            className="flex items-center gap-2 pl-3 pr-4 h-10 rounded-full bg-info text-info-foreground shadow-lg shadow-info/30 hover:scale-105 active:scale-95 transition-transform text-sm font-semibold"
-            title="ওয়েটার ডাকুন"
+            className="flex items-center gap-2 pl-3 pr-4 h-10 rounded-full bg-sky-500 text-white text-sm font-bold shadow-lg shadow-sky-500/40 hover:scale-105 active:scale-95 transition-all"
           >
-            <Phone className="w-4 h-4" />
-            <span>ওয়েটার</span>
+            <Phone className="w-4 h-4" /> ওয়েটার
           </button>
           <button
             onClick={handleRequestBill}
-            className="flex items-center gap-2 pl-3 pr-4 h-10 rounded-full bg-warning text-warning-foreground shadow-lg shadow-warning/30 hover:scale-105 active:scale-95 transition-transform text-sm font-semibold"
-            title="বিল চাই"
+            className="flex items-center gap-2 pl-3 pr-4 h-10 rounded-full bg-amber-500 text-white text-sm font-bold shadow-lg shadow-amber-500/40 hover:scale-105 active:scale-95 transition-all"
           >
-            <Receipt className="w-4 h-4" />
-            <span>বিল চাই</span>
+            <Receipt className="w-4 h-4" /> বিল চাই
           </button>
         </div>
       )}
 
-      {/* ── Floating cart bar ── */}
+      {/* ══ Floating cart bar ════════════════════════════════════════════════ */}
       {totalItems > 0 && !showCart && (
         <div className="fixed bottom-5 left-4 right-4 max-w-2xl mx-auto z-30 animate-fade-up">
           <button
             onClick={() => setShowCart(true)}
-            className="w-full gradient-primary text-primary-foreground rounded-2xl p-4 flex items-center justify-between shadow-2xl shadow-primary/30 hover:shadow-primary/40 transition-all active:scale-[0.98]"
+            className="w-full gradient-primary text-primary-foreground rounded-2xl p-4 flex items-center justify-between shadow-2xl shadow-primary/35 hover:shadow-primary/50 transition-all active:scale-[0.98]"
           >
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-primary-foreground/20 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-primary-foreground/20 flex items-center justify-center">
                 <ShoppingCart className="w-5 h-5" />
               </div>
               <div className="text-left">
-                <span className="font-bold text-sm">{totalItems}টি আইটেম</span>
-                <p className="text-xs text-primary-foreground/70">কার্ট দেখুন</p>
+                <p className="font-bold text-sm">{totalItems}টি আইটেম</p>
+                <p className="text-xs text-primary-foreground/70">কার্ট দেখুন ও অর্ডার করুন</p>
               </div>
             </div>
-            <span className="font-bold text-lg">৳{totalPrice}</span>
+            <span className="font-bold text-xl">৳{totalPrice}</span>
           </button>
         </div>
       )}
 
-      {/* ── Order status drawer ── */}
+      {/* ══ Order status drawer ══════════════════════════════════════════════ */}
       {showOrderStatus && (
-        <div className="fixed inset-0 z-50 bg-foreground/60 backdrop-blur-md" onClick={() => setShowOrderStatus(false)}>
-          <div
-            className="absolute bottom-0 left-0 right-0 bg-card rounded-t-3xl max-h-[85vh] overflow-y-auto"
-            onClick={e => e.stopPropagation()}
-            style={{ animation: "slideUp 0.35s cubic-bezier(0.32,0.72,0,1)" }}
-          >
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md" onClick={() => setShowOrderStatus(false)}>
+          <div className="absolute bottom-0 left-0 right-0 bg-card rounded-t-3xl max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()} style={{ animation: "slideUp 0.35s cubic-bezier(0.32,0.72,0,1)" }}>
             <div className="flex justify-center pt-3 pb-1"><div className="w-10 h-1 rounded-full bg-border" /></div>
             <div className="p-6 pt-3">
               <div className="flex items-center justify-between mb-5">
                 <div>
-                  <h2 className="font-display font-bold text-xl text-foreground">অর্ডার স্ট্যাটাস</h2>
-                  <p className="text-sm text-muted-foreground">
-                    {ordersLoading ? "লোড হচ্ছে..." : `${myOrders.length}টি অর্ডার • রিয়েলটাইম`}
-                  </p>
+                  <h2 className="font-display font-bold text-xl">অর্ডার স্ট্যাটাস</h2>
+                  <p className="text-sm text-muted-foreground">{ordersLoading ? "লোড হচ্ছে..." : `${myOrders.length}টি অর্ডার • রিয়েলটাইম`}</p>
                 </div>
-                <button onClick={() => setShowOrderStatus(false)} className="w-9 h-9 rounded-xl bg-secondary hover:bg-accent flex items-center justify-center transition-colors">
-                  <X className="w-4 h-4 text-foreground" />
+                <button onClick={() => setShowOrderStatus(false)} className="w-9 h-9 rounded-xl bg-secondary hover:bg-accent flex items-center justify-center">
+                  <X className="w-4 h-4" />
                 </button>
               </div>
-
-              {ordersLoading && (
-                <div className="flex justify-center py-8">
-                  <div className="w-8 h-8 border-3 border-primary border-t-transparent rounded-full animate-spin" />
-                </div>
-              )}
+              {ordersLoading && <div className="flex justify-center py-8"><div className="w-8 h-8 border-3 border-primary border-t-transparent rounded-full animate-spin" /></div>}
               {!ordersLoading && myOrders.length === 0 && (
-                <div className="text-center py-10">
-                  <ClipboardList className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
-                  <p className="text-muted-foreground text-sm">এখনো কোনো অর্ডার নেই</p>
-                </div>
+                <div className="text-center py-10"><ClipboardList className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" /><p className="text-muted-foreground text-sm">এখনো কোনো অর্ডার নেই</p></div>
               )}
-
               <div className="space-y-4">
                 {myOrders.filter(o => !isNotificationOrder(o)).map((order, oi) => {
                   const steps = [
-                    { key: "pending",   icon: ClipboardList, label: "অর্ডার দেওয়া হয়েছে",     color: "text-muted-foreground", bg: "bg-muted/30" },
-                    { key: "confirmed", icon: CheckCircle,   label: "রান্নাঘর গ্রহণ করেছে",   color: "text-info",             bg: "bg-info/10" },
-                    { key: "preparing", icon: ChefHat,       label: "রান্না হচ্ছে",            color: "text-warning",          bg: "bg-warning/10" },
-                    { key: "ready",     icon: Bell,          label: "আসছে!",                  color: "text-success",          bg: "bg-success/10" },
-                    { key: "delivered", icon: Bike,          label: "পৌঁছে গেছে",             color: "text-primary",          bg: "bg-primary/10" },
+                    { key: "pending",   icon: ClipboardList, label: "অর্ডার দেওয়া হয়েছে",   color: "text-muted-foreground", bg: "bg-muted/30" },
+                    { key: "confirmed", icon: CheckCircle,   label: "রান্নাঘর গ্রহণ করেছে", color: "text-blue-500",         bg: "bg-blue-500/10" },
+                    { key: "preparing", icon: ChefHat,       label: "রান্না হচ্ছে",          color: "text-warning",          bg: "bg-warning/10" },
+                    { key: "ready",     icon: Bell,          label: "আসছে!",                color: "text-success",          bg: "bg-success/10" },
+                    { key: "delivered", icon: Bike,          label: "পৌঁছে গেছে",           color: "text-primary",          bg: "bg-primary/10" },
                   ];
                   const currentIdx = steps.findIndex(s => s.key === order.status);
                   const isCancelled = order.status === "cancelled";
@@ -750,53 +689,37 @@ const CustomerMenu = () => {
                     <div key={order.id} className={`rounded-2xl p-4 border ${isCancelled ? "bg-destructive/5 border-destructive/20" : order.status === "delivered" ? "bg-success/5 border-success/20" : "bg-secondary/30 border-border/50"}`}>
                       <div className="flex items-center justify-between mb-4">
                         <div>
-                          <p className="font-semibold text-sm text-foreground">অর্ডার #{oi + 1}</p>
-                          {order.created_at && (
-                            <p className="text-[11px] text-muted-foreground mt-0.5">
-                              {new Date(order.created_at).toLocaleTimeString("bn-BD", { hour: "2-digit", minute: "2-digit" })}
-                            </p>
-                          )}
+                          <p className="font-semibold text-sm">অর্ডার #{oi + 1}</p>
+                          {order.created_at && <p className="text-[11px] text-muted-foreground mt-0.5">{new Date(order.created_at).toLocaleTimeString("bn-BD", { hour: "2-digit", minute: "2-digit" })}</p>}
                         </div>
-                        <span className="text-sm font-bold text-foreground">৳{order.total}</span>
+                        <span className="font-bold text-sm">৳{order.total}</span>
                       </div>
-
                       {isCancelled ? (
                         <div className="flex items-center gap-3 p-3 rounded-xl bg-destructive/10 border border-destructive/20">
-                          <XCircle className="w-5 h-5 text-destructive flex-shrink-0" />
-                          <p className="text-sm font-semibold text-destructive">অর্ডারটি বাতিল হয়েছে</p>
+                          <XCircle className="w-5 h-5 text-destructive" /><p className="text-sm font-semibold text-destructive">অর্ডারটি বাতিল হয়েছে</p>
                         </div>
                       ) : (
                         <div className="space-y-2">
                           {steps.map((step, si) => {
-                            const Icon    = step.icon;
-                            const isDone  = si <= currentIdx;
-                            const isActive = si === currentIdx;
+                            const Icon = step.icon; const isDone = si <= currentIdx; const isActive = si === currentIdx;
                             return (
-                              <div
-                                key={step.key}
-                                className={`flex items-center gap-3 p-2.5 rounded-xl transition-all ${isActive ? `${step.bg} border border-current/20` : isDone ? "opacity-60" : "opacity-25"}`}
-                              >
+                              <div key={step.key} className={`flex items-center gap-3 p-2.5 rounded-xl ${isActive ? `${step.bg} border border-current/20` : isDone ? "opacity-60" : "opacity-25"}`}>
                                 <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${isActive ? step.bg : "bg-muted/20"}`}>
                                   <Icon className={`w-4 h-4 ${isActive ? step.color : isDone ? "text-muted-foreground" : "text-muted-foreground/40"}`} />
                                 </div>
                                 <p className={`text-sm font-semibold flex-1 ${isActive ? step.color : isDone ? "text-foreground" : "text-muted-foreground/40"}`}>{step.label}</p>
                                 {isDone && !isActive && <CheckCircle className="w-4 h-4 text-success flex-shrink-0" />}
-                                {isActive && <div className="w-2 h-2 rounded-full animate-pulse bg-current flex-shrink-0" />}
+                                {isActive && <div className="w-2 h-2 rounded-full bg-current animate-pulse flex-shrink-0" />}
                               </div>
                             );
                           })}
                         </div>
                       )}
-
                       {order.items && order.items.length > 0 && (
                         <div className="mt-3 pt-3 border-t border-border/30">
                           <p className="text-xs text-muted-foreground mb-1.5">আইটেম:</p>
                           <div className="flex flex-wrap gap-1.5">
-                            {order.items.map((it, idx) => (
-                              <span key={`${it.id}-${idx}`} className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
-                                {it.name} ×{it.quantity}
-                              </span>
-                            ))}
+                            {order.items.map((it, idx) => <span key={`${it.id}-${idx}`} className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">{it.name} ×{it.quantity}</span>)}
                           </div>
                         </div>
                       )}
@@ -809,33 +732,24 @@ const CustomerMenu = () => {
         </div>
       )}
 
-      {/* ── Cart drawer ── */}
+      {/* ══ Cart drawer ══════════════════════════════════════════════════════ */}
       {showCart && (
-        <div className="fixed inset-0 z-50 bg-foreground/60 backdrop-blur-md" onClick={() => setShowCart(false)}>
-          <div
-            className="absolute bottom-0 left-0 right-0 bg-card rounded-t-3xl max-h-[85vh] overflow-y-auto"
-            onClick={e => e.stopPropagation()}
-            style={{ animation: "slideUp 0.35s cubic-bezier(0.32,0.72,0,1)" }}
-          >
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md" onClick={() => setShowCart(false)}>
+          <div className="absolute bottom-0 left-0 right-0 bg-card rounded-t-3xl max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()} style={{ animation: "slideUp 0.35s cubic-bezier(0.32,0.72,0,1)" }}>
             <div className="flex justify-center pt-3 pb-1"><div className="w-10 h-1 rounded-full bg-border" /></div>
             <div className="p-6 pt-3">
               <div className="flex items-center justify-between mb-5">
                 <div>
-                  <h2 className="font-display font-bold text-xl text-foreground">আপনার কার্ট</h2>
+                  <h2 className="font-display font-bold text-xl">আপনার কার্ট</h2>
                   <p className="text-sm text-muted-foreground">{totalItems} আইটেম • টেবিল {tableName}</p>
                 </div>
-                <button onClick={() => setShowCart(false)} className="w-9 h-9 rounded-xl bg-secondary hover:bg-accent flex items-center justify-center transition-colors">
-                  <X className="w-4 h-4 text-foreground" />
-                </button>
+                <button onClick={() => setShowCart(false)} className="w-9 h-9 rounded-xl bg-secondary hover:bg-accent flex items-center justify-center"><X className="w-4 h-4" /></button>
               </div>
-
               {cart.length === 0 ? (
                 <div className="text-center py-12">
                   <ShoppingCart className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-                  <p className="text-muted-foreground font-medium mb-4">কার্ট খালি</p>
-                  <Button variant="outline" className="rounded-xl" onClick={() => setShowCart(false)}>
-                    <UtensilsCrossed className="w-4 h-4 mr-2" /> মেনু থেকে যোগ করুন
-                  </Button>
+                  <p className="text-muted-foreground mb-4">কার্ট খালি</p>
+                  <Button variant="outline" className="rounded-xl" onClick={() => setShowCart(false)}><UtensilsCrossed className="w-4 h-4 mr-2" /> মেনু থেকে যোগ করুন</Button>
                 </div>
               ) : (
                 <>
@@ -843,64 +757,39 @@ const CustomerMenu = () => {
                     {cart.map(item => {
                       const catColor = getCategoryColor(item.category);
                       return (
-                        <div key={item.id} className={`flex items-center gap-3 p-3 rounded-xl bg-secondary/50 border ${catColor.border}`}>
-                          <div className="w-14 h-14 rounded-xl bg-accent overflow-hidden flex-shrink-0">
+                        <div key={item.id} className={`flex items-center gap-3 p-3 rounded-2xl bg-secondary/50 border ${catColor.border}`}>
+                          <div className="w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 bg-accent">
                             {item.image_url
                               ? <img src={getImageUrl(item.image_url)!} alt={item.name} className="w-full h-full object-cover" />
                               : <div className="w-full h-full flex items-center justify-center"><UtensilsCrossed className="w-5 h-5 text-muted-foreground/30" /></div>
                             }
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="font-semibold text-foreground truncate text-sm">{item.name}</p>
+                            <p className="font-semibold text-sm truncate">{item.name}</p>
                             <div className="flex items-center gap-2 mt-0.5">
                               <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${catColor.bg} ${catColor.text}`}>{item.category}</span>
                               <span className="text-xs text-muted-foreground">৳{item.price} × {item.quantity}</span>
                             </div>
                           </div>
                           <div className="flex items-center gap-2 flex-shrink-0">
-                            <span className="font-bold text-foreground text-sm">৳{item.price * item.quantity}</span>
-                            <button onClick={() => removeFromCart(item.id)} className="w-7 h-7 rounded-lg bg-destructive/10 hover:bg-destructive/20 flex items-center justify-center transition-colors">
-                              <X className="w-3.5 h-3.5 text-destructive" />
-                            </button>
+                            <span className="font-bold text-sm">৳{item.price * item.quantity}</span>
+                            <button onClick={() => removeFromCart(item.id)} className="w-7 h-7 rounded-lg bg-destructive/10 hover:bg-destructive/20 flex items-center justify-center"><X className="w-3.5 h-3.5 text-destructive" /></button>
                           </div>
                         </div>
                       );
                     })}
                   </div>
-
                   <div className="mb-4">
-                    <label className="flex items-center gap-2 text-sm font-semibold text-foreground mb-2">
-                      <MessageSquare className="w-4 h-4 text-primary" /> বিশেষ নির্দেশনা
-                    </label>
-                    <textarea
-                      value={specialNote}
-                      onChange={e => setSpecialNote(e.target.value)}
-                      placeholder="যেমন: কম ঝাল, Extra sauce, পেঁয়াজ ছাড়া..."
-                      maxLength={200}
-                      rows={2}
-                      className="w-full rounded-xl bg-secondary/50 border border-border/50 px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
-                    />
+                    <label className="flex items-center gap-2 text-sm font-semibold mb-2"><MessageSquare className="w-4 h-4 text-primary" /> বিশেষ নির্দেশনা</label>
+                    <textarea value={specialNote} onChange={e => setSpecialNote(e.target.value)} placeholder="যেমন: কম ঝাল, Extra sauce, পেঁয়াজ ছাড়া..." maxLength={200} rows={2} className="w-full rounded-xl bg-secondary/50 border border-border/50 px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none" />
                     <p className="text-xs text-muted-foreground mt-1 text-right">{specialNote.length}/200</p>
                   </div>
-
                   <div className="border-t border-border pt-4 mb-5 space-y-1.5">
-                    <div className="flex justify-between text-sm text-muted-foreground">
-                      <span>সাবটোটাল</span><span>৳{totalPrice}</span>
-                    </div>
-                    <div className="flex justify-between text-lg font-bold text-foreground">
-                      <span>মোট</span><span className="text-gradient">৳{totalPrice}</span>
-                    </div>
+                    <div className="flex justify-between text-sm text-muted-foreground"><span>সাবটোটাল</span><span>৳{totalPrice}</span></div>
+                    <div className="flex justify-between text-lg font-bold"><span>মোট</span><span className="text-gradient">৳{totalPrice}</span></div>
                   </div>
-
-                  <Button
-                    variant="hero"
-                    size="lg"
-                    className="w-full h-14 text-base rounded-2xl shadow-lg shadow-primary/20"
-                    onClick={handleSubmitOrder}
-                    disabled={submitting}
-                  >
-                    <Send className="w-5 h-5" />
-                    {submitting ? "পাঠানো হচ্ছে..." : "অর্ডার পাঠান"}
+                  <Button variant="hero" size="lg" className="w-full h-14 text-base rounded-2xl" onClick={handleSubmitOrder} disabled={submitting}>
+                    <Send className="w-5 h-5" />{submitting ? "পাঠানো হচ্ছে..." : "অর্ডার পাঠান"}
                   </Button>
                 </>
               )}
@@ -909,54 +798,34 @@ const CustomerMenu = () => {
         </div>
       )}
 
-      {/* ── Rating modal ── */}
+      {/* ══ Rating modal ═════════════════════════════════════════════════════ */}
       {ratingOrderId && (
-        <div className="fixed inset-0 z-[60] bg-foreground/70 backdrop-blur-md flex items-end sm:items-center justify-center p-4">
+        <div className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-md flex items-end sm:items-center justify-center p-4">
           <div className="w-full max-w-sm bg-card rounded-3xl p-6 shadow-2xl animate-fade-up">
             <div className="text-center mb-5">
-              <div className="w-14 h-14 rounded-2xl bg-warning/10 flex items-center justify-center mx-auto mb-3">
-                <Star className="w-7 h-7 text-warning fill-warning" />
-              </div>
-              <h2 className="font-display font-bold text-xl text-foreground">আপনার অভিজ্ঞতা কেমন ছিল?</h2>
-              <p className="text-sm text-muted-foreground mt-1">আপনার রেটিং আমাদের আরো ভালো করতে সাহায্য করবে</p>
+              <div className="w-14 h-14 rounded-2xl bg-warning/10 flex items-center justify-center mx-auto mb-3"><Star className="w-7 h-7 text-warning fill-warning" /></div>
+              <h2 className="font-display font-bold text-xl">আপনার অভিজ্ঞতা কেমন ছিল?</h2>
+              <p className="text-sm text-muted-foreground mt-1">আপনার রেটিং আমাদের উন্নত করতে সাহায্য করবে</p>
             </div>
             <div className="flex justify-center gap-3 mb-4">
-              {[1, 2, 3, 4, 5].map(star => (
-                <button key={star} onClick={() => setRatingValue(star)} className="transition-transform active:scale-90">
-                  <Star className={`w-10 h-10 transition-colors ${star <= ratingValue ? "text-warning fill-warning" : "text-muted-foreground/30"}`} />
+              {[1,2,3,4,5].map(star => (
+                <button key={star} onClick={() => setRatingValue(star)} className="active:scale-90 transition-transform">
+                  <Star className={`w-10 h-10 ${star <= ratingValue ? "text-warning fill-warning" : "text-muted-foreground/30"}`} />
                 </button>
               ))}
             </div>
-            {ratingValue > 0 && (
-              <p className="text-center text-sm font-medium text-muted-foreground mb-4">
-                {["", "😞 খুব খারাপ", "😕 খারাপ", "😐 মোটামুটি", "😊 ভালো", "😍 অসাধারণ!"][ratingValue]}
-              </p>
-            )}
-            <textarea
-              className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/50 mb-4"
-              rows={2}
-              placeholder="কিছু বলতে চাইলে লিখুন... (ঐচ্ছিক)"
-              value={ratingComment}
-              onChange={e => setRatingComment(e.target.value)}
-            />
+            {ratingValue > 0 && <p className="text-center text-sm font-medium text-muted-foreground mb-4">{["","😞 খুব খারাপ","😕 খারাপ","😐 মোটামুটি","😊 ভালো","😍 অসাধারণ!"][ratingValue]}</p>}
+            <textarea className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/50 mb-4" rows={2} placeholder="কিছু বলতে চাইলে লিখুন... (ঐচ্ছিক)" value={ratingComment} onChange={e => setRatingComment(e.target.value)} />
             <div className="flex gap-2">
-              <button
-                onClick={() => { localStorage.setItem(`rated_${ratingOrderId}`, "skipped"); setRatingOrderId(null); setRatingValue(0); setRatingComment(""); }}
-                className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:bg-secondary transition-colors"
-              >
-                এড়িয়ে যান
-              </button>
+              <button onClick={() => { localStorage.setItem(`rated_${ratingOrderId}`, "skipped"); setRatingOrderId(null); setRatingValue(0); setRatingComment(""); }} className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:bg-secondary transition-colors">এড়িয়ে যান</button>
               <button
                 disabled={ratingValue === 0 || ratingSubmitting}
                 onClick={async () => {
                   if (!ratingValue || !ratingOrderId) return;
                   setRatingSubmitting(true);
-                  const { data: ok } = await supabase.rpc(
-                    "submit_order_rating" as never,
-                    { p_order_id: ratingOrderId, p_rating: ratingValue, p_comment: ratingComment || null, p_token: sessionToken } as never,
-                  );
+                  const { data: ok } = await supabase.rpc("submit_order_rating" as never, { p_order_id: ratingOrderId, p_rating: ratingValue, p_comment: ratingComment || null, p_token: sessionToken } as never);
                   setRatingSubmitting(false);
-                  if (ok) { localStorage.setItem(`rated_${ratingOrderId}`, "done"); toast("🙏 ধন্যবাদ! আপনার রেটিং পেয়েছি।", { duration: 4000 }); }
+                  if (ok) { localStorage.setItem(`rated_${ratingOrderId}`, "done"); toast("🙏 ধন্যবাদ! রেটিং পেয়েছি।", { duration: 4000 }); }
                   setRatingOrderId(null); setRatingValue(0); setRatingComment("");
                 }}
                 className="flex-1 py-2.5 rounded-xl gradient-primary text-primary-foreground font-semibold text-sm disabled:opacity-50"
@@ -969,10 +838,7 @@ const CustomerMenu = () => {
       )}
 
       <style>{`
-        @keyframes slideUp {
-          from { transform: translateY(100%); }
-          to   { transform: translateY(0); }
-        }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
       `}</style>
     </div>
   );
