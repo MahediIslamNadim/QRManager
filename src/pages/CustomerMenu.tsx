@@ -395,20 +395,25 @@ const CustomerMenu = () => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-background via-background to-accent/20">
       {/* Header */}
-      <header className="sticky top-0 z-20 bg-card/80 backdrop-blur-2xl border-b border-border/50 shadow-sm">
+      <header className="sticky top-0 z-20 backdrop-blur-2xl border-b border-border/50 shadow-sm"
+        style={isHighSmart && brandPrimary
+          ? { background: `linear-gradient(135deg, ${brandPrimary}18, ${brandSecondary || brandPrimary}10, rgba(255,255,255,0.92))` }
+          : undefined}>
         <div className="max-w-2xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div
-              className={`w-11 h-11 rounded-2xl flex items-center justify-center shadow-lg overflow-hidden flex-shrink-0 ${!brandPrimary ? 'gradient-primary shadow-primary/20' : ''}`}
+              className={`rounded-2xl flex items-center justify-center shadow-lg overflow-hidden flex-shrink-0 ${isHighSmart ? 'w-14 h-14 border-2' : 'w-11 h-11'} ${!brandPrimary ? 'gradient-primary shadow-primary/20' : ''}`}
               style={brandPrimary
-                ? { background: `linear-gradient(135deg, ${brandPrimary}, ${brandSecondary || brandPrimary})`, boxShadow: `0 4px 14px ${brandPrimary}40` }
+                ? { background: `linear-gradient(135deg, ${brandPrimary}25, ${brandSecondary || brandPrimary}15)`, borderColor: `${brandPrimary}60`, boxShadow: `0 4px 16px ${brandPrimary}35` }
                 : undefined}>
               {brandLogo
                 ? <img src={brandLogo} alt="logo" className="w-full h-full object-contain p-1" />
                 : <UtensilsCrossed className="w-5 h-5 text-primary-foreground" />}
             </div>
             <div>
-              <h1 className="font-bold text-foreground text-lg leading-tight" style={fontStyle}>{restaurant?.name || "Restaurant"}</h1>
+              <h1 className="font-bold text-foreground leading-tight" style={{ ...fontStyle, fontSize: isHighSmart ? '1.2rem' : '1.125rem' }}>
+                {restaurant?.name || "Restaurant"}
+              </h1>
               <p className="text-xs text-muted-foreground flex items-center gap-1.5">
                 <span className="inline-block w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
                 টেবিল {tableName}{seatNumber ? ` • সিট ${seatNumber}` : ""} • লাইভ মেনু

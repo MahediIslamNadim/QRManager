@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrderActions } from "@/hooks/useOrderActions";
 import { useRestaurantBranding } from "@/hooks/useRestaurantBranding";
+import RestaurantBrandBanner from "@/components/RestaurantBrandBanner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChefHat, Clock, RefreshCw, User, LogOut, Save, KeyRound, X, Phone, Mail } from "lucide-react";
 import { toast } from "sonner";
@@ -59,7 +60,8 @@ const KitchenDisplay = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const kitchenQueryKey = ["kitchen-orders", restaurantId];
-  const { logoUrl, restaurantName, isHighSmart } = useRestaurantBranding(restaurantId);
+  const branding = useRestaurantBranding(restaurantId);
+  const { logoUrl, restaurantName, isHighSmart } = branding;
   const { updateStatus } = useOrderActions([kitchenQueryKey]);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const [, setNow] = useState(Date.now());
@@ -195,6 +197,17 @@ const KitchenDisplay = () => {
 
   return (
     <div className="min-h-screen bg-[#0f1117] text-white flex flex-col">
+
+      {/* ── Branding Banner (High Smart only) ── */}
+      {isHighSmart && (
+        <RestaurantBrandBanner
+          logoUrl={logoUrl}
+          restaurantName={restaurantName}
+          brandPrimary={branding.brandPrimary}
+          brandSecondary={branding.brandSecondary}
+          dark
+        />
+      )}
 
       {/* ── Profile Slide-out Panel ── */}
       {showProfile && (
