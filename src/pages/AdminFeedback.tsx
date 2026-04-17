@@ -46,11 +46,11 @@ const AdminFeedback = () => {
       if (!restaurantId) return [];
       const { data, error } = await supabase
         .from("reviews")
-        .select("id, rating, comment, created_at, menu_item_id, menu_items(name, category)")
+        .select("id, rating, comment, created_at, menu_item_id, menu_items!inner(name, category, restaurant_id)")
         .eq("menu_items.restaurant_id", restaurantId)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return (data || []).filter((r: any) => r.menu_items);
+      return data || [];
     },
     enabled: !!restaurantId,
   });
