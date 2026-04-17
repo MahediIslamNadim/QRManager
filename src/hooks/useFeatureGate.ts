@@ -79,6 +79,16 @@ export const FEATURES = {
     name: 'Advanced Inventory',
     tiers: ['high_smart'] as TierName[],
     requiresActiveSub: true
+  },
+  custom_reports: {
+    name: 'Custom Reports',
+    tiers: ['high_smart'] as TierName[],
+    requiresActiveSub: true
+  },
+  predictive_analytics: {
+    name: 'Predictive Analytics',
+    tiers: ['high_smart'] as TierName[],
+    requiresActiveSub: true
   }
 } as const;
 

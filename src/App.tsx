@@ -39,6 +39,7 @@ import KitchenDisplay from "./pages/KitchenDisplay";
 import UpgradePage from "./pages/UpgradePage";
 import BillingPage from "./pages/BillingPage";
 import AIInsights from "./pages/AIInsights";
+import AdminReports from "./pages/AdminReports";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
   constructor(props: { children: ReactNode }) {
@@ -191,6 +192,10 @@ const App = () => (
               <Route
                 path="/admin/ai-insights"
                 element={<ProtectedRoute allowedRoles={["admin", "super_admin"]}><AIInsights /></ProtectedRoute>}
+              />
+              <Route
+                path="/admin/reports"
+                element={<ProtectedRoute allowedRoles={["admin", "super_admin"]}><AdminReports /></ProtectedRoute>}
               />
               <Route
                 path="/upgrade"
