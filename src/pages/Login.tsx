@@ -375,8 +375,8 @@ const Login = () => {
 
   const inputStyle: React.CSSProperties = {
     width: "100%", height: 48,
-    backgroundColor: "rgba(255,255,255,0.04)",
-    border: "1px solid rgba(201,168,76,0.2)",
+    backgroundColor: "hsl(0 0% 7%)",
+    border: "1px solid hsl(0 0% 14%)",
     borderRadius: 12, padding: "0 16px",
     fontSize: 14, color: "#FFFFFF", outline: "none",
     transition: "border-color 0.2s, background-color 0.2s",
@@ -409,21 +409,21 @@ const Login = () => {
         fontFamily: "'DM Sans', sans-serif", letterSpacing: "-0.02em",
       }}>QR</div>
       <div>
-        <div style={{ fontFamily: "'Cormorant Garamond', serif", fontWeight: 700, fontSize: size === "sm" ? 17 : 20, color: "#FFFFFF" }}>{APP_NAME}</div>
+        <div style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: size === "sm" ? 17 : 20, color: "#FFFFFF" }}>{APP_NAME}</div>
         <div style={{ fontSize: 9, letterSpacing: "0.3em", color: "rgba(201,168,76,0.6)", textTransform: "uppercase", fontFamily: "monospace" }}>by {COMPANY_NAME.replace(" Ltd.", "")}</div>
       </div>
     </div>
   );
 
   return (
-    <div style={{ fontFamily: "'DM Sans', sans-serif", minHeight: "100vh", display: "flex", backgroundColor: "#0a0a0a" }}>
+    <div style={{ fontFamily: "'DM Sans', sans-serif", minHeight: "100vh", display: "flex", backgroundColor: "hsl(0 0% 4%)" }}>
 
       {/* ── LEFT PANEL ── */}
       <div style={{
         width: "52%", position: "relative", overflow: "hidden",
         flexDirection: "column", justifyContent: "space-between", padding: "48px",
-        background: "linear-gradient(145deg, #0d0d0d 0%, #0f0c07 60%, #0a0a0a 100%)",
-        borderRight: "1px solid rgba(201,168,76,0.1)",
+        background: "linear-gradient(145deg, hsl(0 0% 5%) 0%, hsl(0 0% 6%) 60%, hsl(0 0% 4%) 100%)",
+        borderRight: "1px solid hsl(0 0% 14%)",
       }} className="hidden lg:flex">
         <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
           <div style={{ position: "absolute", top: "-5%", right: "-10%", width: 500, height: 500, borderRadius: "50%", background: "radial-gradient(circle, rgba(201,168,76,0.07) 0%, transparent 65%)" }} />
@@ -436,15 +436,15 @@ const Login = () => {
             <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#f5d780", boxShadow: "0 0 8px rgba(245,215,128,0.9)" }} />
             {FREE_TRIAL_DAYS} দিন ফ্রি ট্রায়াল — কার্ড লাগবে না
           </div>
-          <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 48, fontWeight: 700, color: "#FFFFFF", lineHeight: 1.15, marginBottom: 16 }}>
+          <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 48, fontWeight: 700, color: "#FFFFFF", lineHeight: 1.15, marginBottom: 16 }}>
             আপনার রেস্টুরেন্ট,<br /><span style={goldText}>ডিজিটাল যুগে</span>
           </h2>
           <p style={{ fontSize: 15, color: "rgba(255,255,255,0.5)", lineHeight: 1.8, marginBottom: 40, maxWidth: 380 }}>QR কোড দিয়ে স্মার্ট অর্ডার, রিয়েলটাইম ট্র্যাকিং, সিট ম্যানেজমেন্ট — সব এক জায়গায়।</p>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {features.map((f, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 16, padding: "16px 20px", borderRadius: 16, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(201,168,76,0.1)", transition: "all 0.2s" }}
-                onMouseEnter={e => { e.currentTarget.style.background = "rgba(201,168,76,0.06)"; e.currentTarget.style.borderColor = "rgba(201,168,76,0.25)"; }}
-                onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,0.03)"; e.currentTarget.style.borderColor = "rgba(201,168,76,0.1)"; }}>
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 16, padding: "16px 20px", borderRadius: 16, background: "hsl(0 0% 7%)", border: "1px solid hsl(0 0% 14%)", transition: "all 0.2s" }}
+                onMouseEnter={e => { e.currentTarget.style.background = "hsl(38 92% 50% / 0.06)"; e.currentTarget.style.borderColor = "hsl(38 92% 50% / 0.3)"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "hsl(0 0% 7%)"; e.currentTarget.style.borderColor = "hsl(0 0% 14%)"; }}>
                 <div style={{ width: 40, height: 40, borderRadius: 12, background: "rgba(201,168,76,0.12)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                   <f.icon size={18} color="#f5d780" />
                 </div>
@@ -476,7 +476,7 @@ const Login = () => {
               <div style={{ width: 72, height: 72, borderRadius: 20, background: "rgba(201,168,76,0.12)", border: "1px solid rgba(201,168,76,0.3)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px" }}>
                 <KeyRound size={32} color="#f5d780" />
               </div>
-              <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 32, fontWeight: 700, color: "#FFFFFF", marginBottom: 12 }}>ইমেইল পাঠানো হয়েছে!</h2>
+              <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 32, fontWeight: 700, color: "#FFFFFF", marginBottom: 12 }}>ইমেইল পাঠানো হয়েছে!</h2>
               <p style={{ fontSize: 14, color: "rgba(255,255,255,0.5)", lineHeight: 1.8, marginBottom: 8 }}>
                 <span style={{ color: "#f5d780", fontWeight: 600 }}>{email}</span> এ পাসওয়ার্ড রিসেট লিংক পাঠানো হয়েছে।
               </p>
@@ -500,7 +500,7 @@ const Login = () => {
                 <div style={{ width: 56, height: 56, borderRadius: 16, background: "rgba(201,168,76,0.1)", border: "1px solid rgba(201,168,76,0.25)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20 }}>
                   <KeyRound size={24} color="#f5d780" />
                 </div>
-                <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 34, fontWeight: 700, color: "#FFFFFF", marginBottom: 8 }}>পাসওয়ার্ড ভুলে গেছেন?</h2>
+                <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 34, fontWeight: 700, color: "#FFFFFF", marginBottom: 8 }}>পাসওয়ার্ড ভুলে গেছেন?</h2>
                 <p style={{ fontSize: 14, color: "rgba(255,255,255,0.45)", lineHeight: 1.7 }}>আপনার ইমেইল দিন — পাসওয়ার্ড রিসেট লিংক পাঠানো হবে।</p>
               </div>
               <form onSubmit={handleForgotPassword}>
@@ -508,8 +508,8 @@ const Login = () => {
                   <div>
                     <label style={labelStyle}>ইমেইল</label>
                     <input type="email" placeholder="your@email.com" value={email} onChange={e => setEmail(e.target.value)} style={inputStyle} required
-                      onFocus={e => { e.target.style.borderColor = "rgba(201,168,76,0.6)"; e.target.style.backgroundColor = "rgba(255,255,255,0.06)"; }}
-                      onBlur={e => { e.target.style.borderColor = "rgba(201,168,76,0.2)"; e.target.style.backgroundColor = "rgba(255,255,255,0.04)"; }} />
+                      onFocus={e => { e.target.style.borderColor = "hsl(38 92% 50% / 0.6)"; e.target.style.backgroundColor = "hsl(0 0% 9%)"; }}
+                      onBlur={e => { e.target.style.borderColor = "hsl(0 0% 14%)"; e.target.style.backgroundColor = "hsl(0 0% 7%)"; }} />
                   </div>
                   <button type="submit" disabled={submitting}
                     style={{ width: "100%", height: 52, borderRadius: 12, background: submitting ? "rgba(201,168,76,0.4)" : gold, border: "none", cursor: submitting ? "not-allowed" : "pointer", fontSize: 15, fontWeight: 700, color: "#0a0a0a", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "'DM Sans', sans-serif", boxShadow: "0 8px 32px rgba(201,168,76,0.3)", transition: "all 0.25s" }}
@@ -525,14 +525,14 @@ const Login = () => {
           ) : (
             <>
               <div style={{ marginBottom: 28 }}>
-                <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 36, fontWeight: 700, color: "#FFFFFF", marginBottom: 8, lineHeight: 1.2 }}>
+                <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 36, fontWeight: 700, color: "#FFFFFF", marginBottom: 8, lineHeight: 1.2 }}>
                   {mode === "signup" ? "শুরু করুন ✨" : "স্বাগতম 👋"}
                 </h2>
                 <p style={{ fontSize: 14, color: "rgba(255,255,255,0.45)", marginBottom: 20 }}>
                   {mode === "signup" ? `${FREE_TRIAL_DAYS} দিন ফ্রি ট্রায়াল — কার্ড লাগবে না` : `${APP_NAME} ড্যাশবোর্ডে লগইন করুন`}
                 </p>
                 {/* Tab switcher */}
-                <div style={{ display: "flex", background: "rgba(255,255,255,0.05)", borderRadius: 12, padding: 4, border: "1px solid rgba(201,168,76,0.15)" }}>
+                <div style={{ display: "flex", background: "hsl(0 0% 7%)", borderRadius: 12, padding: 4, border: "1px solid hsl(0 0% 14%)" }}>
                   <button type="button" onClick={() => { setMode("login"); setPassword(""); }}
                     style={{ flex: 1, height: 38, borderRadius: 9, border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600, transition: "all 0.2s",
                       background: mode === "login" ? "linear-gradient(135deg, #f5d780, #c9a84c, #e8c04a)" : "transparent",
@@ -555,27 +555,27 @@ const Login = () => {
                       <div>
                         <label style={labelStyle}>আপনার নাম</label>
                         <input type="text" placeholder="আপনার পুরো নাম" value={fullName} onChange={e => setFullName(e.target.value)} style={inputStyle}
-                          onFocus={e => { e.target.style.borderColor = "rgba(201,168,76,0.6)"; e.target.style.backgroundColor = "rgba(255,255,255,0.06)"; }}
-                          onBlur={e => { e.target.style.borderColor = "rgba(201,168,76,0.2)"; e.target.style.backgroundColor = "rgba(255,255,255,0.04)"; }} />
+                          onFocus={e => { e.target.style.borderColor = "hsl(38 92% 50% / 0.6)"; e.target.style.backgroundColor = "hsl(0 0% 9%)"; }}
+                          onBlur={e => { e.target.style.borderColor = "hsl(0 0% 14%)"; e.target.style.backgroundColor = "hsl(0 0% 7%)"; }} />
                       </div>
                       <div>
                         <label style={labelStyle}>রেস্টুরেন্টের নাম <span style={{ color: "#f87171" }}>*</span></label>
                         <input type="text" placeholder="আপনার রেস্টুরেন্টের নাম" value={restaurantName} onChange={e => setRestaurantName(e.target.value)} style={inputStyle} required
-                          onFocus={e => { e.target.style.borderColor = "rgba(201,168,76,0.6)"; e.target.style.backgroundColor = "rgba(255,255,255,0.06)"; }}
-                          onBlur={e => { e.target.style.borderColor = "rgba(201,168,76,0.2)"; e.target.style.backgroundColor = "rgba(255,255,255,0.04)"; }} />
+                          onFocus={e => { e.target.style.borderColor = "hsl(38 92% 50% / 0.6)"; e.target.style.backgroundColor = "hsl(0 0% 9%)"; }}
+                          onBlur={e => { e.target.style.borderColor = "hsl(0 0% 14%)"; e.target.style.backgroundColor = "hsl(0 0% 7%)"; }} />
                       </div>
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                         <div>
                           <label style={labelStyle}>ঠিকানা</label>
                           <input type="text" placeholder="ঠিকানা" value={restaurantAddress} onChange={e => setRestaurantAddress(e.target.value)} style={inputStyle}
-                            onFocus={e => { e.target.style.borderColor = "rgba(201,168,76,0.6)"; e.target.style.backgroundColor = "rgba(255,255,255,0.06)"; }}
-                            onBlur={e => { e.target.style.borderColor = "rgba(201,168,76,0.2)"; e.target.style.backgroundColor = "rgba(255,255,255,0.04)"; }} />
+                            onFocus={e => { e.target.style.borderColor = "hsl(38 92% 50% / 0.6)"; e.target.style.backgroundColor = "hsl(0 0% 9%)"; }}
+                            onBlur={e => { e.target.style.borderColor = "hsl(0 0% 14%)"; e.target.style.backgroundColor = "hsl(0 0% 7%)"; }} />
                         </div>
                         <div>
                           <label style={labelStyle}>ফোন</label>
                           <input type="text" placeholder="+880..." value={restaurantPhone} onChange={e => setRestaurantPhone(e.target.value)} style={inputStyle}
-                            onFocus={e => { e.target.style.borderColor = "rgba(201,168,76,0.6)"; e.target.style.backgroundColor = "rgba(255,255,255,0.06)"; }}
-                            onBlur={e => { e.target.style.borderColor = "rgba(201,168,76,0.2)"; e.target.style.backgroundColor = "rgba(255,255,255,0.04)"; }} />
+                            onFocus={e => { e.target.style.borderColor = "hsl(38 92% 50% / 0.6)"; e.target.style.backgroundColor = "hsl(0 0% 9%)"; }}
+                            onBlur={e => { e.target.style.borderColor = "hsl(0 0% 14%)"; e.target.style.backgroundColor = "hsl(0 0% 7%)"; }} />
                         </div>
                       </div>
                       {/* Free trial info banner */}
@@ -596,8 +596,8 @@ const Login = () => {
                   <div>
                     <label style={labelStyle}>ইমেইল</label>
                     <input type="email" placeholder="your@email.com" value={email} onChange={e => setEmail(e.target.value)} style={inputStyle} required
-                      onFocus={e => { e.target.style.borderColor = "rgba(201,168,76,0.6)"; e.target.style.backgroundColor = "rgba(255,255,255,0.06)"; }}
-                      onBlur={e => { e.target.style.borderColor = "rgba(201,168,76,0.2)"; e.target.style.backgroundColor = "rgba(255,255,255,0.04)"; }} />
+                      onFocus={e => { e.target.style.borderColor = "hsl(38 92% 50% / 0.6)"; e.target.style.backgroundColor = "hsl(0 0% 9%)"; }}
+                      onBlur={e => { e.target.style.borderColor = "hsl(0 0% 14%)"; e.target.style.backgroundColor = "hsl(0 0% 7%)"; }} />
                   </div>
 
                   {/* Password */}
@@ -615,8 +615,8 @@ const Login = () => {
                     </div>
                     <div style={{ position: "relative" }}>
                       <input type={showPassword ? "text" : "password"} placeholder={mode === "signup" ? "যেমন: Admin@123" : "••••••••"} value={password} onChange={e => setPassword(e.target.value)} style={{ ...inputStyle, paddingRight: 48 }} required minLength={6}
-                        onFocus={e => { e.target.style.borderColor = "rgba(201,168,76,0.6)"; e.target.style.backgroundColor = "rgba(255,255,255,0.06)"; }}
-                        onBlur={e => { e.target.style.borderColor = "rgba(201,168,76,0.2)"; e.target.style.backgroundColor = "rgba(255,255,255,0.04)"; }} />
+                        onFocus={e => { e.target.style.borderColor = "hsl(38 92% 50% / 0.6)"; e.target.style.backgroundColor = "hsl(0 0% 9%)"; }}
+                        onBlur={e => { e.target.style.borderColor = "hsl(0 0% 14%)"; e.target.style.backgroundColor = "hsl(0 0% 7%)"; }} />
                       <button type="button" onClick={() => setShowPassword(!showPassword)}
                         style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.35)", display: "flex", alignItems: "center", padding: 0, transition: "color 0.2s" }}
                         onMouseEnter={e => e.currentTarget.style.color = "rgba(245,215,128,0.8)"}
@@ -683,7 +683,6 @@ const Login = () => {
       </div>
 
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=DM+Sans:wght@400;500;600;700&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
         input::placeholder { color: rgba(255,255,255,0.25); }
         input:-webkit-autofill { -webkit-box-shadow: 0 0 0 1000px #111 inset !important; -webkit-text-fill-color: #fff !important; }
