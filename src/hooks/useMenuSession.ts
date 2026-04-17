@@ -18,12 +18,34 @@ interface UseMenuSessionResult {
   tokenChecking: boolean;
   tableChecked: boolean;
   sessionToken: string | null;
+  sessionStartedAt: string | null;
 }
 
-/**
- * Handles table validation, session token creation/reuse, and seat number lookup.
- * Extracted from CustomerMenu so that component is not responsible for auth logic.
- */
+const storageKey = (restaurantId: string, tableId: string) =>
+  `qrm_session_${restaurantId}_${tableId}`;
+
+const saveSession = (restaurantId: string, tableId: string, token: string, expiresAt: string) => {
+  const data = { token, expiresAt, startedAt: new Date().toISOString() };
+  localStorage.setItem(storageKey(restaurantId, tableId), JSON.stringify(data));
+};
+
+const loadSession = (restaurantId: string, tableId: string): { token: string; startedAt: string } | null => {
+  try {
+    const raw = localStorage.getItem(storageKey(restaurantId, tableId));
+    if (!raw) return null;
+    const { token, expiresAt, startedAt } = JSON.parse(raw);
+    if (new Date(expiresAt) > new Date()) return { token, startedAt };
+    localStorage.removeItem(storageKey(restaurantId, tableId));
+    return null;
+  } catch {
+    return null;
+  }
+};
+
+export const clearSession = (restaurantId: string, tableId: string) => {
+  localStorage.removeItem(storageKey(restaurantId, tableId));
+};
+
 export function useMenuSession({
   restaurantId,
   tableId,
@@ -40,6 +62,7 @@ export function useMenuSession({
   const [tokenChecking, setTokenChecking] = useState<boolean>(false);
   const [tableChecked, setTableChecked] = useState<boolean>(false);
   const [sessionToken, setSessionToken] = useState<string | null>(null);
+  const [sessionStartedAt, setSessionStartedAt] = useState<string | null>(null);
 
   // Resolve seat number from seatId
   useEffect(() => {
@@ -54,7 +77,7 @@ export function useMenuSession({
       });
   }, [seatId, isDemo]);
 
-  // Token + table validation
+  // Token + table validation with localStorage persistence
   useEffect(() => {
     if (isDemo || !tableId || !restaurantId) return;
 
@@ -86,25 +109,38 @@ export function useMenuSession({
           return;
         }
 
+        // Check localStorage first (restores session on refresh)
+        const stored = loadSession(restaurantId, tableId);
+        const existingToken = tokenParam ?? stored?.token ?? null;
+
         const { data: sessionResult, error: sessionErr } = await supabase.rpc(
           "validate_and_create_session" as any,
           {
             p_restaurant_id: restaurantId,
             p_table_id: tableId,
-            p_token: tokenParam ?? null,
+            p_token: existingToken,
             p_seat_id: seatId ?? null,
           } as any,
         );
 
         if (!sessionErr && sessionResult) {
           const token = (sessionResult as any).token as string;
+          const expiresAt = (sessionResult as any).expires_at as string;
           setSessionToken(token);
           setTokenValid(true);
+
+          // Persist session to localStorage
+          const isNewSession = !stored || stored.token !== token;
+          const startedAt = isNewSession ? new Date().toISOString() : (stored?.startedAt ?? new Date().toISOString());
+          saveSession(restaurantId, tableId, token, expiresAt);
+          setSessionStartedAt(startedAt);
+
           const newUrl = new URL(window.location.href);
           newUrl.searchParams.set("token", token);
           window.history.replaceState({}, "", newUrl.toString());
         } else {
           setTokenValid(false);
+          clearSession(restaurantId, tableId);
         }
       } catch {
         setTokenValid(false);
@@ -142,5 +178,6 @@ export function useMenuSession({
     tokenChecking,
     tableChecked,
     sessionToken,
+    sessionStartedAt,
   };
 }

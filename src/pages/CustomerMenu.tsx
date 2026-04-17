@@ -73,6 +73,7 @@ const CustomerMenu = () => {
 
   // ── Order status drawer ────────────────────────────────────────────────────
   const [showOrderStatus, setShowOrderStatus] = useState(false);
+  const [orderStatusTab, setOrderStatusTab] = useState<"active" | "history">("active");
 
   // ── AI Recommendations ────────────────────────────────────────────────
   const {
@@ -121,17 +122,17 @@ const CustomerMenu = () => {
   // ── Session / token (extracted hook) ──────────────────────────────────────
   const {
     tableName, tableIsOpen, seatNumber,
-    tokenValid, tokenChecking, tableChecked, sessionToken,
+    tokenValid, tokenChecking, tableChecked, sessionToken, sessionStartedAt,
   } = useMenuSession({ restaurantId, tableId, seatId, tokenParam, isDemo });
 
   // ── Orders / realtime (extracted hook) ────────────────────────────────────
   const onRatingRequest = useCallback((orderId: string) => setRatingOrderId(orderId), []);
 
   const {
-    myOrders, ordersLoading, activeOrdersCount,
+    myOrders, orderHistory, ordersLoading, activeOrdersCount,
     submitOrder, callWaiter, requestBill,
   } = useMenuOrders({
-    restaurantId, tableId, seatId, sessionToken,
+    restaurantId, tableId, seatId, sessionToken, sessionStartedAt,
     isDemo, tokenValid, tableChecked,
     onRatingRequest,
   });
@@ -716,98 +717,191 @@ const CustomerMenu = () => {
       {/* Order status drawer */}
       {showOrderStatus && (
         <div className="fixed inset-0 z-50 bg-foreground/60 backdrop-blur-md" onClick={() => setShowOrderStatus(false)}>
-          <div className="absolute bottom-0 left-0 right-0 bg-card rounded-t-3xl max-h-[85vh] overflow-y-auto"
+          <div className="absolute bottom-0 left-0 right-0 bg-card rounded-t-3xl max-h-[85vh] flex flex-col"
             onClick={e => e.stopPropagation()}
             style={{ animation: "slideUp 0.35s cubic-bezier(0.32, 0.72, 0, 1)" }}>
-            <div className="flex justify-center pt-3 pb-1"><div className="w-10 h-1 rounded-full bg-border" /></div>
-            <div className="p-6 pt-3">
-              <div className="flex items-center justify-between mb-6">
+            <div className="flex justify-center pt-3 pb-1 flex-shrink-0"><div className="w-10 h-1 rounded-full bg-border" /></div>
+            {/* Header */}
+            <div className="px-6 pt-2 pb-3 flex-shrink-0">
+              <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h2 className="font-display font-bold text-xl text-foreground">অর্ডার স্ট্যাটাস</h2>
-                  <p className="text-sm text-muted-foreground">
-                    {ordersLoading ? "লোড হচ্ছে..." : `${myOrders.length}টি অর্ডার • রিয়েলটাইম আপডেট`}
-                  </p>
+                  <h2 className="font-display font-bold text-xl text-foreground">আমার অর্ডার</h2>
+                  <p className="text-sm text-muted-foreground">{seatNumber ? `সিট ${seatNumber} • ` : ""}রিয়েলটাইম আপডেট</p>
                 </div>
                 <button onClick={() => setShowOrderStatus(false)} className="w-9 h-9 rounded-xl bg-secondary hover:bg-accent flex items-center justify-center transition-colors">
                   <X className="w-4 h-4 text-foreground" />
                 </button>
               </div>
-              {ordersLoading && (
-                <div className="flex items-center justify-center py-8">
-                  <div className="w-8 h-8 border-3 border-primary border-t-transparent rounded-full animate-spin" />
-                </div>
-              )}
-              {!ordersLoading && myOrders.length === 0 && (
-                <div className="text-center py-10">
-                  <ClipboardList className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
-                  <p className="text-muted-foreground text-sm">এখনো কোনো অর্ডার নেই</p>
-                </div>
-              )}
-              <div className="space-y-4">
-                {myOrders.filter(o => !isNotificationOrder(o)).map((order, oi) => {
-                  const steps = [
-                    { key: "pending",   icon: ClipboardList, label: "অর্ডার দেওয়া হয়েছে",     color: "text-muted-foreground", bg: "bg-muted/30" },
-                    { key: "confirmed", icon: CheckCircle,   label: "রান্নাঘর accept করেছে", color: "text-info",             bg: "bg-info/10" },
-                    { key: "preparing", icon: ChefHat,       label: "রান্না হচ্ছে",            color: "text-warning",          bg: "bg-warning/10" },
-                    { key: "ready",     icon: Bell,          label: "আসছে!",                  color: "text-success",          bg: "bg-success/10" },
-                    { key: "delivered", icon: Bike,          label: "পৌঁছে গেছে",             color: "text-primary",          bg: "bg-primary/10" },
-                  ];
-                  const currentIdx = steps.findIndex(s => s.key === order.status);
-                  const isCancelled = order.status === "cancelled";
-                  return (
-                    <div key={order.id} className={`rounded-2xl p-4 border ${isCancelled ? "bg-destructive/5 border-destructive/20" : order.status === "delivered" ? "bg-success/5 border-success/20" : "bg-secondary/30 border-border/50"}`}>
-                      <div className="flex items-center justify-between mb-4">
-                        <div>
-                          <p className="font-semibold text-sm text-foreground">অর্ডার #{oi + 1}</p>
-                          {order.created_at && (
-                            <p className="text-[11px] text-muted-foreground mt-0.5">
-                              {new Date(order.created_at).toLocaleTimeString("bn-BD", { hour: "2-digit", minute: "2-digit" })}
-                            </p>
+              {/* Tabs */}
+              <div className="flex gap-1 bg-muted rounded-xl p-1">
+                <button onClick={() => setOrderStatusTab("active")}
+                  className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 ${orderStatusTab === "active" ? "bg-card shadow text-foreground" : "text-muted-foreground"}`}>
+                  চলমান
+                  {myOrders.filter(o => !isNotificationOrder(o)).length > 0 && (
+                    <span className="bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded-full leading-none">
+                      {myOrders.filter(o => !isNotificationOrder(o)).length}
+                    </span>
+                  )}
+                </button>
+                <button onClick={() => setOrderStatusTab("history")}
+                  className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 ${orderStatusTab === "history" ? "bg-card shadow text-foreground" : "text-muted-foreground"}`}>
+                  ইতিহাস
+                  {orderHistory.length > 0 && (
+                    <span className="bg-muted-foreground/20 text-foreground text-[10px] px-1.5 py-0.5 rounded-full leading-none">
+                      {orderHistory.length}
+                    </span>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Scrollable content */}
+            <div className="overflow-y-auto px-6 pb-8 flex-1">
+
+              {/* ── Active orders tab ── */}
+              {orderStatusTab === "active" && (
+                <>
+                  {ordersLoading && (
+                    <div className="flex items-center justify-center py-10">
+                      <div className="w-8 h-8 border-3 border-primary border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  )}
+                  {!ordersLoading && myOrders.filter(o => !isNotificationOrder(o)).length === 0 && (
+                    <div className="text-center py-12">
+                      <ClipboardList className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
+                      <p className="text-muted-foreground text-sm">এখনো কোনো চলমান অর্ডার নেই</p>
+                      <p className="text-xs text-muted-foreground/60 mt-1">অর্ডার দিলে এখানে দেখা যাবে</p>
+                    </div>
+                  )}
+                  <div className="space-y-4 mt-1">
+                    {myOrders.filter(o => !isNotificationOrder(o)).map((order, oi) => {
+                      const steps = [
+                        { key: "pending",   icon: ClipboardList, label: "অর্ডার দেওয়া হয়েছে",     color: "text-muted-foreground", bg: "bg-muted/30" },
+                        { key: "confirmed", icon: CheckCircle,   label: "রান্নাঘর accept করেছে", color: "text-info",             bg: "bg-info/10" },
+                        { key: "preparing", icon: ChefHat,       label: "রান্না হচ্ছে",            color: "text-warning",          bg: "bg-warning/10" },
+                        { key: "ready",     icon: Bell,          label: "আসছে!",                  color: "text-success",          bg: "bg-success/10" },
+                        { key: "delivered", icon: Bike,          label: "পৌঁছে গেছে",             color: "text-primary",          bg: "bg-primary/10" },
+                      ];
+                      const currentIdx = steps.findIndex(s => s.key === order.status);
+                      const isCancelled = order.status === "cancelled";
+                      return (
+                        <div key={order.id} className={`rounded-2xl p-4 border ${isCancelled ? "bg-destructive/5 border-destructive/20" : order.status === "delivered" ? "bg-success/5 border-success/20" : "bg-secondary/30 border-border/50"}`}>
+                          <div className="flex items-center justify-between mb-4">
+                            <div>
+                              <p className="font-semibold text-sm text-foreground">অর্ডার #{oi + 1}</p>
+                              {order.created_at && (
+                                <p className="text-[11px] text-muted-foreground mt-0.5">
+                                  {new Date(order.created_at).toLocaleTimeString("bn-BD", { hour: "2-digit", minute: "2-digit" })}
+                                </p>
+                              )}
+                            </div>
+                            <span className="text-sm font-bold text-foreground">৳{order.total}</span>
+                          </div>
+                          {isCancelled ? (
+                            <div className="flex items-center gap-3 p-3 rounded-xl bg-destructive/10 border border-destructive/20">
+                              <XCircle className="w-5 h-5 text-destructive flex-shrink-0" />
+                              <p className="text-sm font-semibold text-destructive">অর্ডারটি বাতিল হয়েছে</p>
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              {steps.map((step, si) => {
+                                const Icon = step.icon;
+                                const isDone = si <= currentIdx;
+                                const isActive = si === currentIdx;
+                                return (
+                                  <div key={step.key}
+                                    className={`flex items-center gap-3 p-2.5 rounded-xl transition-all ${isActive ? `${step.bg} border border-current/20` : isDone ? "opacity-60" : "opacity-25"}`}>
+                                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${isActive ? step.bg : "bg-muted/20"}`}>
+                                      <Icon className={`w-4 h-4 ${isActive ? step.color : isDone ? "text-muted-foreground" : "text-muted-foreground/40"}`} />
+                                    </div>
+                                    <p className={`text-sm font-semibold flex-1 ${isActive ? step.color : isDone ? "text-foreground" : "text-muted-foreground/40"}`}>{step.label}</p>
+                                    {isDone && !isActive && <CheckCircle className="w-4 h-4 text-success flex-shrink-0" />}
+                                    {isActive && <div className="w-2 h-2 rounded-full animate-pulse flex-shrink-0" style={{ background: "currentColor" }} />}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                          {order.items && order.items.length > 0 && (
+                            <div className="mt-3 pt-3 border-t border-border/30">
+                              <p className="text-xs text-muted-foreground mb-1.5">আইটেম:</p>
+                              <div className="flex flex-wrap gap-1.5">
+                                {order.items.map((item, idx) => (
+                                  <span key={`${item.id}-${idx}`} className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
+                                    {item.name} ×{item.quantity}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
                           )}
                         </div>
-                        <span className="text-sm font-bold text-foreground">৳{order.total}</span>
-                      </div>
-                      {isCancelled ? (
-                        <div className="flex items-center gap-3 p-3 rounded-xl bg-destructive/10 border border-destructive/20">
-                          <XCircle className="w-5 h-5 text-destructive flex-shrink-0" />
-                          <p className="text-sm font-semibold text-destructive">অর্ডারটি বাতিল হয়েছে</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          {steps.map((step, si) => {
-                            const Icon = step.icon;
-                            const isDone = si <= currentIdx;
-                            const isActive = si === currentIdx;
-                            return (
-                              <div key={step.key}
-                                className={`flex items-center gap-3 p-2.5 rounded-xl transition-all ${isActive ? `${step.bg} border border-current/20` : isDone ? "opacity-60" : "opacity-25"}`}>
-                                <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${isActive ? step.bg : "bg-muted/20"}`}>
-                                  <Icon className={`w-4 h-4 ${isActive ? step.color : isDone ? "text-muted-foreground" : "text-muted-foreground/40"}`} />
-                                </div>
-                                <p className={`text-sm font-semibold flex-1 ${isActive ? step.color : isDone ? "text-foreground" : "text-muted-foreground/40"}`}>{step.label}</p>
-                                {isDone && !isActive && <CheckCircle className="w-4 h-4 text-success flex-shrink-0" />}
-                                {isActive && <div className="w-2 h-2 rounded-full animate-pulse flex-shrink-0" style={{ background: "currentColor" }} />}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                      {order.items && order.items.length > 0 && (
-                        <div className="mt-3 pt-3 border-t border-border/30">
-                          <p className="text-xs text-muted-foreground mb-1.5">আইটেম:</p>
-                          <div className="flex flex-wrap gap-1.5">
-                            {order.items.map((item, idx) => (
-                              <span key={`${item.id}-${idx}`} className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
-                                {item.name} ×{item.quantity}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              {/* ── History tab ── */}
+              {orderStatusTab === "history" && (
+                <div className="space-y-3 mt-1">
+                  {orderHistory.length === 0 ? (
+                    <div className="text-center py-12">
+                      <Receipt className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
+                      <p className="text-muted-foreground text-sm">এই ভিজিটে কোনো সম্পন্ন অর্ডার নেই</p>
+                      <p className="text-xs text-muted-foreground/60 mt-1">অর্ডার ডেলিভারি হলে এখানে দেখা যাবে</p>
                     </div>
-                  );
-                })}
-              </div>
+                  ) : (
+                    <>
+                      {orderHistory.map((order, hi) => {
+                        const isCompleted = ["delivered", "completed", "served"].includes(order.status);
+                        return (
+                          <div key={order.id} className={`rounded-2xl p-4 border ${order.status === "cancelled" ? "bg-destructive/5 border-destructive/20" : "bg-success/5 border-success/20"}`}>
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                {isCompleted
+                                  ? <CheckCircle className="w-4 h-4 text-success" />
+                                  : <XCircle className="w-4 h-4 text-destructive" />}
+                                <p className="font-semibold text-sm text-foreground">
+                                  অর্ডার #{myOrders.filter(o => !isNotificationOrder(o)).length + hi + 1}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${order.status === "cancelled" ? "bg-destructive/10 text-destructive" : "bg-success/10 text-success"}`}>
+                                  {order.status === "cancelled" ? "বাতিল" : "সম্পন্ন ✓"}
+                                </span>
+                                <span className="text-sm font-bold text-foreground">৳{order.total}</span>
+                              </div>
+                            </div>
+                            {order.created_at && (
+                              <p className="text-[11px] text-muted-foreground mb-2">
+                                {new Date(order.created_at).toLocaleTimeString("bn-BD", { hour: "2-digit", minute: "2-digit" })}
+                              </p>
+                            )}
+                            {order.items && order.items.length > 0 && (
+                              <div className="flex flex-wrap gap-1.5">
+                                {order.items.map((item, idx) => (
+                                  <span key={`${item.id}-${idx}`} className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                                    {item.name} ×{item.quantity}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                      {/* Total spent this visit */}
+                      <div className="mt-2 p-3 rounded-xl bg-muted/50 border border-border/40 text-center">
+                        <p className="text-xs text-muted-foreground">এই ভিজিটে মোট খরচ</p>
+                        <p className="text-lg font-bold text-foreground mt-0.5">
+                          ৳{[...myOrders.filter(o => !isNotificationOrder(o)), ...orderHistory]
+                              .filter(o => o.status !== "cancelled")
+                              .reduce((s, o) => s + o.total, 0)}
+                        </p>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>

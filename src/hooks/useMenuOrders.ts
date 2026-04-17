@@ -27,6 +27,7 @@ interface UseMenuOrdersOptions {
   tableId: string | null;
   seatId: string | null;
   sessionToken: string | null;
+  sessionStartedAt: string | null;
   isDemo: boolean;
   tokenValid: boolean;
   tableChecked: boolean;
@@ -36,6 +37,7 @@ interface UseMenuOrdersOptions {
 interface UseMenuOrdersResult {
   myOrders: Order[];
   setMyOrders: React.Dispatch<React.SetStateAction<Order[]>>;
+  orderHistory: Order[];
   ordersLoading: boolean;
   activeOrdersCount: number;
   submitOrder: (args: {
@@ -72,18 +74,19 @@ export function useMenuOrders({
   restaurantId,
   tableId,
   seatId,
+  sessionStartedAt,
   isDemo,
   tokenValid,
   tableChecked,
   onRatingRequest,
 }: UseMenuOrdersOptions): UseMenuOrdersResult {
   const [myOrders, setMyOrders] = useState<Order[]>([]);
+  const [orderHistory, setOrderHistory] = useState<Order[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
 
-  // Clear stale orders immediately when the customer's seat changes so they
-  // never see orders belonging to a different seat during the re-fetch window.
+  // Clear stale orders immediately when the customer's seat changes
   useEffect(() => {
-    if (!isDemo) setMyOrders([]);
+    if (!isDemo) { setMyOrders([]); setOrderHistory([]); }
   }, [seatId, isDemo]);
 
   const fetchOrderItems = useCallback(async (orderId: string): Promise<OrderItem[]> => {
@@ -132,12 +135,50 @@ export function useMenuOrders({
     }
   }, [isDemo, tableId, restaurantId, seatId]);
 
+  // Fetch completed order history for this session/seat
+  const fetchOrderHistory = useCallback(async () => {
+    if (isDemo || !tableId || !restaurantId || !seatId) return;
+    try {
+      let query = supabase
+        .from("orders")
+        .select("id, total, status, created_at")
+        .eq("restaurant_id", restaurantId)
+        .eq("table_id", tableId)
+        .eq("seat_id", seatId)
+        .in("status", ["delivered", "completed", "served", "cancelled"])
+        .gt("total", 0)
+        .order("created_at", { ascending: false })
+        .limit(20);
+
+      if (sessionStartedAt) query = query.gte("created_at", sessionStartedAt);
+
+      const { data: historyData, error } = await query;
+      if (error || !historyData) return;
+
+      const ids = historyData.map(o => o.id);
+      const { data: itemsData } = await supabase
+        .from("order_items")
+        .select("id, name, price, quantity, order_id")
+        .in("order_id", ids);
+
+      setOrderHistory(
+        historyData.map(order => ({
+          ...order,
+          items: (itemsData || []).filter((i: any) => i.order_id === order.id) as OrderItem[],
+        })),
+      );
+    } catch {
+      // silently fail
+    }
+  }, [isDemo, tableId, restaurantId, seatId, sessionStartedAt]);
+
   // Initial load
   useEffect(() => {
     if (tableChecked && tokenValid) {
       fetchExistingOrders();
+      fetchOrderHistory();
     }
-  }, [tableChecked, tokenValid, fetchExistingOrders]);
+  }, [tableChecked, tokenValid, fetchExistingOrders, fetchOrderHistory]);
 
   // Realtime subscription
   useEffect(() => {
@@ -201,13 +242,21 @@ export function useMenuOrders({
             setTimeout(() => onRatingRequest(updated.id), 1500);
           }
           setTimeout(() => {
-            setMyOrders(prev => prev.filter(o => o.id !== updated.id));
+            setMyOrders(prev => {
+              const order = prev.find(o => o.id === updated.id);
+              if (order) setOrderHistory(h => [{ ...order, status: updated.status }, ...h]);
+              return prev.filter(o => o.id !== updated.id);
+            });
           }, 60000);
         }
 
         if (["delivered", "cancelled"].includes(updated.status)) {
           setTimeout(() => {
-            setMyOrders(prev => prev.filter(o => o.id !== updated.id));
+            setMyOrders(prev => {
+              const order = prev.find(o => o.id === updated.id);
+              if (order) setOrderHistory(h => [{ ...order, status: updated.status }, ...h]);
+              return prev.filter(o => o.id !== updated.id);
+            });
           }, 30000);
         }
       })
@@ -281,6 +330,7 @@ export function useMenuOrders({
   return {
     myOrders,
     setMyOrders,
+    orderHistory,
     ordersLoading,
     activeOrdersCount,
     submitOrder,
