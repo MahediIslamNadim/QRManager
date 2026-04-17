@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(grep -l \"app_role\\\\|user_roles\\\\|kitchen\" c:/Users/hhnad/OneDrive/Desktop/NexCore/QRManager/supabase/migrations/*.sql)",
+      "Bash(grep -rn \"get_user_restaurant_id\" c:/Users/hhnad/OneDrive/Desktop/NexCore/QRManager/supabase/migrations/*.sql)"
     ]
   }
 }

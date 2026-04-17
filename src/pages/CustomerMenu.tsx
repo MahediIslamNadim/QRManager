@@ -86,6 +86,32 @@ const CustomerMenu = () => {
     strategy: 'balanced'
   });
 
+  // ── Item ratings from reviews table ───────────────────────────────────────
+  const [itemRatings, setItemRatings] = useState<Record<string, { avg: number; count: number }>>({});
+
+  useEffect(() => {
+    if (!restaurantId || isDemo) return;
+    supabase
+      .from("reviews")
+      .select("menu_item_id, rating")
+      .then(({ data }) => {
+        if (!data) return;
+        const map: Record<string, number[]> = {};
+        data.forEach((r: any) => {
+          if (!map[r.menu_item_id]) map[r.menu_item_id] = [];
+          map[r.menu_item_id].push(r.rating);
+        });
+        const result: Record<string, { avg: number; count: number }> = {};
+        Object.entries(map).forEach(([id, ratings]) => {
+          result[id] = {
+            avg: Math.round((ratings.reduce((a, b) => a + b, 0) / ratings.length) * 10) / 10,
+            count: ratings.length,
+          };
+        });
+        setItemRatings(result);
+      });
+  }, [restaurantId, isDemo]);
+
   // ── Rating ─────────────────────────────────────────────────────────────────
   const [ratingOrderId, setRatingOrderId] = useState<string | null>(null);
   const [ratingValue, setRatingValue] = useState(0);
@@ -612,9 +638,20 @@ const CustomerMenu = () => {
                 <h3 className="font-display font-bold text-foreground text-lg leading-snug">{item.name}</h3>
                 <p className="text-sm text-muted-foreground mt-1.5 line-clamp-2 leading-relaxed">{item.description}</p>
                 <div className="mt-4 flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-muted-foreground/60">
-                    <Flame className="w-3.5 h-3.5" />
-                    <span className="text-xs font-medium">জনপ্রিয়</span>
+                  <div className="flex items-center gap-1">
+                    {itemRatings[item.id] ? (
+                      <>
+                        {[1,2,3,4,5].map(s => (
+                          <Star key={s} className={`w-3 h-3 ${s <= Math.round(itemRatings[item.id].avg) ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground/25"}`} />
+                        ))}
+                        <span className="text-[11px] text-muted-foreground ml-0.5">{itemRatings[item.id].avg} ({itemRatings[item.id].count})</span>
+                      </>
+                    ) : (
+                      <>
+                        <Flame className="w-3.5 h-3.5 text-muted-foreground/60" />
+                        <span className="text-xs font-medium text-muted-foreground/60">জনপ্রিয়</span>
+                      </>
+                    )}
                   </div>
                   {isOutOfStock ? (
                     <span className="px-4 py-2 rounded-xl bg-muted text-muted-foreground text-sm font-medium cursor-not-allowed">অপ্রাপ্য</span>
