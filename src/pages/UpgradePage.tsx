@@ -4,14 +4,19 @@ import { useSearchParams } from 'react-router-dom';
 import DashboardLayout from '@/components/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useAuth } from '@/hooks/useAuth';
 import { useTrialStatus } from '@/hooks/useTrialStatus';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Check, Zap, Crown, ArrowRight, Clock, Shield } from 'lucide-react';
+import { Check, Zap, Crown, ArrowRight, Clock, Shield, CheckCircle2, Copy } from 'lucide-react';
 import { TIERS, TierName, BillingCycle, formatPrice } from '@/constants/tiers';
 import TierSelection from '@/components/TierSelection';
+
+const BKASH_NUMBER = "01XXXXXXXXXX"; // Replace with real bKash number
+const NAGAD_NUMBER = "01XXXXXXXXXX"; // Replace with real Nagad number
 
 const UpgradePage = () => {
   const { restaurantId } = useAuth();
@@ -26,6 +31,10 @@ const UpgradePage = () => {
     if (tierParam === 'high_smart') setSelectedTier('high_smart');
   }, [searchParams]);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<"bkash" | "nagad">("bkash");
+  const [transactionId, setTransactionId] = useState("");
+  const [payPhone, setPayPhone] = useState("");
+  const [paySuccess, setPaySuccess] = useState(false);
 
   // Get current subscription info
   const { data: restaurant } = useQuery({
@@ -51,77 +60,45 @@ const UpgradePage = () => {
     tier: currentTier
   } = useTrialStatus(restaurantId);
 
-  // Upgrade mutation (placeholder - real payment integration needed)
-  const upgradeMutation = useMutation({
+  const { user } = useAuth();
+
+  const paymentMutation = useMutation({
     mutationFn: async () => {
-      if (!restaurantId) throw new Error('No restaurant');
+      if (!restaurantId || !user) throw new Error('No restaurant');
+      if (!transactionId.trim()) throw new Error('Transaction ID দিন');
 
-      // TODO: Real payment integration (bKash, Nagad, Stripe, etc.)
-      // For now, just update the database directly
-      
-      const { error } = await supabase
-        .from('restaurants')
-        .update({
-          tier: selectedTier,
-          billing_cycle: selectedBillingCycle,
-          subscription_status: 'active',
-          subscription_start_date: new Date().toISOString(),
-          subscription_end_date: selectedBillingCycle === 'monthly'
-            ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-            : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
-          next_billing_date: selectedBillingCycle === 'monthly'
-            ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-            : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
-        })
-        .eq('id', restaurantId);
-
-      if (error) throw error;
-
-      // Also create a subscription record
       const tierConfig = TIERS[selectedTier];
-      const amount = selectedBillingCycle === 'monthly' 
-        ? tierConfig.price_monthly 
+      const amount = selectedBillingCycle === 'monthly'
+        ? tierConfig.price_monthly
         : tierConfig.price_yearly;
 
-      await supabase
-        .from('subscriptions')
-        .insert({
-          restaurant_id: restaurantId,
-          tier: selectedTier,
-          billing_cycle: selectedBillingCycle,
-          amount,
-          start_date: new Date().toISOString(),
-          end_date: selectedBillingCycle === 'monthly'
-            ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-            : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
-          status: 'active',
-          payment_method: 'manual', // TODO: Real payment method
-          transaction_id: `TXN-${Date.now()}` // TODO: Real transaction ID
-        });
+      const { error } = await (supabase.from('payment_requests') as any).insert({
+        user_id: user.id,
+        restaurant_id: restaurantId,
+        plan: selectedTier,
+        billing_cycle: selectedBillingCycle,
+        amount,
+        payment_method: paymentMethod,
+        transaction_id: transactionId.trim(),
+        phone_number: payPhone.trim() || null,
+        status: 'pending',
+      });
+      if (error) throw error;
     },
     onSuccess: () => {
+      setPaySuccess(true);
+      setTransactionId("");
+      setPayPhone("");
       queryClient.invalidateQueries({ queryKey: ['restaurant-subscription', restaurantId] });
-      queryClient.invalidateQueries({ queryKey: ['restaurants'] });
-      toast.success('Subscription activated! Welcome to ' + TIERS[selectedTier].name + '! 🎉');
-      setShowPaymentForm(false);
     },
-    onError: (err: any) => {
-      toast.error(err.message || 'Upgrade failed');
-    }
+    onError: (err: any) => toast.error(err.message || 'Submit ব্যর্থ হয়েছে'),
   });
 
   const handleTierSelect = (tier: TierName, billingCycle: BillingCycle) => {
     setSelectedTier(tier);
     setSelectedBillingCycle(billingCycle);
     setShowPaymentForm(true);
-  };
-
-  const handleConfirmPayment = () => {
-    // TODO: Show actual payment form (bKash, Nagad, Stripe, etc.)
-    // For now, just confirm
-    if (confirm(`Confirm upgrade to ${TIERS[selectedTier].name} (${selectedBillingCycle})?`)) {
-      upgradeMutation.mutate();
-    }
+    setPaySuccess(false);
   };
 
   return (
@@ -182,7 +159,7 @@ const UpgradePage = () => {
         {showPaymentForm ? (
           <Card>
             <CardHeader>
-              <CardTitle>Complete Your Upgrade</CardTitle>
+              <CardTitle>পেমেন্ট সম্পন্ন করুন</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Selected Plan Summary */}
@@ -191,102 +168,157 @@ const UpgradePage = () => {
                   <div>
                     <h3 className="font-bold text-xl">{TIERS[selectedTier].name}</h3>
                     <p className="text-sm text-muted-foreground">
-                      {selectedBillingCycle === 'monthly' ? 'Monthly billing' : 'Annual billing (Save 20%)'}
+                      {selectedBillingCycle === 'monthly' ? 'মাসিক বিলিং' : 'বার্ষিক বিলিং (২০% ছাড়)'}
                     </p>
                   </div>
                   <div className="text-right">
                     <div className="text-3xl font-bold">
                       {formatPrice(
-                        selectedBillingCycle === 'monthly' 
-                          ? TIERS[selectedTier].price_monthly 
+                        selectedBillingCycle === 'monthly'
+                          ? TIERS[selectedTier].price_monthly
                           : TIERS[selectedTier].price_yearly
                       )}
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      {selectedBillingCycle === 'monthly' ? '/month' : '/year'}
+                      {selectedBillingCycle === 'monthly' ? '/মাস' : '/বছর'}
                     </p>
                   </div>
                 </div>
-
                 {selectedBillingCycle === 'yearly' && (
                   <div className="bg-success/10 border border-success/30 rounded-lg p-3 text-sm text-success">
-                    🎉 You're saving {formatPrice(TIERS[selectedTier].price_monthly * 12 - TIERS[selectedTier].price_yearly)} per year!
-                    (2 months FREE)
+                    আপনি বছরে {formatPrice(TIERS[selectedTier].price_monthly * 12 - TIERS[selectedTier].price_yearly)} সাশ্রয় করছেন! (২ মাস বিনামূল্যে)
                   </div>
                 )}
               </div>
 
-              {/* Payment Method (Placeholder) */}
-              <div className="space-y-4">
-                <h4 className="font-semibold">Select Payment Method</h4>
-                
-                <div className="grid gap-3">
-                  <button className="w-full p-4 border-2 border-primary rounded-lg text-left hover:bg-primary/5 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-pink-100 rounded flex items-center justify-center">
-                        <span className="text-pink-600 font-bold">bK</span>
-                      </div>
-                      <div>
-                        <div className="font-semibold">bKash</div>
-                        <div className="text-xs text-muted-foreground">Pay with bKash mobile wallet</div>
-                      </div>
-                    </div>
-                  </button>
-
-                  <button className="w-full p-4 border-2 border-border rounded-lg text-left hover:bg-muted transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-orange-100 rounded flex items-center justify-center">
-                        <span className="text-orange-600 font-bold">N</span>
-                      </div>
-                      <div>
-                        <div className="font-semibold">Nagad</div>
-                        <div className="text-xs text-muted-foreground">Pay with Nagad mobile wallet</div>
-                      </div>
-                    </div>
-                  </button>
-
-                  <button className="w-full p-4 border-2 border-border rounded-lg text-left hover:bg-muted transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-blue-100 rounded flex items-center justify-center">
-                        <span className="text-blue-600 font-bold">💳</span>
-                      </div>
-                      <div>
-                        <div className="font-semibold">Credit/Debit Card</div>
-                        <div className="text-xs text-muted-foreground">Visa, Mastercard, Amex</div>
-                      </div>
-                    </div>
-                  </button>
-                </div>
-
-                {/* Placeholder Notice */}
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-900">
-                  <p className="font-semibold mb-1">⚠️ Development Mode</p>
-                  <p className="text-blue-700">
-                    Payment integration is in development. Clicking "Confirm Payment" will activate your subscription
-                    without actual payment. Real payment gateway integration coming soon!
+              {paySuccess ? (
+                /* Success State */
+                <div className="text-center py-8 space-y-4">
+                  <div className="w-16 h-16 bg-success/10 rounded-full flex items-center justify-center mx-auto">
+                    <CheckCircle2 className="w-8 h-8 text-success" />
+                  </div>
+                  <h3 className="text-xl font-bold">পেমেন্ট রিকোয়েস্ট জমা হয়েছে!</h3>
+                  <p className="text-muted-foreground max-w-sm mx-auto">
+                    আপনার পেমেন্ট যাচাই করা হচ্ছে। সাধারণত ১–২ কার্যদিবসের মধ্যে সাবস্ক্রিপশন সক্রিয় হবে।
+                    কোনো সমস্যা হলে support@qrmanager.app-এ যোগাযোগ করুন।
                   </p>
+                  <Button variant="outline" onClick={() => { setShowPaymentForm(false); setPaySuccess(false); }}>
+                    ← প্ল্যানে ফিরে যান
+                  </Button>
                 </div>
-              </div>
+              ) : (
+                <>
+                  {/* Payment Method Selector */}
+                  <div className="space-y-3">
+                    <h4 className="font-semibold">পেমেন্ট মাধ্যম বেছে নিন</h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        onClick={() => setPaymentMethod('bkash')}
+                        className={`p-4 border-2 rounded-lg text-left transition-colors ${
+                          paymentMethod === 'bkash' ? 'border-pink-500 bg-pink-50' : 'border-border hover:bg-muted'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-pink-100 rounded flex items-center justify-center">
+                            <span className="text-pink-600 font-bold text-sm">bK</span>
+                          </div>
+                          <div>
+                            <div className="font-semibold">bKash</div>
+                            <div className="text-xs text-muted-foreground">মোবাইল ওয়ালেট</div>
+                          </div>
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => setPaymentMethod('nagad')}
+                        className={`p-4 border-2 rounded-lg text-left transition-colors ${
+                          paymentMethod === 'nagad' ? 'border-orange-500 bg-orange-50' : 'border-border hover:bg-muted'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-orange-100 rounded flex items-center justify-center">
+                            <span className="text-orange-600 font-bold text-sm">N</span>
+                          </div>
+                          <div>
+                            <div className="font-semibold">Nagad</div>
+                            <div className="text-xs text-muted-foreground">মোবাইল ওয়ালেট</div>
+                          </div>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
 
-              {/* Action Buttons */}
-              <div className="flex gap-3">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => setShowPaymentForm(false)}
-                >
-                  ← Back to Plans
-                </Button>
-                <Button
-                  variant="hero"
-                  className="flex-1"
-                  onClick={handleConfirmPayment}
-                  disabled={upgradeMutation.isPending}
-                >
-                  {upgradeMutation.isPending ? 'Processing...' : 'Confirm Payment'}
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
-              </div>
+                  {/* Send Money Instructions */}
+                  <div className={`rounded-lg p-5 space-y-3 ${
+                    paymentMethod === 'bkash' ? 'bg-pink-50 border border-pink-200' : 'bg-orange-50 border border-orange-200'
+                  }`}>
+                    <p className={`font-semibold text-sm ${paymentMethod === 'bkash' ? 'text-pink-800' : 'text-orange-800'}`}>
+                      {paymentMethod === 'bkash' ? 'bKash' : 'Nagad'} নম্বরে Send Money করুন
+                    </p>
+                    <div className="flex items-center gap-3">
+                      <span className={`text-2xl font-bold tracking-widest ${
+                        paymentMethod === 'bkash' ? 'text-pink-700' : 'text-orange-700'
+                      }`}>
+                        {paymentMethod === 'bkash' ? BKASH_NUMBER : NAGAD_NUMBER}
+                      </span>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(paymentMethod === 'bkash' ? BKASH_NUMBER : NAGAD_NUMBER);
+                          toast.success('নম্বর কপি হয়েছে');
+                        }}
+                        className="p-2 rounded hover:bg-black/10 transition-colors"
+                        title="কপি করুন"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <ol className={`text-xs space-y-1 list-decimal list-inside ${
+                      paymentMethod === 'bkash' ? 'text-pink-700' : 'text-orange-700'
+                    }`}>
+                      <li>উপরের নম্বরে <strong>Send Money</strong> করুন</li>
+                      <li>Amount: <strong>{formatPrice(selectedBillingCycle === 'monthly' ? TIERS[selectedTier].price_monthly : TIERS[selectedTier].price_yearly)}</strong></li>
+                      <li>Transaction ID নিচে লিখুন এবং সাবমিট করুন</li>
+                    </ol>
+                  </div>
+
+                  {/* Transaction ID + Phone */}
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="txn-id">Transaction ID *</Label>
+                      <Input
+                        id="txn-id"
+                        placeholder="যেমন: 8N7A2B3C4D"
+                        value={transactionId}
+                        onChange={e => setTransactionId(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="pay-phone">পেমেন্টে ব্যবহৃত নম্বর (ঐচ্ছিক)</Label>
+                      <Input
+                        id="pay-phone"
+                        placeholder="01XXXXXXXXX"
+                        value={payPhone}
+                        onChange={e => setPayPhone(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-3">
+                    <Button variant="outline" className="flex-1" onClick={() => setShowPaymentForm(false)}>
+                      ← পিছনে যান
+                    </Button>
+                    <Button
+                      variant="hero"
+                      className="flex-1"
+                      onClick={() => paymentMutation.mutate()}
+                      disabled={paymentMutation.isPending || !transactionId.trim()}
+                    >
+                      {paymentMutation.isPending ? 'সাবমিট হচ্ছে...' : 'পেমেন্ট সাবমিট করুন'}
+                      <ArrowRight className="w-4 h-4 ml-2" />
+                    </Button>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
         ) : (
