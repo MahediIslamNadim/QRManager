@@ -15,8 +15,8 @@ import { Check, Zap, Crown, ArrowRight, Clock, Shield, CheckCircle2, Copy, Credi
 import { TIERS, TierName, BillingCycle, formatPrice } from '@/constants/tiers';
 import TierSelection from '@/components/TierSelection';
 
-const BKASH_NUMBER = "01XXXXXXXXXX"; // Replace with real bKash number
-const NAGAD_NUMBER = "01XXXXXXXXXX"; // Replace with real Nagad number
+const BKASH_NUMBER = import.meta.env.VITE_BKASH_NUMBER ?? "01786130439";
+const NAGAD_NUMBER = import.meta.env.VITE_NAGAD_NUMBER ?? "01786130439";
 
 const UpgradePage = () => {
   const { restaurantId } = useAuth();
