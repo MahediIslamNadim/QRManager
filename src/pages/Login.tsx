@@ -524,13 +524,28 @@ const Login = () => {
           /* ── LOGIN / SIGNUP ── */
           ) : (
             <>
-              <div style={{ marginBottom: 32 }}>
+              <div style={{ marginBottom: 28 }}>
                 <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 36, fontWeight: 700, color: "#FFFFFF", marginBottom: 8, lineHeight: 1.2 }}>
-                  {mode === "signup" ? "শুরু করুন" : "স্বাগতম 👋"}
+                  {mode === "signup" ? "শুরু করুন ✨" : "স্বাগতম 👋"}
                 </h2>
-                <p style={{ fontSize: 14, color: "rgba(255,255,255,0.45)" }}>
-                  {mode === "signup" ? `${APP_NAME} এ নতুন অ্যাকাউন্ট তৈরি করুন • ${FREE_TRIAL_DAYS} দিন ফ্রি ট্রায়াল` : `${APP_NAME} ড্যাশবোর্ডে লগইন করুন`}
+                <p style={{ fontSize: 14, color: "rgba(255,255,255,0.45)", marginBottom: 20 }}>
+                  {mode === "signup" ? `${FREE_TRIAL_DAYS} দিন ফ্রি ট্রায়াল — কার্ড লাগবে না` : `${APP_NAME} ড্যাশবোর্ডে লগইন করুন`}
                 </p>
+                {/* Tab switcher */}
+                <div style={{ display: "flex", background: "rgba(255,255,255,0.05)", borderRadius: 12, padding: 4, border: "1px solid rgba(201,168,76,0.15)" }}>
+                  <button type="button" onClick={() => { setMode("login"); setPassword(""); }}
+                    style={{ flex: 1, height: 38, borderRadius: 9, border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600, transition: "all 0.2s",
+                      background: mode === "login" ? "linear-gradient(135deg, #f5d780, #c9a84c, #e8c04a)" : "transparent",
+                      color: mode === "login" ? "#0a0a0a" : "rgba(255,255,255,0.45)",
+                      boxShadow: mode === "login" ? "0 2px 12px rgba(201,168,76,0.35)" : "none",
+                    }}>লগইন</button>
+                  <button type="button" onClick={() => { setMode("signup"); setPassword(""); }}
+                    style={{ flex: 1, height: 38, borderRadius: 9, border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600, transition: "all 0.2s",
+                      background: mode === "signup" ? "linear-gradient(135deg, #f5d780, #c9a84c, #e8c04a)" : "transparent",
+                      color: mode === "signup" ? "#0a0a0a" : "rgba(255,255,255,0.45)",
+                      boxShadow: mode === "signup" ? "0 2px 12px rgba(201,168,76,0.35)" : "none",
+                    }}>সাইন আপ</button>
+                </div>
               </div>
 
               <form onSubmit={handleSubmit}>
@@ -609,13 +624,33 @@ const Login = () => {
                         {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
                       </button>
                     </div>
-                    {/* ✅ Password hint for signup */}
-                    {mode === "signup" && (
-                      <p style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", marginTop: 7, lineHeight: 1.6 }}>
-                        ⚠ ছোট হাতের (a-z) + বড় হাতের (A-Z) + সংখ্যা (0-9) + special character (!@#$) থাকতে হবে।{" "}
-                        <span style={{ color: "#f5d780", fontWeight: 600 }}>উদাহরণ: Admin@123</span>
-                      </p>
-                    )}
+                    {/* Password strength for signup */}
+                    {mode === "signup" && password.length > 0 && (() => {
+                      const checks = [
+                        { label: "৬+ অক্ষর", ok: password.length >= 6 },
+                        { label: "বড় হাতের", ok: /[A-Z]/.test(password) },
+                        { label: "সংখ্যা", ok: /[0-9]/.test(password) },
+                        { label: "চিহ্ন (!@#$)", ok: /[^a-zA-Z0-9]/.test(password) },
+                      ];
+                      const score = checks.filter(c => c.ok).length;
+                      const colors = ["#ef4444", "#f97316", "#eab308", "#22c55e"];
+                      return (
+                        <div style={{ marginTop: 8 }}>
+                          <div style={{ display: "flex", gap: 4, marginBottom: 6 }}>
+                            {[0,1,2,3].map(i => (
+                              <div key={i} style={{ flex: 1, height: 3, borderRadius: 2, background: i < score ? colors[score - 1] : "rgba(255,255,255,0.1)", transition: "background 0.3s" }} />
+                            ))}
+                          </div>
+                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                            {checks.map(c => (
+                              <span key={c.label} style={{ fontSize: 11, color: c.ok ? "#86efac" : "rgba(255,255,255,0.3)", display: "flex", alignItems: "center", gap: 3 }}>
+                                <span>{c.ok ? "✓" : "○"}</span> {c.label}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Submit */}
@@ -628,21 +663,16 @@ const Login = () => {
                 </div>
               </form>
 
-              <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "24px 0" }}>
-                <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.08)" }} />
-                <span style={{ fontSize: 12, color: "rgba(255,255,255,0.25)" }}>অথবা</span>
-                <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.08)" }} />
-              </div>
-
-              <p style={{ textAlign: "center", fontSize: 14, color: "rgba(255,255,255,0.45)" }}>
-                {mode === "signup" ? "ইতিমধ্যে অ্যাকাউন্ট আছে? " : "অ্যাকাউন্ট নেই? "}
-                <button onClick={() => { setMode(mode === "signup" ? "login" : "signup"); setPassword(""); }}
-                  style={{ background: "none", border: "none", cursor: "pointer", fontSize: 14, fontWeight: 700, color: "#f5d780", fontFamily: "'DM Sans', sans-serif", transition: "color 0.2s", padding: 0 }}
-                  onMouseEnter={e => e.currentTarget.style.color = "#c9a84c"}
-                  onMouseLeave={e => e.currentTarget.style.color = "#f5d780"}>
-                  {mode === "signup" ? "লগইন করুন" : "সাইন আপ করুন"}
-                </button>
-              </p>
+              {mode === "login" && (
+                <p style={{ textAlign: "center", marginTop: 20, fontSize: 13, color: "rgba(255,255,255,0.3)" }}>
+                  নতুন অ্যাকাউন্ট? উপরের{" "}
+                  <button type="button" onClick={() => { setMode("signup"); setPassword(""); }}
+                    style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 700, color: "#f5d780", fontFamily: "'DM Sans', sans-serif", padding: 0 }}>
+                    সাইন আপ
+                  </button>
+                  {" "}ট্যাব ক্লিক করুন
+                </p>
+              )}
             </>
           )}
 

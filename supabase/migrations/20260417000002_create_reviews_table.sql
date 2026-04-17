@@ -16,11 +16,15 @@ CREATE INDEX IF NOT EXISTS idx_reviews_menu_item_id ON reviews(menu_item_id);
 ALTER TABLE reviews ENABLE ROW LEVEL SECURITY;
 
 -- Anyone can read reviews (public menu shows ratings)
-CREATE POLICY IF NOT EXISTS "reviews_public_read"
-  ON reviews FOR SELECT
-  USING (true);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='reviews' AND policyname='reviews_public_read') THEN
+    CREATE POLICY "reviews_public_read" ON reviews FOR SELECT USING (true);
+  END IF;
+END $$;
 
 -- Anyone can insert a review (customers submit via menu)
-CREATE POLICY IF NOT EXISTS "reviews_public_insert"
-  ON reviews FOR INSERT
-  WITH CHECK (true);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='reviews' AND policyname='reviews_public_insert') THEN
+    CREATE POLICY "reviews_public_insert" ON reviews FOR INSERT WITH CHECK (true);
+  END IF;
+END $$;

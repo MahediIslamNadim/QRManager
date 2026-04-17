@@ -18,6 +18,7 @@ interface KitchenOrder {
   id: string;
   status: string;
   created_at: string;
+  notes: string | null;
   restaurant_tables: { name: string } | null;
   order_items: OrderItem[];
 }
@@ -152,7 +153,7 @@ const KitchenDisplay = () => {
       if (!restaurantId) return [];
       const { data, error } = await supabase
         .from("orders")
-        .select("id, status, created_at, restaurant_tables(name), order_items(name, quantity, price)")
+        .select("id, status, created_at, notes, restaurant_tables(name), order_items(name, quantity, price)")
         .eq("restaurant_id", restaurantId)
         .in("status", ["pending", "preparing"])
         .order("created_at", { ascending: true });
@@ -475,6 +476,14 @@ const OrderCard = ({ order, colors, primaryAction, disabled = false }: OrderCard
           <p className="text-white/30 text-sm">কোনো আইটেম নেই</p>
         )}
       </div>
+
+      {/* Special instructions */}
+      {order.notes && (
+        <div className="flex items-start gap-2 px-3 py-2 rounded-xl bg-yellow-500/10 border border-yellow-500/30">
+          <span className="text-yellow-400 text-sm flex-shrink-0">📝</span>
+          <p className="text-yellow-200 text-sm font-medium leading-snug">{order.notes}</p>
+        </div>
+      )}
 
       {/* Action button */}
       <button

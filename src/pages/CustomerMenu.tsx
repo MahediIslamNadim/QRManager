@@ -75,6 +75,12 @@ const CustomerMenu = () => {
   const [showOrderStatus, setShowOrderStatus] = useState(false);
   const [orderStatusTab, setOrderStatusTab] = useState<"active" | "history">("active");
 
+  // ── General feedback modal ─────────────────────────────────────────────────
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [feedbackRating, setFeedbackRating] = useState(0);
+  const [feedbackComment, setFeedbackComment] = useState("");
+  const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
+
   // ── AI Recommendations ────────────────────────────────────────────────
   const {
     recommendations: aiRecommendations,
@@ -519,16 +525,14 @@ const CustomerMenu = () => {
             <button onClick={() => setShowSearch(!showSearch)} className="w-11 h-11 rounded-2xl bg-secondary hover:bg-accent flex items-center justify-center transition-all">
               <Search className="w-5 h-5 text-muted-foreground" />
             </button>
-            {myOrders.length > 0 && (
-              <button onClick={() => setShowOrderStatus(true)} className="relative w-11 h-11 rounded-2xl bg-warning/10 hover:bg-warning/20 flex items-center justify-center transition-all">
-                <ClipboardList className="w-5 h-5 text-warning" />
-                {activeOrdersCount > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-warning text-warning-foreground text-[10px] flex items-center justify-center font-bold animate-pulse">
-                    {activeOrdersCount}
-                  </span>
-                )}
-              </button>
-            )}
+            <button onClick={() => setShowOrderStatus(true)} className="relative w-11 h-11 rounded-2xl bg-warning/10 hover:bg-warning/20 flex items-center justify-center transition-all">
+              <ClipboardList className="w-5 h-5 text-warning" />
+              {activeOrdersCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-warning text-warning-foreground text-[10px] flex items-center justify-center font-bold animate-pulse">
+                  {activeOrdersCount}
+                </span>
+              )}
+            </button>
             <button onClick={() => setShowCart(true)} className="relative w-11 h-11 rounded-2xl bg-primary/10 hover:bg-primary/20 flex items-center justify-center transition-all duration-300 hover:scale-105 active:scale-95">
               <ShoppingCart className="w-5 h-5 text-primary" />
               {totalItems > 0 && (
@@ -653,7 +657,7 @@ const CustomerMenu = () => {
       </div>
 
       {/* Menu Items */}
-      <div className="max-w-2xl mx-auto px-4 py-6 space-y-5 pb-32">
+      <div className="max-w-2xl mx-auto px-4 py-6 space-y-5 pb-40">
         {filtered.length === 0 && (
           <div className="text-center py-16">
             <UtensilsCrossed className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
@@ -752,25 +756,9 @@ const CustomerMenu = () => {
         })}
       </div>
 
-      {/* Floating action buttons */}
-      {!showCart && !showOrderStatus && (
-        <div className="fixed bottom-24 right-4 z-20 flex flex-col gap-2">
-          <button onClick={handleCallWaiter}
-            className="w-12 h-12 rounded-full bg-info/90 text-info-foreground shadow-lg shadow-info/30 flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
-            title="ওয়েটার ডাকুন">
-            <Phone className="w-5 h-5" />
-          </button>
-          <button onClick={handleRequestBill}
-            className="w-12 h-12 rounded-full bg-warning/90 text-warning-foreground shadow-lg shadow-warning/30 flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
-            title="বিল চাই">
-            <Receipt className="w-5 h-5" />
-          </button>
-        </div>
-      )}
-
-      {/* Floating cart button */}
+      {/* Floating cart button — sits above the bottom nav */}
       {totalItems > 0 && !showCart && (
-        <div className="fixed bottom-6 left-4 right-4 max-w-2xl mx-auto z-30 animate-fade-up">
+        <div className="fixed bottom-[72px] left-4 right-4 max-w-2xl mx-auto z-30 animate-fade-up">
           <button onClick={() => setShowCart(true)}
             className="w-full gradient-primary text-primary-foreground rounded-2xl p-4 flex items-center justify-between shadow-2xl shadow-primary/30 hover:shadow-primary/40 transition-all duration-300 active:scale-[0.98]">
             <div className="flex items-center gap-3">
@@ -784,6 +772,67 @@ const CustomerMenu = () => {
             </div>
             <span className="font-bold text-xl">৳{totalPrice}</span>
           </button>
+        </div>
+      )}
+
+      {/* Bottom navigation bar */}
+      {!showCart && !showOrderStatus && !showFeedback && (
+        <div className="fixed bottom-0 left-0 right-0 z-20 bg-card/95 backdrop-blur-xl border-t border-border/50 safe-area-pb">
+          <div className="max-w-2xl mx-auto flex items-center">
+            {/* Order Track */}
+            <button
+              onClick={() => { setOrderStatusTab("active"); setShowOrderStatus(true); }}
+              className="flex-1 flex flex-col items-center gap-0.5 py-3 relative group">
+              <div className="relative">
+                <ClipboardList className="w-5 h-5 text-warning group-hover:scale-110 transition-transform" />
+                {activeOrdersCount > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-warning text-warning-foreground text-[9px] flex items-center justify-center font-bold">
+                    {activeOrdersCount}
+                  </span>
+                )}
+              </div>
+              <span className="text-[10px] font-semibold text-warning">অর্ডার ট্র্যাক</span>
+            </button>
+
+            {/* History */}
+            <button
+              onClick={() => { setOrderStatusTab("history"); setShowOrderStatus(true); }}
+              className="flex-1 flex flex-col items-center gap-0.5 py-3 relative group">
+              <div className="relative">
+                <Clock className="w-5 h-5 text-muted-foreground group-hover:text-foreground group-hover:scale-110 transition-all" />
+                {orderHistory.length > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-muted-foreground/30 text-foreground text-[9px] flex items-center justify-center font-bold">
+                    {orderHistory.length}
+                  </span>
+                )}
+              </div>
+              <span className="text-[10px] font-semibold text-muted-foreground">ইতিহাস</span>
+            </button>
+
+            {/* Feedback */}
+            <button
+              onClick={() => setShowFeedback(true)}
+              className="flex-1 flex flex-col items-center gap-0.5 py-3 group">
+              <MessageSquare className="w-5 h-5 text-muted-foreground group-hover:text-primary group-hover:scale-110 transition-all" />
+              <span className="text-[10px] font-semibold text-muted-foreground">ফিডব্যাক</span>
+            </button>
+
+            {/* Waiter */}
+            <button
+              onClick={handleCallWaiter}
+              className="flex-1 flex flex-col items-center gap-0.5 py-3 group">
+              <Phone className="w-5 h-5 text-info group-hover:scale-110 transition-transform" />
+              <span className="text-[10px] font-semibold text-info">ওয়েটার</span>
+            </button>
+
+            {/* Bill */}
+            <button
+              onClick={handleRequestBill}
+              className="flex-1 flex flex-col items-center gap-0.5 py-3 group">
+              <Receipt className="w-5 h-5 text-amber-500 group-hover:scale-110 transition-transform" />
+              <span className="text-[10px] font-semibold text-amber-500">বিল</span>
+            </button>
+          </div>
         </div>
       )}
 
@@ -1062,6 +1111,69 @@ const CustomerMenu = () => {
                   </Button>
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* General feedback modal */}
+      {showFeedback && (
+        <div className="fixed inset-0 z-[60] bg-foreground/70 backdrop-blur-md flex items-end sm:items-center justify-center p-4">
+          <div className="w-full max-w-sm bg-card rounded-3xl p-6 shadow-2xl animate-fade-up">
+            <div className="text-center mb-5">
+              <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-3">
+                <MessageSquare className="w-7 h-7 text-primary" />
+              </div>
+              <h2 className="font-display font-bold text-xl text-foreground">ফিডব্যাক দিন</h2>
+              <p className="text-sm text-muted-foreground mt-1">আপনার মতামত আমাদের উন্নতিতে সাহায্য করে</p>
+            </div>
+            <div className="flex justify-center gap-3 mb-4">
+              {[1, 2, 3, 4, 5].map(star => (
+                <button key={star} onClick={() => setFeedbackRating(star)} className="transition-transform active:scale-90">
+                  <Star className={`w-10 h-10 transition-colors ${star <= feedbackRating ? "text-warning fill-warning" : "text-muted-foreground/30"}`} />
+                </button>
+              ))}
+            </div>
+            {feedbackRating > 0 && (
+              <p className="text-center text-sm font-medium text-muted-foreground mb-4">
+                {feedbackRating === 1 ? "😞 খুব খারাপ" : feedbackRating === 2 ? "😕 খারাপ" : feedbackRating === 3 ? "😐 মোটামুটি" : feedbackRating === 4 ? "😊 ভালো" : "😍 অসাধারণ!"}
+              </p>
+            )}
+            <textarea
+              className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/50 mb-4"
+              rows={3} placeholder="আপনার অভিজ্ঞতা বলুন... (ঐচ্ছিক)"
+              value={feedbackComment}
+              onChange={e => setFeedbackComment(e.target.value.replace(/<[^>]*>/g, "").slice(0, 500))}
+              maxLength={500} />
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setShowFeedback(false); setFeedbackRating(0); setFeedbackComment(""); }}
+                className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:bg-secondary transition-colors">
+                বাতিল
+              </button>
+              <button
+                disabled={feedbackRating === 0 || feedbackSubmitting}
+                onClick={async () => {
+                  if (!feedbackRating || !restaurantId) return;
+                  const cleanComment = feedbackComment ? sanitize(feedbackComment, 500) : null;
+                  setFeedbackSubmitting(true);
+                  const { error } = await supabase.from("reviews").insert({
+                    restaurant_id: restaurantId,
+                    menu_item_id: null,
+                    rating: feedbackRating,
+                    comment: cleanComment,
+                  } as any);
+                  setFeedbackSubmitting(false);
+                  if (!error) {
+                    toast("🙏 ধন্যবাদ! ফিডব্যাক পেয়েছি।", { duration: 4000 });
+                  }
+                  setShowFeedback(false);
+                  setFeedbackRating(0);
+                  setFeedbackComment("");
+                }}
+                className="flex-1 py-2.5 rounded-xl gradient-primary text-primary-foreground font-semibold text-sm disabled:opacity-50 transition-opacity">
+                {feedbackSubmitting ? "পাঠানো হচ্ছে..." : "পাঠান"}
+              </button>
             </div>
           </div>
         </div>

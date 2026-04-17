@@ -55,18 +55,39 @@ const AdminFeedback = () => {
     enabled: !!restaurantId,
   });
 
-  const totalReviews = orderFeedback.length;
+  // General restaurant feedback (not tied to any menu item)
+  const { data: generalReviews = [], isLoading: loadingGeneral } = useQuery({
+    queryKey: ["general-reviews", restaurantId],
+    queryFn: async () => {
+      if (!restaurantId) return [];
+      const { data, error } = await supabase
+        .from("reviews")
+        .select("id, rating, comment, created_at")
+        .eq("restaurant_id", restaurantId)
+        .is("menu_item_id", null)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!restaurantId,
+  });
+
+  const totalReviews = orderFeedback.length + generalReviews.length;
+  const allRatings = [
+    ...orderFeedback.map((r: any) => r.rating),
+    ...generalReviews.map((r: any) => r.rating),
+  ];
   const avgRating =
-    totalReviews > 0
-      ? Math.round((orderFeedback.reduce((s: number, r: any) => s + (r.rating || 0), 0) / totalReviews) * 10) / 10
+    allRatings.length > 0
+      ? Math.round((allRatings.reduce((s, v) => s + v, 0) / allRatings.length) * 10) / 10
       : null;
 
   const ratingDist = [5, 4, 3, 2, 1].map((star) => ({
     star,
-    count: orderFeedback.filter((r: any) => r.rating === star).length,
+    count: allRatings.filter((r) => r === star).length,
   }));
 
-  const isLoading = loadingOrders || loadingReviews;
+  const isLoading = loadingOrders || loadingReviews || loadingGeneral;
 
   const formatDate = (iso: string) => {
     const d = new Date(iso);
@@ -96,7 +117,7 @@ const AdminFeedback = () => {
             <CardContent className="p-4 flex flex-col gap-1">
               <p className="text-xs text-muted-foreground">মন্তব্যসহ</p>
               <p className="text-2xl font-bold">
-                {orderFeedback.filter((r: any) => r.rating_comment).length}
+                {orderFeedback.filter((r: any) => r.rating_comment).length + generalReviews.filter((r: any) => r.comment).length}
               </p>
               <MessageSquare className="w-4 h-4 text-muted-foreground" />
             </CardContent>
@@ -105,7 +126,7 @@ const AdminFeedback = () => {
             <CardContent className="p-4 flex flex-col gap-1">
               <p className="text-xs text-muted-foreground">৫ স্টার</p>
               <p className="text-2xl font-bold text-yellow-500">
-                {orderFeedback.filter((r: any) => r.rating === 5).length}
+                {allRatings.filter((r) => r === 5).length}
               </p>
               <TrendingUp className="w-4 h-4 text-yellow-500" />
             </CardContent>
@@ -173,6 +194,39 @@ const AdminFeedback = () => {
             </CardContent>
           </Card>
         </div>
+
+        {/* General Restaurant Feedback */}
+        {generalReviews.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Star className="w-4 h-4 text-primary" /> সাধারণ ফিডব্যাক ({generalReviews.length}টি)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {generalReviews.map((fb: any) => (
+                  <div key={fb.id} className="border rounded-xl p-4 space-y-2 hover:bg-accent/30 transition-colors">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <StarDisplay rating={fb.rating} size="md" />
+                        <span className="text-sm font-semibold text-yellow-600">{fb.rating}/5</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground flex-shrink-0">
+                        {formatDate(fb.created_at)}
+                      </span>
+                    </div>
+                    {fb.comment && (
+                      <p className="text-sm text-foreground bg-muted/50 rounded-lg px-3 py-2">
+                        "{fb.comment}"
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* All Order Feedback */}
         <Card>

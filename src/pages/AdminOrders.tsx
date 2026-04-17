@@ -232,6 +232,12 @@ const AdminOrders = () => {
                             </span>
                           ))}
                         </div>
+                        {order.notes && (
+                          <div className="flex items-start gap-1.5 mb-2 px-2.5 py-1.5 rounded-lg bg-warning/10 border border-warning/20">
+                            <span className="text-warning text-xs flex-shrink-0">📝</span>
+                            <p className="text-xs text-warning-foreground font-medium leading-snug">{order.notes}</p>
+                          </div>
+                        )}
                         <div className="flex items-center gap-3 flex-wrap">
                           <p className="text-xs text-muted-foreground">{timeAgo(order.created_at)}</p>
                           {order.paid_to_staff_name && (
