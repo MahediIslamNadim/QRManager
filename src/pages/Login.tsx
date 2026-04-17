@@ -64,6 +64,7 @@ const Login = () => {
   const [restaurantName, setRestaurantName] = useState("");
   const [restaurantAddress, setRestaurantAddress] = useState("");
   const [restaurantPhone, setRestaurantPhone] = useState("");
+  const [selectedPlan, setSelectedPlan] = useState<"medium_smart" | "high_smart">("medium_smart");
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -255,6 +256,7 @@ const Login = () => {
               p_address: restaurantAddress.trim() || null,
               p_phone: restaurantPhone.trim() || null,
               p_trial_days: FREE_TRIAL_DAYS,
+              p_plan: selectedPlan,
             } as any,
           );
           if (setupError) throw new Error("সেটআপ ব্যর্থ: " + setupError.message);
@@ -280,7 +282,8 @@ const Login = () => {
               { restaurant_id: restaurantId, name: "T-6", seats: 4 },
             ]);
           }
-          toast.success(`অ্যাকাউন্ট তৈরি হয়েছে! ${FREE_TRIAL_DAYS} দিনের ফ্রি ট্রায়াল (বেসিক) শুরু হয়েছে।`);
+          const planLabel = selectedPlan === "high_smart" ? "High Smart" : "Medium Smart";
+          toast.success(`অ্যাকাউন্ট তৈরি হয়েছে! ${FREE_TRIAL_DAYS} দিনের ফ্রি ট্রায়াল (${planLabel}) শুরু হয়েছে।`);
           // onAuthStateChange fired during signUp BEFORE the RPC created the role row,
           // so fetchUserData ran against an empty user_roles table → role stayed null.
           // Explicitly re-fetch user data now that the role row exists; this updates
@@ -530,7 +533,7 @@ const Login = () => {
                   {mode === "signup" ? "শুরু করুন ✨" : "স্বাগতম 👋"}
                 </h2>
                 <p style={{ fontSize: 14, color: "rgba(255,255,255,0.45)", marginBottom: 20 }}>
-                  {mode === "signup" ? `${FREE_TRIAL_DAYS} দিন ফ্রি ট্রায়াল — কার্ড লাগবে না` : `${APP_NAME} ড্যাশবোর্ডে লগইন করুন`}
+                  {mode === "signup" ? `Medium Smart বা High Smart — ${FREE_TRIAL_DAYS} দিন ফ্রি ট্রায়াল` : `${APP_NAME} ড্যাশবোর্ডে লগইন করুন`}
                 </p>
                 {/* Tab switcher */}
                 <div style={{ display: "flex", background: "hsl(0 0% 7%)", borderRadius: 12, padding: 4, border: "1px solid hsl(0 0% 14%)" }}>
@@ -579,15 +582,46 @@ const Login = () => {
                             onBlur={e => { e.target.style.borderColor = "hsl(0 0% 14%)"; e.target.style.backgroundColor = "hsl(0 0% 7%)"; }} />
                         </div>
                       </div>
-                      {/* Free trial info banner */}
-                      <div style={{ padding: "14px 18px", borderRadius: 14, background: "rgba(134,239,172,0.06)", border: "1px solid rgba(134,239,172,0.2)", display: "flex", alignItems: "flex-start", gap: 12 }}>
-                        <span style={{ fontSize: 20, lineHeight: 1, marginTop: 1 }}>🎁</span>
-                        <div>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: "#86efac", marginBottom: 3 }}>{FREE_TRIAL_DAYS} দিন ফ্রি ট্রায়াল — বেসিক প্যাকেজ</div>
-                          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", lineHeight: 1.6 }}>
-                            অ্যাকাউন্ট তৈরির সাথে সাথে বেসিক প্যাকেজ অটো-অ্যাক্টিভ হবে।<br />
-                            প্রিমিয়াম বা এন্টারপ্রাইজে আপগ্রেড করতে পরে পেমেন্ট করুন।
-                          </div>
+                      {/* Plan selector */}
+                      <div>
+                        <label style={{ ...labelStyle, marginBottom: 10 }}>প্যাকেজ বেছে নিন <span style={{ color: "#86efac", fontWeight: 700, textTransform: "none", letterSpacing: 0 }}>— {FREE_TRIAL_DAYS} দিন ফ্রি</span></label>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                          {([
+                            { id: "medium_smart" as const, label: "Medium Smart", price: "৳৯৯৯", period: "/মাস", features: ["QR অর্ডারিং", "রিয়েলটাইম ট্র্যাকিং", "৩টি স্টাফ অ্যাকাউন্ট"] },
+                            { id: "high_smart" as const, label: "High Smart", price: "৳১৯৯৯", period: "/মাস", features: ["সব Medium ফিচার", "AI Insights", "আনলিমিটেড স্টাফ"] },
+                          ]).map(plan => {
+                            const active = selectedPlan === plan.id;
+                            return (
+                              <button key={plan.id} type="button" onClick={() => setSelectedPlan(plan.id)}
+                                style={{
+                                  padding: "14px 12px", borderRadius: 14, textAlign: "left", cursor: "pointer",
+                                  border: active ? "2px solid rgba(201,168,76,0.8)" : "2px solid hsl(0 0% 14%)",
+                                  background: active ? "rgba(201,168,76,0.08)" : "hsl(0 0% 7%)",
+                                  transition: "all 0.2s", position: "relative", width: "100%",
+                                }}>
+                                {active && (
+                                  <div style={{ position: "absolute", top: 8, right: 8, width: 16, height: 16, borderRadius: "50%", background: gold, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                    <span style={{ fontSize: 9, color: "#0a0a0a", fontWeight: 800 }}>✓</span>
+                                  </div>
+                                )}
+                                <div style={{ fontSize: 13, fontWeight: 700, color: active ? "#f5d780" : "#fff", marginBottom: 4, fontFamily: "'DM Sans', sans-serif" }}>{plan.label}</div>
+                                <div style={{ marginBottom: 8 }}>
+                                  <span style={{ fontSize: 16, fontWeight: 800, color: active ? "#f5d780" : "rgba(255,255,255,0.7)", fontFamily: "'DM Sans', sans-serif" }}>{plan.price}</span>
+                                  <span style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", fontFamily: "'DM Sans', sans-serif" }}>{plan.period}</span>
+                                </div>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                                  {plan.features.map(f => (
+                                    <div key={f} style={{ fontSize: 10, color: active ? "rgba(245,215,128,0.7)" : "rgba(255,255,255,0.35)", display: "flex", alignItems: "center", gap: 4, fontFamily: "'DM Sans', sans-serif" }}>
+                                      <span style={{ fontSize: 9 }}>✓</span> {f}
+                                    </div>
+                                  ))}
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <div style={{ marginTop: 8, padding: "10px 14px", borderRadius: 10, background: "rgba(134,239,172,0.06)", border: "1px solid rgba(134,239,172,0.18)", fontSize: 11, color: "#86efac", textAlign: "center", fontFamily: "'DM Sans', sans-serif" }}>
+                          প্রথম {FREE_TRIAL_DAYS} দিন সম্পূর্ণ বিনামূল্যে — কার্ড লাগবে না
                         </div>
                       </div>
                     </>
