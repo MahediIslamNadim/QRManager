@@ -6,7 +6,7 @@ import { authDebug, clearPendingLoginRedirect, setPendingLoginRedirect } from "@
 import { toast } from "sonner";
 import {
   Eye, EyeOff, ArrowRight,
-  QrCode, Zap, ShieldCheck, KeyRound, ArrowLeft
+  QrCode, Zap, ShieldCheck, KeyRound, ArrowLeft, UtensilsCrossed
 } from "lucide-react";
 import { APP_NAME, COMPANY_NAME, FREE_TRIAL_DAYS } from "@/constants/app";
 
@@ -401,13 +401,14 @@ const Login = () => {
   const Logo = ({ size = "md" }: { size?: "sm" | "md" }) => (
     <div style={{ display: "flex", alignItems: "center", gap: size === "sm" ? 10 : 14 }}>
       <div style={{
-        width: size === "sm" ? 40 : 48, height: size === "sm" ? 40 : 48,
-        borderRadius: size === "sm" ? 11 : 14,
+        width: size === "sm" ? 36 : 44, height: size === "sm" ? 36 : 44,
+        borderRadius: size === "sm" ? 10 : 12,
         background: gold, display: "flex", alignItems: "center", justifyContent: "center",
         boxShadow: "0 0 24px rgba(201,168,76,0.35)",
-        fontSize: size === "sm" ? 18 : 22, fontWeight: 800, color: "#0a0a0a",
-        fontFamily: "'DM Sans', sans-serif", letterSpacing: "-0.02em",
-      }}>QR</div>
+        flexShrink: 0,
+      }}>
+        <UtensilsCrossed size={size === "sm" ? 18 : 22} color="#0a0a0a" strokeWidth={2.2} />
+      </div>
       <div>
         <div style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: size === "sm" ? 17 : 20, color: "#FFFFFF" }}>{APP_NAME}</div>
         <div style={{ fontSize: 9, letterSpacing: "0.3em", color: "rgba(201,168,76,0.6)", textTransform: "uppercase", fontFamily: "monospace" }}>by {COMPANY_NAME.replace(" Ltd.", "")}</div>
