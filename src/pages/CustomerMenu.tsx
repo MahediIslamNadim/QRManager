@@ -87,8 +87,33 @@ const CustomerMenu = () => {
     strategy: 'balanced'
   });
 
-  // ── Item ratings from reviews table ───────────────────────────────────────
+  // ── Sanitize user text input ──────────────────────────────────────────────
+  const sanitize = (text: string, maxLen = 500): string =>
+    text
+      .trim()
+      .replace(/<[^>]*>/g, "")
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "")
+      .slice(0, maxLen);
+
+  // ── Item ratings from reviews table (with realtime) ───────────────────────
   const [itemRatings, setItemRatings] = useState<Record<string, { avg: number; count: number }>>({});
+  const [rawReviews, setRawReviews] = useState<{ menu_item_id: string; rating: number }[]>([]);
+
+  const buildRatings = useCallback((reviews: { menu_item_id: string; rating: number }[]) => {
+    const map: Record<string, number[]> = {};
+    reviews.forEach(r => {
+      if (!map[r.menu_item_id]) map[r.menu_item_id] = [];
+      map[r.menu_item_id].push(r.rating);
+    });
+    const result: Record<string, { avg: number; count: number }> = {};
+    Object.entries(map).forEach(([id, ratings]) => {
+      result[id] = {
+        avg: Math.round((ratings.reduce((a, b) => a + b, 0) / ratings.length) * 10) / 10,
+        count: ratings.length,
+      };
+    });
+    setItemRatings(result);
+  }, []);
 
   useEffect(() => {
     if (!restaurantId || isDemo) return;
@@ -97,21 +122,29 @@ const CustomerMenu = () => {
       .select("menu_item_id, rating")
       .then(({ data }) => {
         if (!data) return;
-        const map: Record<string, number[]> = {};
-        data.forEach((r: any) => {
-          if (!map[r.menu_item_id]) map[r.menu_item_id] = [];
-          map[r.menu_item_id].push(r.rating);
-        });
-        const result: Record<string, { avg: number; count: number }> = {};
-        Object.entries(map).forEach(([id, ratings]) => {
-          result[id] = {
-            avg: Math.round((ratings.reduce((a, b) => a + b, 0) / ratings.length) * 10) / 10,
-            count: ratings.length,
-          };
-        });
-        setItemRatings(result);
+        setRawReviews(data);
+        buildRatings(data);
       });
-  }, [restaurantId, isDemo]);
+  }, [restaurantId, isDemo, buildRatings]);
+
+  // Realtime reviews subscription
+  useEffect(() => {
+    if (!restaurantId || isDemo) return;
+    const channel = supabase
+      .channel(`reviews-realtime-${restaurantId}`)
+      .on("postgres_changes", {
+        event: "INSERT", schema: "public", table: "reviews",
+      }, (payload) => {
+        const newReview = payload.new as { menu_item_id: string; rating: number };
+        setRawReviews(prev => {
+          const updated = [...prev, newReview];
+          buildRatings(updated);
+          return updated;
+        });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [restaurantId, isDemo, buildRatings]);
 
   // ── Rating ─────────────────────────────────────────────────────────────────
   const [ratingOrderId, setRatingOrderId] = useState<string | null>(null);
@@ -310,6 +343,9 @@ const CustomerMenu = () => {
     }
     if (!tableIsOpen) { toast.error("এই টেবিলটি এখন বন্ধ আছে"); return; }
     if (!sessionToken) { toast.error("সেশন টোকেন নেই। QR কোড স্ক্যান করুন।"); return; }
+    if (cart.length === 0) { toast.error("কার্ট খালি"); return; }
+
+    const cleanNote = sanitize(specialNote, 200);
 
     setSubmitting(true);
     try {
@@ -317,7 +353,7 @@ const CustomerMenu = () => {
         restaurantId: restaurantId!,
         tableId, seatId, sessionToken,
         cart: cart.map(c => ({ id: c.id, quantity: c.quantity, name: c.name, price: c.price })),
-        specialNote,
+        specialNote: cleanNote,
       });
       if (!result) return;
       setLastOrderId(result.orderId.slice(0, 8).toUpperCase());
@@ -507,7 +543,7 @@ const CustomerMenu = () => {
           <div className="max-w-2xl mx-auto px-4 pb-3 animate-fade-in">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <input type="text" placeholder="খাবার খুঁজুন..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+              <input type="text" placeholder="খাবার খুঁজুন..." value={searchQuery} onChange={e => setSearchQuery(e.target.value.slice(0, 100))} maxLength={100}
                 className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-secondary/50 border border-border/50 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30" autoFocus />
             </div>
           </div>
@@ -1006,7 +1042,7 @@ const CustomerMenu = () => {
                     <label className="flex items-center gap-2 text-sm font-semibold text-foreground mb-2">
                       <MessageSquare className="w-4 h-4 text-primary" /> বিশেষ নির্দেশনা
                     </label>
-                    <textarea value={specialNote} onChange={e => setSpecialNote(e.target.value)}
+                    <textarea value={specialNote} onChange={e => setSpecialNote(e.target.value.replace(/<[^>]*>/g, "").slice(0, 200))}
                       placeholder="যেমন: কম ঝাল দিন, Extra sauce, পেঁয়াজ ছাড়া..." maxLength={200} rows={2}
                       className="w-full rounded-xl bg-secondary/50 border border-border/50 px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none" />
                     <p className="text-xs text-muted-foreground mt-1 text-right">{specialNote.length}/200</p>
@@ -1057,7 +1093,7 @@ const CustomerMenu = () => {
             <textarea
               className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/50 mb-4"
               rows={2} placeholder="কিছু বলতে চাইলে লিখুন... (ঐচ্ছিক)"
-              value={ratingComment} onChange={e => setRatingComment(e.target.value)} />
+              value={ratingComment} onChange={e => setRatingComment(e.target.value.replace(/<[^>]*>/g, "").slice(0, 500))} maxLength={500} />
             <div className="flex gap-2">
               <button
                 onClick={() => { localStorage.setItem(`rated_${ratingOrderId}`, "skipped"); setRatingOrderId(null); setRatingValue(0); setRatingComment(""); }}
@@ -1068,10 +1104,12 @@ const CustomerMenu = () => {
                 disabled={ratingValue === 0 || ratingSubmitting}
                 onClick={async () => {
                   if (!ratingValue || !ratingOrderId) return;
+                  if (ratingValue < 1 || ratingValue > 5) return;
+                  const cleanComment = ratingComment ? sanitize(ratingComment, 500) : null;
                   setRatingSubmitting(true);
                   const { data: ok } = await supabase.rpc(
                     "submit_order_rating" as any,
-                    { p_order_id: ratingOrderId, p_rating: ratingValue, p_comment: ratingComment || null, p_token: sessionToken } as any,
+                    { p_order_id: ratingOrderId, p_rating: ratingValue, p_comment: cleanComment, p_token: sessionToken } as any,
                   );
                   setRatingSubmitting(false);
                   if (ok) { localStorage.setItem(`rated_${ratingOrderId}`, "done"); toast("🙏 ধন্যবাদ! আপনার রেটিং পেয়েছি।", { duration: 4000 }); }
