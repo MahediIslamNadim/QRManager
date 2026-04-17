@@ -441,7 +441,6 @@ const SuperAdminPayments = () => {
             </Button>
           </div>
         )}
-      </div>
 
       {/* ── Review Dialog ── */}
       <Dialog open={dialogOpen} onOpenChange={v => { setDialogOpen(v); if (!v) setSelectedPayment(null); }}>
@@ -560,6 +559,7 @@ const SuperAdminPayments = () => {
         </DialogContent>
       </Dialog>
       </>}
+      </div>
     </DashboardLayout>
   );
 };
