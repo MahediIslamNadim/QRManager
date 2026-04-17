@@ -1,5 +1,5 @@
 // React Hook for Advanced AI Recommendations
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { getMenuRecommendations } from '@/lib/ai/geminiClient';
 import { trackUserBehavior, trackRecommendationPerformance } from '@/lib/ai/recommendationEngine';
 
@@ -19,7 +19,7 @@ export function useAIRecommendations(options: RecommendationOptions) {
   const [strategy, setStrategy] = useState('');
   const [sessionId] = useState(() => `session_${Date.now()}_${Math.random()}`);
 
-  const loadRecommendations = async () => {
+  const loadRecommendations = useCallback(async () => {
     setLoading(true);
     try {
       const result = await getMenuRecommendations(
@@ -51,7 +51,8 @@ export function useAIRecommendations(options: RecommendationOptions) {
     } finally {
       setLoading(false);
     }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [options.restaurantId, options.currentItemId, options.userId]);
 
   // Track user behavior
   const trackView = async (itemId: string) => {
@@ -91,11 +92,18 @@ export function useAIRecommendations(options: RecommendationOptions) {
     });
   };
 
+  // Stable reference for menuItems length — avoids re-running on every
+  // render when the caller passes a new array instance with the same content.
+  const menuItemsLengthRef = useRef(options.menuItems.length);
+  menuItemsLengthRef.current = options.menuItems.length;
+
   useEffect(() => {
-    if (options.menuItems.length > 0) {
+    if (menuItemsLengthRef.current > 0) {
       loadRecommendations();
     }
-  }, [options.restaurantId, options.currentItemId, options.userId]);
+  // loadRecommendations is already memoised on the three scalar deps below;
+  // adding it here is safe and satisfies exhaustive-deps.
+  }, [loadRecommendations]);
 
   return {
     recommendations,

@@ -11,7 +11,7 @@ import { useTrialStatus } from '@/hooks/useTrialStatus';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Check, Zap, Crown, ArrowRight, Clock, Shield, CheckCircle2, Copy } from 'lucide-react';
+import { Check, Zap, Crown, ArrowRight, Clock, Shield, CheckCircle2, Copy, CreditCard, Loader2 } from 'lucide-react';
 import { TIERS, TierName, BillingCycle, formatPrice } from '@/constants/tiers';
 import TierSelection from '@/components/TierSelection';
 
@@ -31,10 +31,11 @@ const UpgradePage = () => {
     if (tierParam === 'high_smart') setSelectedTier('high_smart');
   }, [searchParams]);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<"bkash" | "nagad">("bkash");
+  const [paymentMethod, setPaymentMethod] = useState<"bkash" | "nagad" | "sslcommerz">("sslcommerz");
   const [transactionId, setTransactionId] = useState("");
   const [payPhone, setPayPhone] = useState("");
   const [paySuccess, setPaySuccess] = useState(false);
+  const [sslLoading, setSslLoading] = useState(false);
 
   // Get current subscription info
   const { data: restaurant } = useQuery({
@@ -61,6 +62,21 @@ const UpgradePage = () => {
   } = useTrialStatus(restaurantId);
 
   const { user } = useAuth();
+
+  const handleSSLPay = async () => {
+    if (!restaurantId) return;
+    setSslLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("ssl-init", {
+        body: { restaurant_id: restaurantId, plan: selectedTier, billing_cycle: selectedBillingCycle },
+      });
+      if (error || data?.error) throw new Error(data?.error ?? error?.message);
+      window.location.href = data.gateway_url;
+    } catch (err: any) {
+      toast.error(err.message || "SSLCommerz শুরু করা যায়নি");
+      setSslLoading(false);
+    }
+  };
 
   const paymentMutation = useMutation({
     mutationFn: async () => {
@@ -211,44 +227,92 @@ const UpgradePage = () => {
                   {/* Payment Method Selector */}
                   <div className="space-y-3">
                     <h4 className="font-semibold">পেমেন্ট মাধ্যম বেছে নিন</h4>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 gap-3">
+                      {/* SSLCommerz — recommended */}
                       <button
-                        onClick={() => setPaymentMethod('bkash')}
+                        onClick={() => setPaymentMethod('sslcommerz')}
                         className={`p-4 border-2 rounded-lg text-left transition-colors ${
-                          paymentMethod === 'bkash' ? 'border-pink-500 bg-pink-50' : 'border-border hover:bg-muted'
+                          paymentMethod === 'sslcommerz' ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted'
                         }`}
                       >
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-pink-100 rounded flex items-center justify-center">
-                            <span className="text-pink-600 font-bold text-sm">bK</span>
+                          <div className="w-10 h-10 bg-primary/10 rounded flex items-center justify-center">
+                            <CreditCard className="w-5 h-5 text-primary" />
                           </div>
-                          <div>
-                            <div className="font-semibold">bKash</div>
-                            <div className="text-xs text-muted-foreground">মোবাইল ওয়ালেট</div>
-                          </div>
-                        </div>
-                      </button>
-                      <button
-                        onClick={() => setPaymentMethod('nagad')}
-                        className={`p-4 border-2 rounded-lg text-left transition-colors ${
-                          paymentMethod === 'nagad' ? 'border-orange-500 bg-orange-50' : 'border-border hover:bg-muted'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-orange-100 rounded flex items-center justify-center">
-                            <span className="text-orange-600 font-bold text-sm">N</span>
-                          </div>
-                          <div>
-                            <div className="font-semibold">Nagad</div>
-                            <div className="text-xs text-muted-foreground">মোবাইল ওয়ালেট</div>
+                          <div className="flex-1">
+                            <div className="font-semibold flex items-center gap-2">
+                              SSLCommerz
+                              <span className="text-[10px] bg-primary text-primary-foreground px-2 py-0.5 rounded-full">প্রস্তাবিত</span>
+                            </div>
+                            <div className="text-xs text-muted-foreground">কার্ড, মোবাইল ব্যাংকিং, ইন্টারনেট ব্যাংকিং</div>
                           </div>
                         </div>
                       </button>
+                      <div className="grid grid-cols-2 gap-3">
+                        <button
+                          onClick={() => setPaymentMethod('bkash')}
+                          className={`p-4 border-2 rounded-lg text-left transition-colors ${
+                            paymentMethod === 'bkash' ? 'border-pink-500 bg-pink-50' : 'border-border hover:bg-muted'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-pink-100 rounded flex items-center justify-center">
+                              <span className="text-pink-600 font-bold text-sm">bK</span>
+                            </div>
+                            <div>
+                              <div className="font-semibold">bKash</div>
+                              <div className="text-xs text-muted-foreground">মোবাইল ওয়ালেট</div>
+                            </div>
+                          </div>
+                        </button>
+                        <button
+                          onClick={() => setPaymentMethod('nagad')}
+                          className={`p-4 border-2 rounded-lg text-left transition-colors ${
+                            paymentMethod === 'nagad' ? 'border-orange-500 bg-orange-50' : 'border-border hover:bg-muted'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-orange-100 rounded flex items-center justify-center">
+                              <span className="text-orange-600 font-bold text-sm">N</span>
+                            </div>
+                            <div>
+                              <div className="font-semibold">Nagad</div>
+                              <div className="text-xs text-muted-foreground">মোবাইল ওয়ালেট</div>
+                            </div>
+                          </div>
+                        </button>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Send Money Instructions */}
-                  <div className={`rounded-lg p-5 space-y-3 ${
+                  {/* SSLCommerz direct pay button */}
+                  {paymentMethod === 'sslcommerz' && (
+                    <div className="space-y-3">
+                      <p className="text-sm text-muted-foreground">
+                        SSLCommerz-এর নিরাপদ পেমেন্ট পেজে নিয়ে যাওয়া হবে। কার্ড, bKash, Nagad, রকেট সহ ২৫+ পদ্ধতিতে পেমেন্ট করুন।
+                      </p>
+                      <div className="flex gap-3">
+                        <Button variant="outline" className="flex-1" onClick={() => setShowPaymentForm(false)}>
+                          ← পিছনে যান
+                        </Button>
+                        <Button
+                          variant="hero"
+                          className="flex-1"
+                          onClick={handleSSLPay}
+                          disabled={sslLoading}
+                        >
+                          {sslLoading ? (
+                            <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> অপেক্ষা করুন...</>
+                          ) : (
+                            <>পেমেন্ট করুন <ArrowRight className="w-4 h-4 ml-2" /></>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Manual bKash/Nagad flow */}
+                  {paymentMethod !== 'sslcommerz' && <div className={`rounded-lg p-5 space-y-3 ${
                     paymentMethod === 'bkash' ? 'bg-pink-50 border border-pink-200' : 'bg-orange-50 border border-orange-200'
                   }`}>
                     <p className={`font-semibold text-sm ${paymentMethod === 'bkash' ? 'text-pink-800' : 'text-orange-800'}`}>
@@ -278,8 +342,9 @@ const UpgradePage = () => {
                       <li>Amount: <strong>{formatPrice(selectedBillingCycle === 'monthly' ? TIERS[selectedTier].price_monthly : TIERS[selectedTier].price_yearly)}</strong></li>
                       <li>Transaction ID নিচে লিখুন এবং সাবমিট করুন</li>
                     </ol>
-                  </div>
+                  </div>}
 
+                  {paymentMethod !== 'sslcommerz' && <>
                   {/* Transaction ID + Phone */}
                   <div className="space-y-4">
                     <div className="space-y-2">
@@ -317,6 +382,7 @@ const UpgradePage = () => {
                       <ArrowRight className="w-4 h-4 ml-2" />
                     </Button>
                   </div>
+                  </>}
                 </>
               )}
             </CardContent>

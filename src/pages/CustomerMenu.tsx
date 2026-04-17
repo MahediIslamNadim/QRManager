@@ -240,6 +240,12 @@ const CustomerMenu = () => {
   }, [fetchMenuData]);
 
   // ── Realtime menu updates (availability, price, stock changes) ─────────────
+  // NOTE: fetchMenuData is intentionally NOT in this dependency array.
+  // Putting it there would cause the channel to tear down and re-subscribe every
+  // time fetchMenuData's identity changes (which happens on every restaurantId
+  // change), creating duplicate WebSocket connections under high traffic.
+  // INSERT events are handled inline by merging the payload directly into state
+  // rather than triggering a full re-fetch.
   useEffect(() => {
     if (isDemo || !restaurantId) return;
 
@@ -253,7 +259,7 @@ const CustomerMenu = () => {
         setMenuItems(prev =>
           prev.map(item => item.id === updated.id ? { ...item, ...updated } : item)
         );
-        // Notify if item just became unavailable and is in cart
+        // Notify if item just became unavailable
         if (!updated.available) {
           toast(`"${updated.name}" এখন পাওয়া যাচ্ছে না`, { duration: 4000 });
         }
@@ -261,8 +267,19 @@ const CustomerMenu = () => {
       .on("postgres_changes", {
         event: "INSERT", schema: "public", table: "menu_items",
         filter: `restaurant_id=eq.${restaurantId}`,
-      }, () => {
-        fetchMenuData();
+      }, (payload) => {
+        // Merge the new item directly into state — no fetchMenuData() call here.
+        // Calling fetchMenuData() from inside a realtime handler would re-create
+        // the callback identity, triggering a channel re-subscribe loop.
+        const inserted = payload.new as MenuItem;
+        setMenuItems(prev => {
+          if (prev.find(item => item.id === inserted.id)) return prev; // idempotent guard
+          return [...prev, inserted];
+        });
+        setCategories(prev => {
+          if (!inserted.category || prev.includes(inserted.category)) return prev;
+          return [...prev, inserted.category];
+        });
       })
       .on("postgres_changes", {
         event: "DELETE", schema: "public", table: "menu_items",
@@ -273,7 +290,8 @@ const CustomerMenu = () => {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [restaurantId, isDemo, fetchMenuData]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restaurantId, isDemo]); // ← fetchMenuData deliberately excluded: see note above
 
   // ── Cart helpers ───────────────────────────────────────────────────────────
   const addToCart = (item: MenuItem) => {
@@ -1208,7 +1226,10 @@ const CustomerMenu = () => {
               value={ratingComment} onChange={e => setRatingComment(e.target.value.replace(/<[^>]*>/g, "").slice(0, 500))} maxLength={500} />
             <div className="flex gap-2">
               <button
-                onClick={() => { localStorage.setItem(`rated_${ratingOrderId}`, "skipped"); setRatingOrderId(null); setRatingValue(0); setRatingComment(""); }}
+                onClick={() => {
+                  try { localStorage.setItem(`rated_${ratingOrderId}`, "skipped"); } catch { /* Safari private / iOS WebView — silently ignore */ }
+                  setRatingOrderId(null); setRatingValue(0); setRatingComment("");
+                }}
                 className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:bg-secondary transition-colors">
                 এড়িয়ে যান
               </button>
@@ -1224,7 +1245,10 @@ const CustomerMenu = () => {
                     { p_order_id: ratingOrderId, p_rating: ratingValue, p_comment: cleanComment, p_token: sessionToken } as any,
                   );
                   setRatingSubmitting(false);
-                  if (ok) { localStorage.setItem(`rated_${ratingOrderId}`, "done"); toast("🙏 ধন্যবাদ! আপনার রেটিং পেয়েছি।", { duration: 4000 }); }
+                  if (ok) {
+                    try { localStorage.setItem(`rated_${ratingOrderId}`, "done"); } catch { /* Safari private / iOS WebView — silently ignore */ }
+                    toast("🙏 ধন্যবাদ! আপনার রেটিং পেয়েছি।", { duration: 4000 });
+                  }
                   setRatingOrderId(null); setRatingValue(0); setRatingComment("");
                 }}
                 className="flex-1 py-2.5 rounded-xl gradient-primary text-primary-foreground font-semibold text-sm disabled:opacity-50 transition-opacity">

@@ -238,7 +238,9 @@ export function useMenuOrders({
 
         if (["served", "completed"].includes(updated.status)) {
           const ratedKey = `rated_${updated.id}`;
-          if (!localStorage.getItem(ratedKey)) {
+          let alreadyRated = false;
+          try { alreadyRated = !!localStorage.getItem(ratedKey); } catch { /* Safari private / iOS WebView — treat as not-rated */ }
+          if (!alreadyRated) {
             setTimeout(() => onRatingRequest(updated.id), 1500);
           }
           setTimeout(() => {

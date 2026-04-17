@@ -49,6 +49,7 @@ const SuperAdminPayments = () => {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [page, setPage] = useState(1);
 
+  const [activeTab, setActiveTab] = useState<"manual" | "ssl">("manual");
   const [selectedPayment, setSelectedPayment] = useState<PaymentRequest | null>(null);
   const [adminNotes, setAdminNotes] = useState("");
   const [editPlan, setEditPlan] = useState<"medium_smart" | "high_smart">("medium_smart");
@@ -121,6 +122,26 @@ const SuperAdminPayments = () => {
     queryClient.invalidateQueries({ queryKey: ["payments-pending-count"] });
   };
 
+  // SSL transactions
+  const { data: sslTxns = [], isLoading: sslLoading } = useQuery({
+    queryKey: ["ssl-transactions"],
+    queryFn: async () => {
+      const { data, error } = await (supabase.from("ssl_transactions" as any) as any)
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      const restIds = [...new Set((data || []).map((t: any) => t.restaurant_id))];
+      let restMap = new Map<string, string>();
+      if (restIds.length > 0) {
+        const { data: rests } = await supabase.from("restaurants").select("id, name").in("id", restIds);
+        restMap = new Map((rests || []).map(r => [r.id, r.name]));
+      }
+      return (data || []).map((t: any) => ({ ...t, restaurant_name: restMap.get(t.restaurant_id) || "অজানা" }));
+    },
+    enabled: activeTab === "ssl",
+  });
+
   const closeDialog = () => { setDialogOpen(false); setSelectedPayment(null); setAdminNotes(""); };
 
   const approveMutation = useMutation({
@@ -176,10 +197,77 @@ const SuperAdminPayments = () => {
     rejected: "❌ প্রত্যাখ্যাত",
   };
 
+  const sslStatusColors: Record<string, string> = {
+    pending:   "bg-warning/10 text-warning",
+    success:   "bg-success/10 text-success",
+    validated: "bg-success/10 text-success",
+    failed:    "bg-destructive/10 text-destructive",
+    cancelled: "bg-muted text-muted-foreground",
+    invalid:   "bg-destructive/10 text-destructive",
+  };
+
   return (
     <DashboardLayout role="super_admin" title="পেমেন্ট ম্যানেজমেন্ট">
       <div className="space-y-5 animate-fade-up">
 
+        {/* ── Tab switcher ── */}
+        <div className="flex gap-2">
+          <Button size="sm" variant={activeTab === "manual" ? "default" : "outline"} onClick={() => setActiveTab("manual")}>
+            ম্যানুয়াল (bKash/Nagad)
+            {pendingCount > 0 && activeTab !== "manual" && (
+              <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-warning text-warning-foreground text-[10px] font-bold">{pendingCount}</span>
+            )}
+          </Button>
+          <Button size="sm" variant={activeTab === "ssl" ? "default" : "outline"} onClick={() => setActiveTab("ssl")}>
+            SSLCommerz
+          </Button>
+        </div>
+
+        {/* ── SSL Transactions tab ── */}
+        {activeTab === "ssl" && (
+          <div className="space-y-3">
+            {sslLoading ? (
+              <p className="text-sm text-muted-foreground text-center py-8">লোড হচ্ছে...</p>
+            ) : sslTxns.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">কোনো SSLCommerz ট্র্যানজেকশন নেই</p>
+            ) : (
+              <div className="overflow-x-auto rounded-xl border border-border">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-muted/40 text-muted-foreground text-xs">
+                      <th className="text-left px-3 py-2">রেস্টুরেন্ট</th>
+                      <th className="text-left px-3 py-2">প্ল্যান</th>
+                      <th className="text-left px-3 py-2">পরিমাণ</th>
+                      <th className="text-left px-3 py-2">স্ট্যাটাস</th>
+                      <th className="text-left px-3 py-2">Tran ID</th>
+                      <th className="text-left px-3 py-2">তারিখ</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {sslTxns.map((t: any) => (
+                      <tr key={t.id} className="hover:bg-muted/20">
+                        <td className="px-3 py-2 font-medium">{t.restaurant_name}</td>
+                        <td className="px-3 py-2">{t.plan} / {t.billing_cycle === "yearly" ? "বার্ষিক" : "মাসিক"}</td>
+                        <td className="px-3 py-2">৳{Number(t.amount).toLocaleString()}</td>
+                        <td className="px-3 py-2">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${sslStatusColors[t.status] ?? "bg-muted text-muted-foreground"}`}>
+                            {t.status}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 font-mono text-xs text-muted-foreground">{t.tran_id?.slice(-12)}</td>
+                        <td className="px-3 py-2 text-muted-foreground text-xs">
+                          {new Date(t.created_at).toLocaleDateString("bn-BD")}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === "manual" && <>
         {/* ── Filters row ── */}
         <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
           {/* Status filter tabs */}
@@ -471,6 +559,7 @@ const SuperAdminPayments = () => {
           )}
         </DialogContent>
       </Dialog>
+      </>}
     </DashboardLayout>
   );
 };
