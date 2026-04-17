@@ -100,9 +100,9 @@ Deno.serve(async (req) => {
       return ok;
     }
 
-    // If already validated, skip
-    if (txn.status === "validated" || txn.status === "success") {
-      console.log(`ssl-ipn: already processed tran_id=${tran_id}`);
+    // If already validated/success, skip — SSLCommerz retries IPN multiple times
+    if (txn.status === "validated" || txn.status === "success" || txn.status === "invalid") {
+      console.log(`ssl-ipn: already processed tran_id=${tran_id} status=${txn.status}`);
       return ok;
     }
 
