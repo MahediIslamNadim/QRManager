@@ -164,40 +164,77 @@ const CustomerMenu = () => {
     categoryColors[cat] ?? colorPalette[0];
 
   // ── Fetch menu data ────────────────────────────────────────────────────────
-  useEffect(() => {
-    const fetchData = async () => {
-      if (isDemo) {
-        setRestaurant({ name: "Spice Garden" });
-        const demoItems: MenuItem[] = [
-          { id: "1", name: "চিকেন বিরিয়ানি", price: 350, category: "বিরিয়ানি", description: "সুগন্ধি বাসমতি চালে রান্না করা মুরগির বিরিয়ানি", available: true },
-          { id: "2", name: "বটি কাবাব", price: 180, category: "কাবাব", description: "মশলাযুক্ত গরুর মাংসের কাবাব", available: true },
-          { id: "3", name: "মটন বিরিয়ানি", price: 450, category: "বিরিয়ানি", description: "খাসির মাংস দিয়ে তৈরি বিরিয়ানি", available: false },
-          { id: "4", name: "প্লেইন ভাত", price: 60, category: "ভাত", description: "সাদা ভাত", available: true },
-          { id: "5", name: "মাংগো লাচ্ছি", price: 120, category: "পানীয়", description: "তাজা আমের লাচ্ছি", available: true },
-          { id: "6", name: "ফিরনি", price: 100, category: "ডেজার্ট", description: "ঐতিহ্যবাহী দুধের ফিরনি", available: true },
-          { id: "7", name: "শিক কাবাব", price: 220, category: "কাবাব", description: "কাঠকয়লায় ভাজা শিক কাবাব", available: true },
-          { id: "8", name: "বোরহানি", price: 80, category: "পানীয়", description: "ঐতিহ্যবাহী মশলা পানীয়", available: false },
-        ];
-        setMenuItems(demoItems);
-        setCategories(["সব", ...new Set(demoItems.map(i => i.category))]);
-        setLoading(false);
-        return;
-      }
-
-      const [restRes, menuRes] = await Promise.all([
-        supabase.from("restaurants").select("*").eq("id", restaurantId!).maybeSingle(),
-        supabase.from("menu_items").select("*").eq("restaurant_id", restaurantId!).order("sort_order"),
-      ]);
-
-      if (restRes.data) setRestaurant(restRes.data);
-      if (menuRes.data) {
-        setMenuItems(menuRes.data as any);
-        setCategories(["সব", ...new Set(menuRes.data.map((i: any) => i.category))]);
-      }
+  const fetchMenuData = useCallback(async () => {
+    if (isDemo) {
+      setRestaurant({ name: "Spice Garden" });
+      const demoItems: MenuItem[] = [
+        { id: "1", name: "চিকেন বিরিয়ানি", price: 350, category: "বিরিয়ানি", description: "সুগন্ধি বাসমতি চালে রান্না করা মুরগির বিরিয়ানি", available: true },
+        { id: "2", name: "বটি কাবাব", price: 180, category: "কাবাব", description: "মশলাযুক্ত গরুর মাংসের কাবাব", available: true },
+        { id: "3", name: "মটন বিরিয়ানি", price: 450, category: "বিরিয়ানি", description: "খাসির মাংস দিয়ে তৈরি বিরিয়ানি", available: false },
+        { id: "4", name: "প্লেইন ভাত", price: 60, category: "ভাত", description: "সাদা ভাত", available: true },
+        { id: "5", name: "মাংগো লাচ্ছি", price: 120, category: "পানীয়", description: "তাজা আমের লাচ্ছি", available: true },
+        { id: "6", name: "ফিরনি", price: 100, category: "ডেজার্ট", description: "ঐতিহ্যবাহী দুধের ফিরনি", available: true },
+        { id: "7", name: "শিক কাবাব", price: 220, category: "কাবাব", description: "কাঠকয়লায় ভাজা শিক কাবাব", available: true },
+        { id: "8", name: "বোরহানি", price: 80, category: "পানীয়", description: "ঐতিহ্যবাহী মশলা পানীয়", available: false },
+      ];
+      setMenuItems(demoItems);
+      setCategories(["সব", ...new Set(demoItems.map(i => i.category))]);
       setLoading(false);
-    };
-    fetchData();
+      return;
+    }
+
+    const [restRes, menuRes] = await Promise.all([
+      supabase.from("restaurants").select("*").eq("id", restaurantId!).maybeSingle(),
+      supabase.from("menu_items").select("*").eq("restaurant_id", restaurantId!).order("sort_order"),
+    ]);
+
+    if (restRes.data) setRestaurant(restRes.data);
+    if (menuRes.data) {
+      setMenuItems(menuRes.data as any);
+      setCategories(["সব", ...new Set(menuRes.data.map((i: any) => i.category))]);
+    }
+    setLoading(false);
   }, [restaurantId, isDemo]);
+
+  useEffect(() => {
+    fetchMenuData();
+  }, [fetchMenuData]);
+
+  // ── Realtime menu updates (availability, price, stock changes) ─────────────
+  useEffect(() => {
+    if (isDemo || !restaurantId) return;
+
+    const channel = supabase
+      .channel(`menu-realtime-${restaurantId}`)
+      .on("postgres_changes", {
+        event: "UPDATE", schema: "public", table: "menu_items",
+        filter: `restaurant_id=eq.${restaurantId}`,
+      }, (payload) => {
+        const updated = payload.new as MenuItem;
+        setMenuItems(prev =>
+          prev.map(item => item.id === updated.id ? { ...item, ...updated } : item)
+        );
+        // Notify if item just became unavailable and is in cart
+        if (!updated.available) {
+          toast(`"${updated.name}" এখন পাওয়া যাচ্ছে না`, { duration: 4000 });
+        }
+      })
+      .on("postgres_changes", {
+        event: "INSERT", schema: "public", table: "menu_items",
+        filter: `restaurant_id=eq.${restaurantId}`,
+      }, () => {
+        fetchMenuData();
+      })
+      .on("postgres_changes", {
+        event: "DELETE", schema: "public", table: "menu_items",
+        filter: `restaurant_id=eq.${restaurantId}`,
+      }, (payload) => {
+        setMenuItems(prev => prev.filter(item => item.id !== (payload.old as any).id));
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [restaurantId, isDemo, fetchMenuData]);
 
   // ── Cart helpers ───────────────────────────────────────────────────────────
   const addToCart = (item: MenuItem) => {
