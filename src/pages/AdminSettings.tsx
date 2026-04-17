@@ -179,6 +179,10 @@ const AdminSettings = () => {
   const [notifyDailyReport, setNotifyDailyReport] = useState(false);
   const [wapiSaving, setWapiSaving] = useState(false);
 
+  const [notifyEmail, setNotifyEmail] = useState(false);
+  const [notificationEmail, setNotificationEmail] = useState("");
+  const [emailSaving, setEmailSaving] = useState(false);
+
   const [payDialog, setPayDialog] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState("");
   const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
@@ -218,6 +222,8 @@ const AdminSettings = () => {
           setWapiKey(restaurant.whatsapp_api_key || "");
           setNotifyNewOrder(!!restaurant.notify_new_order);
           setNotifyDailyReport(!!restaurant.notify_daily_report);
+          setNotifyEmail(!!(restaurant as any).notify_email);
+          setNotificationEmail((restaurant as any).notification_email || "");
         }
       }
     };
@@ -273,6 +279,26 @@ const AdminSettings = () => {
       toast.error(err.message || "সেভ করতে সমস্যা হয়েছে");
     } finally {
       setWapiSaving(false);
+    }
+  };
+
+  const saveEmailNotify = async () => {
+    if (!restaurantId) return;
+    if (notifyEmail && !notificationEmail.trim()) {
+      toast.error("ইমেইল ঠিকানা দিন");
+      return;
+    }
+    setEmailSaving(true);
+    try {
+      const { error } = await (supabase.from("restaurants") as any)
+        .update({ notify_email: notifyEmail, notification_email: notificationEmail.trim() || null })
+        .eq("id", restaurantId);
+      if (error) throw error;
+      toast.success("ইমেইল নোটিফিকেশন সেটিংস সেভ হয়েছে ✅");
+    } catch (err: any) {
+      toast.error(err.message || "সেভ করতে সমস্যা হয়েছে");
+    } finally {
+      setEmailSaving(false);
     }
   };
 
@@ -755,13 +781,53 @@ const AdminSettings = () => {
               </CardContent>
             </Card>
 
+            {/* ── Email Notifications ── */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Bell className="w-4 h-4 text-primary" /> ইমেইল নোটিফিকেশন
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="bg-primary/5 border border-primary/20 rounded-xl p-3 text-xs text-muted-foreground space-y-1">
+                  <p>নতুন অর্ডার আসলে নির্দিষ্ট ইমেইলে notification পাঠানো হবে।</p>
+                  <p className="text-warning/80">⚠️ এটি কাজ করতে Supabase-এ <code className="bg-secondary px-1 rounded">RESEND_API_KEY</code> সেট করতে হবে এবং <code className="bg-secondary px-1 rounded">notify-email</code> function deploy করতে হবে।</p>
+                </div>
+                <div className="space-y-2">
+                  <Label>নোটিফিকেশন ইমেইল</Label>
+                  <Input
+                    type="email"
+                    placeholder="owner@restaurant.com"
+                    value={notificationEmail}
+                    onChange={e => setNotificationEmail(e.target.value)}
+                  />
+                </div>
+                <div className="flex items-center justify-between p-3 rounded-xl bg-secondary/30">
+                  <div>
+                    <p className="text-sm font-medium">নতুন অর্ডারে ইমেইল পাঠান</p>
+                    <p className="text-xs text-muted-foreground">প্রতিটি নতুন order আসলে ইমেইল যাবে</p>
+                  </div>
+                  <button
+                    onClick={() => setNotifyEmail(v => !v)}
+                    className={`relative w-11 h-6 rounded-full transition-colors ${notifyEmail ? "bg-success" : "bg-muted"}`}
+                  >
+                    <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${notifyEmail ? "translate-x-5" : "translate-x-0"}`} />
+                  </button>
+                </div>
+                <Button variant="hero" onClick={saveEmailNotify} disabled={emailSaving} className="w-full">
+                  {emailSaving ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Save className="w-4 h-4 mr-1" />}
+                  {emailSaving ? "সেভ হচ্ছে..." : "ইমেইল সেটিংস সেভ করুন"}
+                </Button>
+              </CardContent>
+            </Card>
+
             {/* Deploy reminder */}
             <Card className="border-warning/30 bg-warning/5">
               <CardContent className="p-4">
                 <p className="text-sm font-semibold text-warning mb-1.5">⚠️ Edge Function Deploy করতে হবে</p>
                 <p className="text-xs text-muted-foreground mb-2">Supabase Dashboard থেকে Edge Function deploy করুন এবং Database Webhook সেট করুন:</p>
                 <code className="text-xs bg-secondary block p-2 rounded-lg text-foreground whitespace-pre-wrap">
-                  {`# Terminal থেকে:\nsupabase functions deploy notify-whatsapp\nsupabase functions deploy daily-report\n\n# Supabase Dashboard → Database → Webhooks:\n# Table: orders, Event: INSERT\n# URL: .../functions/v1/notify-whatsapp\n\n# দৈনিক রিপোর্ট cron → Supabase Dashboard\n# → Edge Functions → Schedules → প্রতিদিন 15:00 UTC`}
+                  {`# Terminal থেকে:\nsupabase functions deploy notify-whatsapp\nsupabase functions deploy notify-email\nsupabase functions deploy daily-report\n\n# Supabase Dashboard → Database → Webhooks:\n# Table: orders, Event: INSERT\n# URL 1: .../functions/v1/notify-whatsapp\n# URL 2: .../functions/v1/notify-email\n\n# Supabase → Edge Functions → Secrets:\n# RESEND_API_KEY = your_resend_api_key`}
                 </code>
               </CardContent>
             </Card>
