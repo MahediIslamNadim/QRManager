@@ -371,7 +371,7 @@ const Login = () => {
   };
 
   const gold = "linear-gradient(135deg, #f5d780, #c9a84c, #e8c04a)";
-  const goldText: React.CSSProperties = { background: gold, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" };;
+  const goldText: React.CSSProperties = { background: gold, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" };
 
   const inputStyle: React.CSSProperties = {
     width: "100%", height: 48,
@@ -462,7 +462,7 @@ const Login = () => {
       </div>
 
       {/* ── RIGHT PANEL ── */}
-      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 24px", overflowY: "auto", background: "#0a0a0a" }}>
+      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 24px", overflowY: "auto", background: "hsl(0 0% 4%)" }}>
         <div style={{ width: "100%", maxWidth: 440 }}>
 
           {/* Mobile logo */}
@@ -683,9 +683,8 @@ const Login = () => {
       </div>
 
       <style>{`
-        * { box-sizing: border-box; margin: 0; padding: 0; }
         input::placeholder { color: rgba(255,255,255,0.25); }
-        input:-webkit-autofill { -webkit-box-shadow: 0 0 0 1000px #111 inset !important; -webkit-text-fill-color: #fff !important; }
+        input:-webkit-autofill { -webkit-box-shadow: 0 0 0 1000px hsl(0 0% 7%) inset !important; -webkit-text-fill-color: #fff !important; }
         @keyframes spin { to { transform: rotate(360deg); } }
       `}</style>
     </div>
