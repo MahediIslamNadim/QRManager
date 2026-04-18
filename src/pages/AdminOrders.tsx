@@ -3,7 +3,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { ShoppingCart, Clock, CheckCircle, ChefHat, Edit, Plus, Minus, X, Banknote, Smartphone, Printer, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { ShoppingCart, Clock, CheckCircle, ChefHat, Edit, Plus, Minus, X, Banknote, Smartphone, Printer, Search, ChevronLeft, ChevronRight, XCircle } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrderActions } from "@/hooks/useOrderActions";
 import { supabase } from "@/integrations/supabase/client";
@@ -33,6 +33,7 @@ const AdminOrders = () => {
   const [editItems, setEditItems] = useState<any[]>([]);
   const [paymentOrder, setPaymentOrder] = useState<any>(null);
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "bkash">("cash");
+  const [cancelOrderId, setCancelOrderId] = useState<string | null>(null);
 
   // Debounce search input
   useEffect(() => {
@@ -233,9 +234,9 @@ const AdminOrders = () => {
                           ))}
                         </div>
                         {order.notes && (
-                          <div className="flex items-start gap-1.5 mb-2 px-2.5 py-1.5 rounded-lg bg-warning/10 border border-warning/20">
+                          <div className="flex items-start gap-1.5 mb-2 px-2.5 py-1.5 rounded-lg bg-warning/10 border border-warning/40">
                             <span className="text-warning text-xs flex-shrink-0">📝</span>
-                            <p className="text-xs text-warning-foreground font-medium leading-snug">{order.notes}</p>
+                            <p className="text-xs text-foreground font-medium leading-snug">{order.notes}</p>
                           </div>
                         )}
                         <div className="flex items-center gap-3 flex-wrap">
@@ -254,10 +255,17 @@ const AdminOrders = () => {
                       <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${getStatusStyle(order.status)}`}>
                         {getStatusIcon(order.status)} {getStatusLabel(order.status)}
                       </span>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-wrap">
                         {(order.status === "pending" || order.status === "preparing") && (
                           <Button size="sm" variant="outline" onClick={() => openEditOrder(order)}>
                             <Edit className="w-3.5 h-3.5 mr-1" /> এডিট
+                          </Button>
+                        )}
+                        {(order.status === "pending" || order.status === "preparing") && (
+                          <Button size="sm" variant="outline"
+                            className="border-destructive/50 text-destructive hover:bg-destructive/10"
+                            onClick={() => setCancelOrderId(order.id)}>
+                            <XCircle className="w-3.5 h-3.5 mr-1" /> বাতিল
                           </Button>
                         )}
                         {nextStatus(order.status) && (
@@ -415,6 +423,41 @@ const AdminOrders = () => {
             <Button variant="outline" className="w-full" onClick={() => printReceipt(paymentOrder, restaurantName)}>
               <Printer className="w-4 h-4 mr-2" /> রসিদ প্রিন্ট করুন (পেমেন্টের আগে)
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancel Order Confirmation Dialog */}
+      <Dialog open={!!cancelOrderId} onOpenChange={() => setCancelOrderId(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-display flex items-center gap-2 text-destructive">
+              <XCircle className="w-5 h-5" /> অর্ডার বাতিল করুন
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              অর্ডার <span className="font-bold text-foreground">#{cancelOrderId?.slice(0, 6)}</span> বাতিল করতে চান? এই কাজটি পূর্বাবস্থায় ফেরানো যাবে না। কাস্টমারকে সাথে সাথে জানানো হবে।
+            </p>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setCancelOrderId(null)}>
+                না, ফিরে যান
+              </Button>
+              <Button
+                variant="destructive"
+                className="flex-1"
+                disabled={updateStatus.isPending}
+                onClick={() => {
+                  if (!cancelOrderId) return;
+                  updateStatus.mutate(
+                    { id: cancelOrderId, status: "cancelled", restaurantId: restaurantId! },
+                    { onSuccess: () => setCancelOrderId(null) }
+                  );
+                }}>
+                <XCircle className="w-4 h-4 mr-1" />
+                {updateStatus.isPending ? "বাতিল হচ্ছে..." : "হ্যাঁ, বাতিল করুন"}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

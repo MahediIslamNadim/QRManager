@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -7,6 +7,7 @@ export interface OrderItem {
   name: string;
   price: number;
   quantity: number;
+  menu_item_id?: string | null;
 }
 
 export interface Order {
@@ -31,7 +32,7 @@ interface UseMenuOrdersOptions {
   isDemo: boolean;
   tokenValid: boolean;
   tableChecked: boolean;
-  onRatingRequest: (orderId: string) => void;
+  onRatingRequest: (orderId: string, items: OrderItem[]) => void;
 }
 
 interface UseMenuOrdersResult {
@@ -40,6 +41,7 @@ interface UseMenuOrdersResult {
   orderHistory: Order[];
   ordersLoading: boolean;
   activeOrdersCount: number;
+  refreshOrders: () => void;
   submitOrder: (args: {
     restaurantId: string;
     tableId: string | null;
@@ -83,6 +85,8 @@ export function useMenuOrders({
   const [myOrders, setMyOrders] = useState<Order[]>([]);
   const [orderHistory, setOrderHistory] = useState<Order[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
+  const ordersRef = useRef<Order[]>([]);
+  useEffect(() => { ordersRef.current = myOrders; }, [myOrders]);
 
   // Clear stale orders immediately when the customer's seat changes
   useEffect(() => {
@@ -92,7 +96,7 @@ export function useMenuOrders({
   const fetchOrderItems = useCallback(async (orderId: string): Promise<OrderItem[]> => {
     const { data } = await supabase
       .from("order_items")
-      .select("id, name, price, quantity")
+      .select("id, name, price, quantity, menu_item_id")
       .eq("order_id", orderId);
     return (data as OrderItem[]) || [];
   }, []);
@@ -241,7 +245,10 @@ export function useMenuOrders({
           let alreadyRated = false;
           try { alreadyRated = !!localStorage.getItem(ratedKey); } catch { /* Safari private / iOS WebView — treat as not-rated */ }
           if (!alreadyRated) {
-            setTimeout(() => onRatingRequest(updated.id), 1500);
+            setTimeout(() => {
+              const order = ordersRef.current.find(o => o.id === updated.id);
+              onRatingRequest(updated.id, order?.items || []);
+            }, 1500);
           }
           setTimeout(() => {
             setMyOrders(prev => {
@@ -266,6 +273,11 @@ export function useMenuOrders({
 
     return () => { supabase.removeChannel(channel); };
   }, [tableId, restaurantId, isDemo, seatId, fetchOrderItems, onRatingRequest]);
+
+  const refreshOrders = useCallback(() => {
+    fetchExistingOrders();
+    fetchOrderHistory();
+  }, [fetchExistingOrders, fetchOrderHistory]);
 
   const activeOrdersCount = myOrders.filter(
     o => ACTIVE_STATUSES.includes(o.status) && !isNotificationOrder(o),
@@ -335,6 +347,7 @@ export function useMenuOrders({
     orderHistory,
     ordersLoading,
     activeOrdersCount,
+    refreshOrders,
     submitOrder,
     callWaiter,
     requestBill,

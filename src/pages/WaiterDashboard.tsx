@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import {
   ShoppingCart, Clock, CheckCircle, Plus, Minus, Edit, X,
   Volume2, VolumeX, Users, UserPlus, UserMinus, Banknote,
-  Smartphone, User, Mail, Phone, KeyRound, Save, Bell
+  Smartphone, User, Mail, Phone, KeyRound, Save, Bell, XCircle
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrderActions } from "@/hooks/useOrderActions";
@@ -36,6 +36,7 @@ const WaiterDashboard = () => {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [paymentOrder, setPaymentOrder] = useState<any>(null);
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "bkash">("cash");
+  const [cancelOrderId, setCancelOrderId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"orders" | "tables" | "profile">("orders");
   const [handlingRequestId, setHandlingRequestId] = useState<string | null>(null);
 
@@ -482,8 +483,9 @@ const WaiterDashboard = () => {
                       </div>
 
                       {order.notes && (
-                        <div className="mb-2 px-2 py-1 rounded-lg bg-warning/10 border border-warning/20 text-xs text-warning">
-                          📝 {order.notes}
+                        <div className="mb-2 px-2.5 py-1.5 rounded-lg bg-warning/10 border border-warning/40 flex items-start gap-1.5">
+                          <span className="text-warning text-xs flex-shrink-0">📝</span>
+                          <p className="text-xs text-foreground font-medium leading-snug">{order.notes}</p>
                         </div>
                       )}
 
@@ -498,9 +500,18 @@ const WaiterDashboard = () => {
                       <div className="flex items-center justify-between gap-2 flex-wrap">
                         <p className="text-sm font-bold text-foreground">৳{order.total || 0}</p>
                         <div className="flex gap-1.5 flex-wrap">
-                          <Button size="sm" variant="outline" className="h-7 sm:h-8 px-2 sm:px-3 text-xs" onClick={() => openEditOrder(order)}>
-                            <Edit className="w-3 h-3" /><span className="hidden sm:inline ml-1">এডিট</span>
-                          </Button>
+                          {(order.status === "pending" || order.status === "preparing") && (
+                            <Button size="sm" variant="outline" className="h-7 sm:h-8 px-2 sm:px-3 text-xs" onClick={() => openEditOrder(order)}>
+                              <Edit className="w-3 h-3" /><span className="hidden sm:inline ml-1">এডিট</span>
+                            </Button>
+                          )}
+                          {(order.status === "pending" || order.status === "preparing") && (
+                            <Button size="sm" variant="outline"
+                              className="h-7 sm:h-8 px-2 sm:px-3 text-xs border-destructive/50 text-destructive hover:bg-destructive/10"
+                              onClick={() => setCancelOrderId(order.id)}>
+                              <XCircle className="w-3 h-3" /><span className="hidden sm:inline ml-1">বাতিল</span>
+                            </Button>
+                          )}
                           {order.status === "pending" && (
                             <Button size="sm" variant="hero" className="h-7 sm:h-8 px-2 sm:px-3 text-xs"
                               onClick={() => updateStatus.mutate({ id: order.id, status: "preparing", restaurantId: restaurantId! })}>
@@ -513,14 +524,12 @@ const WaiterDashboard = () => {
                               সার্ভ
                             </Button>
                           )}
-                          {/* ✅ FIX Bug 2: served + unpaid → বিল button */}
                           {order.status === "served" && order.payment_status !== "paid" && (
                             <Button size="sm" className="h-7 sm:h-8 px-2 sm:px-3 text-xs bg-success hover:bg-success/90 text-white"
                               onClick={() => { setPaymentOrder(order); setPaymentMethod("cash"); }}>
                               <Banknote className="w-3 h-3" /><span className="ml-1">বিল</span>
                             </Button>
                           )}
-                          {/* ✅ FIX Bug 2: served + paid → paymentMutation এই completed করেছে, এখানে কিছু দরকার নেই */}
                         </div>
                       </div>
                     </CardContent>
@@ -636,6 +645,40 @@ const WaiterDashboard = () => {
           </div>
         )}
       </div>
+
+      {/* ── Cancel Order Dialog ── */}
+      <Dialog open={!!cancelOrderId} onOpenChange={() => setCancelOrderId(null)}>
+        <DialogContent className="max-w-sm mx-4 sm:mx-auto">
+          <DialogHeader>
+            <DialogTitle className="font-display flex items-center gap-2 text-destructive">
+              <XCircle className="w-5 h-5" /> অর্ডার বাতিল করুন
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              অর্ডার <span className="font-bold text-foreground">#{cancelOrderId?.slice(0, 6)}</span> বাতিল করতে চান? কাস্টমারকে সাথে সাথে জানানো হবে।
+            </p>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setCancelOrderId(null)}>
+                না, ফিরে যান
+              </Button>
+              <Button
+                variant="destructive"
+                className="flex-1"
+                disabled={updateStatus.isPending}
+                onClick={() => {
+                  if (!cancelOrderId) return;
+                  updateStatus.mutate(
+                    { id: cancelOrderId, status: "cancelled", restaurantId: restaurantId! },
+                    { onSuccess: () => setCancelOrderId(null) }
+                  );
+                }}>
+                {updateStatus.isPending ? "বাতিল হচ্ছে..." : "হ্যাঁ, বাতিল করুন"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Payment Dialog ── */}
       <Dialog open={!!paymentOrder} onOpenChange={() => setPaymentOrder(null)}>

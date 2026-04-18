@@ -1,11 +1,11 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { QrCode, Plus, Edit, Users, Trash2, ShoppingCart, UserPlus, UserMinus, Armchair, LockOpen, Lock } from "lucide-react";
+import { QrCode, Plus, Edit, Users, Trash2, ShoppingCart, UserPlus, UserMinus, Armchair, LockOpen, Lock, Download, Printer, Share2, Copy } from "lucide-react";
 import SeatManagement from "@/components/SeatManagement";
 import { useAuth } from "@/hooks/useAuth";
 import { useCanCreateTable } from "@/hooks/useTableLimit";
@@ -14,6 +14,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import QRCodeLib from "qrcode";
 
 const AdminTables = () => {
   const { restaurantId } = useAuth();
@@ -37,8 +38,10 @@ const AdminTables = () => {
   const [showQR, setShowQR] = useState<string | null>(null);
   const [qrType, setQrType] = useState<"table" | "seat" | null>(null);
   const [qrLabel, setQrLabel] = useState("");
+  const [qrSublabel, setQrSublabel] = useState("");
   const [selectedTable, setSelectedTable] = useState<any>(null);
   const [seatTable, setSeatTable] = useState<any>(null);
+  const qrCanvasRef = useRef<HTMLCanvasElement>(null);
 
   const { data: tables = [] } = useQuery({
     queryKey: ["tables", restaurantId],
@@ -207,6 +210,98 @@ const AdminTables = () => {
     return `${base}?table=${tableId}&seat=${seatId}`;
   };
 
+  // Draw QR code onto canvas with label
+  const drawQR = useCallback(async (url: string, label: string, sublabel: string) => {
+    const canvas = qrCanvasRef.current;
+    if (!canvas) return;
+    const qrSize = 240;
+    const pad = 20;
+    const bottomH = sublabel ? 72 : 52;
+    canvas.width  = qrSize + pad * 2;
+    canvas.height = qrSize + pad * 2 + bottomH;
+    const ctx = canvas.getContext("2d")!;
+
+    // White background with rounded feel
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // QR code onto temp canvas then blit
+    const tmp = document.createElement("canvas");
+    await QRCodeLib.toCanvas(tmp, url, { width: qrSize, margin: 1, color: { dark: "#000000", light: "#ffffff" } });
+    ctx.drawImage(tmp, pad, pad);
+
+    // Divider line
+    ctx.strokeStyle = "#e5e7eb";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(pad, qrSize + pad + 10);
+    ctx.lineTo(canvas.width - pad, qrSize + pad + 10);
+    ctx.stroke();
+
+    // Label text
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#111827";
+    if (sublabel) {
+      ctx.font = "bold 15px system-ui, -apple-system, sans-serif";
+      ctx.fillText(label, canvas.width / 2, qrSize + pad + 30);
+      ctx.font = "13px system-ui, -apple-system, sans-serif";
+      ctx.fillStyle = "#6b7280";
+      ctx.fillText(sublabel, canvas.width / 2, qrSize + pad + 50);
+    } else {
+      ctx.font = "bold 17px system-ui, -apple-system, sans-serif";
+      ctx.fillText(label, canvas.width / 2, qrSize + pad + 34);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (showQR) drawQR(showQR, qrLabel, qrSublabel);
+  }, [showQR, qrLabel, qrSublabel, drawQR]);
+
+  const handleQRDownload = () => {
+    const canvas = qrCanvasRef.current;
+    if (!canvas) return;
+    const a = document.createElement("a");
+    a.download = `qr-${qrLabel.replace(/\s+/g, "-")}.png`;
+    a.href = canvas.toDataURL("image/png");
+    a.click();
+    toast.success("QR কোড ডাউনলোড হয়েছে!");
+  };
+
+  const handleQRPrint = () => {
+    const canvas = qrCanvasRef.current;
+    if (!canvas) return;
+    const img = canvas.toDataURL("image/png");
+    const w = window.open("", "_blank")!;
+    w.document.write(`<html><body style="margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#fff">
+      <div style="text-align:center"><img src="${img}" style="max-width:320px"/></div>
+      </body></html>`);
+    w.document.close();
+    w.focus();
+    setTimeout(() => { w.print(); w.close(); }, 300);
+  };
+
+  const handleQRShare = async () => {
+    const canvas = qrCanvasRef.current;
+    if (!canvas) return;
+    if (navigator.share) {
+      canvas.toBlob(async (blob) => {
+        if (!blob) return;
+        try {
+          await navigator.share({
+            title: `QR — ${qrLabel}`,
+            files: [new File([blob], `qr-${qrLabel}.png`, { type: "image/png" })],
+          });
+        } catch {
+          navigator.clipboard.writeText(showQR!);
+          toast.success("লিংক কপি করা হয়েছে!");
+        }
+      }, "image/png");
+    } else {
+      navigator.clipboard.writeText(showQR!);
+      toast.success("লিংক কপি করা হয়েছে!");
+    }
+  };
+
   const getTableColor = (table: any) => {
     const orders = tableOrders[table.id];
     if (orders && orders.length > 0) {
@@ -279,29 +374,56 @@ const AdminTables = () => {
         </Dialog>
 
         {/* QR Dialog */}
-        <Dialog open={!!showQR} onOpenChange={() => { setShowQR(null); setQrType(null); setQrLabel(""); }}>
-          <DialogContent>
-            <DialogHeader><DialogTitle className="font-display">QR কোড লিংক — {qrLabel}</DialogTitle></DialogHeader>
+        <Dialog open={!!showQR} onOpenChange={() => { setShowQR(null); setQrType(null); setQrLabel(""); setQrSublabel(""); }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="font-display flex items-center gap-2">
+                <QrCode className="w-5 h-5 text-primary" />
+                {qrLabel}{qrSublabel ? ` — ${qrSublabel}` : ""}
+              </DialogTitle>
+            </DialogHeader>
             <div className="space-y-4">
-              {qrType === "table" && (
-                <div className="px-3 py-2 rounded-lg bg-success/10 border border-success/30 text-success text-sm font-medium">
-                  👥 Group Customer — Seat Select করতে হবে
-                </div>
-              )}
-              {qrType === "seat" && (
-                <div className="px-3 py-2 rounded-lg bg-info/10 border border-info/30 text-info text-sm font-medium">
-                  🪑 Single Customer — সরাসরি মেনুতে যাবে
-                </div>
-              )}
-              {/* ✅ Short URL info */}
-              {restaurant?.short_code && (
-                <div className="px-3 py-2 rounded-lg bg-primary/10 border border-primary/20 text-primary text-xs font-medium">
-                  🔒 Short URL ব্যবহার হচ্ছে — real ID লুকানো আছে
-                </div>
-              )}
-              <p className="text-sm text-muted-foreground">এই লিংকটি QR কোড হিসেবে প্রিন্ট করুন:</p>
-              <code className="block p-3 bg-secondary rounded-lg text-xs break-all">{showQR}</code>
-              <Button variant="hero" className="w-full" onClick={() => { navigator.clipboard.writeText(showQR!); toast.success("কপি করা হয়েছে!"); }}>লিংক কপি করুন</Button>
+              {/* Type badge */}
+              <div className={`px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${
+                qrType === "seat"
+                  ? "bg-info/10 border border-info/30 text-info"
+                  : "bg-success/10 border border-success/30 text-success"
+              }`}>
+                {qrType === "seat" ? "🪑 সিট QR — সরাসরি মেনুতে যাবে" : "👥 টেবিল QR — Seat Select করতে হবে"}
+              </div>
+
+              {/* QR Canvas */}
+              <div className="flex justify-center">
+                <canvas
+                  ref={qrCanvasRef}
+                  className="rounded-2xl border border-border shadow-md"
+                  style={{ maxWidth: "100%", height: "auto" }}
+                />
+              </div>
+
+              {/* URL (collapsible) */}
+              <details className="group">
+                <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground transition-colors select-none">
+                  🔗 লিংক দেখুন
+                </summary>
+                <code className="block mt-2 p-2.5 bg-secondary rounded-lg text-[11px] break-all text-foreground">{showQR}</code>
+              </details>
+
+              {/* Action buttons */}
+              <div className="grid grid-cols-2 gap-2">
+                <Button variant="hero" className="h-11" onClick={handleQRDownload}>
+                  <Download className="w-4 h-4 mr-1.5" /> ডাউনলোড
+                </Button>
+                <Button variant="outline" className="h-11" onClick={handleQRPrint}>
+                  <Printer className="w-4 h-4 mr-1.5" /> প্রিন্ট
+                </Button>
+                <Button variant="outline" className="h-11" onClick={handleQRShare}>
+                  <Share2 className="w-4 h-4 mr-1.5" /> শেয়ার
+                </Button>
+                <Button variant="outline" className="h-11" onClick={() => { navigator.clipboard.writeText(showQR!); toast.success("লিংক কপি হয়েছে!"); }}>
+                  <Copy className="w-4 h-4 mr-1.5" /> কপি লিংক
+                </Button>
+              </div>
             </div>
           </DialogContent>
         </Dialog>
@@ -428,7 +550,12 @@ const AdminTables = () => {
                             </div>
                             <div className="flex flex-wrap items-center justify-center gap-1 mb-1" onClick={e => e.stopPropagation()}>
                               {tableSeats.map((seat: any) => (
-                                <button key={seat.id} onClick={() => { setShowQR(seatUrl(table.id, seat.id)); setQrType("seat"); setQrLabel(`${table.name} — সিট ${seat.seat_number}`); }}
+                                <button key={seat.id} onClick={() => {
+                                  setShowQR(seatUrl(table.id, seat.id));
+                                  setQrType("seat");
+                                  setQrLabel(table.name);
+                                  setQrSublabel(`সিট ${seat.seat_number}`);
+                                }}
                                   className="text-[10px] px-2 py-0.5 rounded-full border bg-primary/10 text-primary border-primary/20 hover:bg-primary/20 transition-colors">
                                   🪑 সিট {seat.seat_number} QR
                                 </button>
@@ -473,7 +600,7 @@ const AdminTables = () => {
                     </button>
 
                     <div className="flex gap-2 justify-center flex-wrap" onClick={e => e.stopPropagation()}>
-                      <Button variant="outline" size="sm" onClick={() => { setShowQR(baseMenuUrl(table.id)); setQrType("table"); setQrLabel(table.name); }}>
+                      <Button variant="outline" size="sm" onClick={() => { setShowQR(baseMenuUrl(table.id)); setQrType("table"); setQrLabel(table.name); setQrSublabel(""); }}>
                         <QrCode className="w-3 h-3" /> টেবিল QR
                       </Button>
                       <Button variant="outline" size="sm" onClick={() => setSeatTable(table)}>

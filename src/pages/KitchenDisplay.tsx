@@ -67,6 +67,8 @@ const KitchenDisplay = () => {
   const [, setNow] = useState(Date.now());
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<string>("");
+  const [cancelOrderId, setCancelOrderId] = useState<string | null>(null);
+  const [cancelConfirming, setCancelConfirming] = useState(false);
 
   // Profile panel state
   const [showProfile, setShowProfile] = useState(false);
@@ -361,6 +363,45 @@ const KitchenDisplay = () => {
         </div>
       </header>
 
+      {/* Cancel confirmation overlay */}
+      {cancelOrderId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="w-full max-w-sm bg-[#16181f] border border-white/10 rounded-2xl p-6 shadow-2xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center flex-shrink-0">
+                <X className="w-5 h-5 text-red-400" />
+              </div>
+              <div>
+                <h3 className="font-bold text-white text-base">অর্ডার বাতিল করুন?</h3>
+                <p className="text-white/50 text-xs">#{cancelOrderId.slice(0, 6).toUpperCase()}</p>
+              </div>
+            </div>
+            <p className="text-white/60 text-sm mb-5">এই অর্ডারটি বাতিল করলে কাস্টমারকে সাথে সাথে জানানো হবে।</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setCancelOrderId(null)}
+                className="flex-1 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white font-semibold text-sm transition-colors">
+                না, ফিরুন
+              </button>
+              <button
+                disabled={cancelConfirming}
+                onClick={async () => {
+                  if (!cancelOrderId || !restaurantId) return;
+                  setCancelConfirming(true);
+                  updateStatus.mutate(
+                    { id: cancelOrderId, status: "cancelled", restaurantId },
+                    { onSuccess: () => { setCancelOrderId(null); setCancelConfirming(false); },
+                      onError: () => setCancelConfirming(false) }
+                  );
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-500/90 text-white font-bold text-sm transition-colors disabled:opacity-50">
+                {cancelConfirming ? "বাতিল হচ্ছে..." : "হ্যাঁ, বাতিল করুন"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Content */}
       <div className="flex-1 p-4 sm:p-6 overflow-auto">
         {isLoading && (
@@ -397,6 +438,7 @@ const KitchenDisplay = () => {
                     order={order}
                     colors={statusColor.pending}
                     primaryAction={{ label: "রান্না শুরু করুন →", onClick: () => markPreparing(order.id) }}
+                    onCancel={() => setCancelOrderId(order.id)}
                     disabled={updateStatus.isPending}
                   />
                 ))}
@@ -421,6 +463,7 @@ const KitchenDisplay = () => {
                     order={order}
                     colors={statusColor.preparing}
                     primaryAction={{ label: "✓ সার্ভ করুন", onClick: () => markServed(order.id), green: true }}
+                    onCancel={() => setCancelOrderId(order.id)}
                     disabled={updateStatus.isPending}
                   />
                 ))}
@@ -437,10 +480,11 @@ interface OrderCardProps {
   order: KitchenOrder;
   colors: typeof statusColor.pending;
   primaryAction: { label: string; onClick: () => void; green?: boolean };
+  onCancel: () => void;
   disabled?: boolean;
 }
 
-const OrderCard = ({ order, colors, primaryAction, disabled = false }: OrderCardProps) => {
+const OrderCard = ({ order, colors, primaryAction, onCancel, disabled = false }: OrderCardProps) => {
   const mins = elapsed(order.created_at);
   const urgent = mins >= 10;
 
@@ -479,24 +523,32 @@ const OrderCard = ({ order, colors, primaryAction, disabled = false }: OrderCard
 
       {/* Special instructions */}
       {order.notes && (
-        <div className="flex items-start gap-2 px-3 py-2 rounded-xl bg-yellow-500/10 border border-yellow-500/30">
+        <div className="flex items-start gap-2 px-3 py-2 rounded-xl bg-yellow-500/15 border border-yellow-500/50">
           <span className="text-yellow-400 text-sm flex-shrink-0">📝</span>
-          <p className="text-yellow-200 text-sm font-medium leading-snug">{order.notes}</p>
+          <p className="text-white text-sm font-semibold leading-snug">{order.notes}</p>
         </div>
       )}
 
-      {/* Action button */}
-      <button
-        onClick={primaryAction.onClick}
-        disabled={disabled}
-        className={`w-full py-2.5 rounded-xl font-bold text-sm transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100 ${
-          primaryAction.green
-            ? "bg-success hover:bg-success/90 text-white"
-            : "bg-warning hover:bg-warning/90 text-warning-foreground"
-        }`}
-      >
-        {primaryAction.label}
-      </button>
+      {/* Action buttons */}
+      <div className="flex gap-2">
+        <button
+          onClick={onCancel}
+          disabled={disabled}
+          className="px-3 py-2.5 rounded-xl font-bold text-sm transition-all active:scale-95 disabled:opacity-40 bg-red-500/15 hover:bg-red-500/25 text-red-400 border border-red-500/30 flex-shrink-0">
+          <X className="w-4 h-4" />
+        </button>
+        <button
+          onClick={primaryAction.onClick}
+          disabled={disabled}
+          className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100 ${
+            primaryAction.green
+              ? "bg-success hover:bg-success/90 text-white"
+              : "bg-warning hover:bg-warning/90 text-warning-foreground"
+          }`}
+        >
+          {primaryAction.label}
+        </button>
+      </div>
     </div>
   );
 };

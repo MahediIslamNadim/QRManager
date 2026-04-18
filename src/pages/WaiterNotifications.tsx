@@ -1,8 +1,7 @@
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Bell, CheckCircle, Info, AlertTriangle } from "lucide-react";
+import { Bell, CheckCircle, Info, AlertTriangle, Trash2, X, CheckCheck } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -20,26 +19,13 @@ const WaiterNotifications = () => {
         .select("*")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
-        .limit(50);
+        .limit(100);
       return data || [];
     },
     enabled: !!user,
   });
 
-  const markReadMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("notifications")
-        .update({ read: true })
-        .eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["waiter-notifications"] });
-    },
-  });
-
-  const markAllReadMutation = useMutation({
+  const markAllRead = useMutation({
     mutationFn: async () => {
       if (!user) return;
       const { error } = await supabase
@@ -49,79 +35,115 @@ const WaiterNotifications = () => {
         .eq("read", false);
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["waiter-notifications"] });
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["waiter-notifications", user?.id] }),
+  });
+
+  const deleteOne = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("notifications").delete().eq("id", id);
+      if (error) throw error;
     },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["waiter-notifications", user?.id] }),
+  });
+
+  const clearAll = useMutation({
+    mutationFn: async () => {
+      if (!user) return;
+      const { error } = await supabase.from("notifications").delete().eq("user_id", user.id);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["waiter-notifications", user?.id] }),
   });
 
   const unreadCount = notifications.filter((n: any) => !n.read).length;
 
   const getIcon = (type: string) => {
     switch (type) {
-      case "success": return <CheckCircle className="w-5 h-5 text-success" />;
-      case "warning": return <AlertTriangle className="w-5 h-5 text-warning" />;
-      default: return <Info className="w-5 h-5 text-info" />;
+      case "success": return <CheckCircle className="w-5 h-5 text-success flex-shrink-0" />;
+      case "warning": return <AlertTriangle className="w-5 h-5 text-warning flex-shrink-0" />;
+      default:        return <Info className="w-5 h-5 text-info flex-shrink-0" />;
     }
   };
 
   const timeAgo = (date: string) => {
     const diff = Math.floor((Date.now() - new Date(date).getTime()) / 60000);
-    if (diff < 1) return "এইমাত্র";
-    if (diff < 60) return `${diff} মিনিট আগে`;
+    if (diff < 1)    return "এইমাত্র";
+    if (diff < 60)   return `${diff} মিনিট আগে`;
     if (diff < 1440) return `${Math.floor(diff / 60)} ঘন্টা আগে`;
     return `${Math.floor(diff / 1440)} দিন আগে`;
   };
 
   return (
     <DashboardLayout role="waiter" title="নোটিফিকেশন">
-      <div className="space-y-6 animate-fade-up">
+      <div className="space-y-4 animate-fade-up max-w-2xl">
+
+        {/* Header */}
         <div className="flex items-center justify-between">
           <div>
             <h2 className="font-display text-2xl font-bold text-foreground mb-1">নোটিফিকেশন</h2>
             <p className="text-muted-foreground text-sm">
-              {unreadCount > 0 ? `${unreadCount} টি অপঠিত নোটিফিকেশন` : "সব পড়া হয়েছে"}
+              {unreadCount > 0 ? `${unreadCount} টি অপঠিত` : "সব পড়া হয়েছে"}
+              {notifications.length > 0 && ` · মোট ${notifications.length} টি`}
             </p>
           </div>
-          {unreadCount > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => markAllReadMutation.mutate()}
-              disabled={markAllReadMutation.isPending}
-            >
-              সব পড়া হয়েছে
-            </Button>
+          {notifications.length > 0 && (
+            <div className="flex items-center gap-2">
+              {unreadCount > 0 && (
+                <Button variant="outline" size="sm" onClick={() => markAllRead.mutate()} disabled={markAllRead.isPending}>
+                  <CheckCheck className="w-3.5 h-3.5 mr-1" /> সব পঠিত
+                </Button>
+              )}
+              <Button
+                variant="outline" size="sm"
+                className="border-destructive/40 text-destructive hover:bg-destructive/10"
+                onClick={() => clearAll.mutate()}
+                disabled={clearAll.isPending}>
+                <Trash2 className="w-3.5 h-3.5 mr-1" />
+                {clearAll.isPending ? "মুছা হচ্ছে..." : "সব মুছুন"}
+              </Button>
+            </div>
           )}
         </div>
 
-        {isLoading && <p className="text-center text-muted-foreground py-8">লোড হচ্ছে...</p>}
+        {isLoading && (
+          <div className="text-center text-muted-foreground py-12">লোড হচ্ছে...</div>
+        )}
 
         {!isLoading && notifications.length === 0 && (
           <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <Bell className="w-12 h-12 text-muted-foreground/30 mb-3" />
-              <p className="text-muted-foreground">কোনো নোটিফিকেশন নেই</p>
+            <CardContent className="flex flex-col items-center justify-center py-16">
+              <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center mb-4">
+                <Bell className="w-7 h-7 text-muted-foreground/40" />
+              </div>
+              <p className="text-muted-foreground font-medium">কোনো নোটিফিকেশন নেই</p>
+              <p className="text-xs text-muted-foreground/60 mt-1">নতুন আপডেট আসলে এখানে দেখাবে</p>
             </CardContent>
           </Card>
         )}
 
-        <div className="space-y-3">
+        <div className="space-y-2">
           {notifications.map((notif: any) => (
             <Card
               key={notif.id}
-              className={`transition-all cursor-pointer ${!notif.read ? "border-primary/30 bg-primary/5" : ""}`}
-              onClick={() => !notif.read && markReadMutation.mutate(notif.id)}
+              className={`group transition-all ${!notif.read ? "border-primary/30 bg-primary/5" : ""}`}
             >
               <CardContent className="p-4 flex items-start gap-3">
                 <div className="mt-0.5">{getIcon(notif.type)}</div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
                     <p className="font-semibold text-foreground text-sm">{notif.title}</p>
-                    {!notif.read && <Badge variant="default" className="text-[10px] px-1.5 py-0">নতুন</Badge>}
+                    {!notif.read && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground font-medium">নতুন</span>
+                    )}
+                    <span className="text-xs text-muted-foreground ml-auto">{timeAgo(notif.created_at)}</span>
                   </div>
                   <p className="text-sm text-muted-foreground">{notif.message}</p>
-                  <p className="text-xs text-muted-foreground/60 mt-1">{timeAgo(notif.created_at)}</p>
                 </div>
+                <button
+                  onClick={() => deleteOne.mutate(notif.id)}
+                  className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-destructive/10 hover:text-destructive text-muted-foreground transition-all flex-shrink-0 ml-1">
+                  <X className="w-3.5 h-3.5" />
+                </button>
               </CardContent>
             </Card>
           ))}

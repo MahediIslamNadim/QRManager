@@ -1,11 +1,11 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ShoppingCart, Plus, Minus, UtensilsCrossed, X, Send, Image as ImageIcon, Flame, CheckCircle, XCircle, Package, Search, QrCode, Lock, ClipboardList, ChefHat, Bell, Bike, MessageSquare, Phone, Receipt, Clock, ArrowLeft, Star } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useMenuSession } from "@/hooks/useMenuSession";
-import { useMenuOrders, isNotificationOrder } from "@/hooks/useMenuOrders";
+import { useMenuOrders, isNotificationOrder, type OrderItem } from "@/hooks/useMenuOrders";
 import { useAIRecommendations } from "@/hooks/useAIRecommendations";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -74,6 +74,17 @@ const CustomerMenu = () => {
   // ── Order status drawer ────────────────────────────────────────────────────
   const [showOrderStatus, setShowOrderStatus] = useState(false);
   const [orderStatusTab, setOrderStatusTab] = useState<"active" | "history">("active");
+
+  // ── Header height (for dynamic sticky category bar) ───────────────────────
+  const headerRef = useRef<HTMLElement>(null);
+  const [headerH, setHeaderH] = useState(73);
+
+  // ── Cart textarea ref (keyboard scroll fix) ────────────────────────────────
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // ── Waiter/Bill cooldown ───────────────────────────────────────────────────
+  const [waiterCooldown, setWaiterCooldown] = useState(false);
+  const [billCooldown, setBillCooldown] = useState(false);
 
   // ── General feedback modal ─────────────────────────────────────────────────
   const [showFeedback, setShowFeedback] = useState(false);
@@ -152,9 +163,10 @@ const CustomerMenu = () => {
     return () => { supabase.removeChannel(channel); };
   }, [restaurantId, isDemo, buildRatings]);
 
-  // ── Rating ─────────────────────────────────────────────────────────────────
+  // ── Per-item rating ────────────────────────────────────────────────────────
   const [ratingOrderId, setRatingOrderId] = useState<string | null>(null);
-  const [ratingValue, setRatingValue] = useState(0);
+  const [ratingItems, setRatingItems] = useState<OrderItem[]>([]);
+  const [perItemRatings, setPerItemRatings] = useState<Record<string, number>>({});
   const [ratingComment, setRatingComment] = useState("");
   const [ratingSubmitting, setRatingSubmitting] = useState(false);
 
@@ -165,11 +177,16 @@ const CustomerMenu = () => {
   } = useMenuSession({ restaurantId, tableId, seatId, tokenParam, isDemo });
 
   // ── Orders / realtime (extracted hook) ────────────────────────────────────
-  const onRatingRequest = useCallback((orderId: string) => setRatingOrderId(orderId), []);
+  const onRatingRequest = useCallback((orderId: string, items: OrderItem[]) => {
+    setRatingOrderId(orderId);
+    setRatingItems(items.filter(i => i.menu_item_id));
+    setPerItemRatings({});
+    setRatingComment("");
+  }, []);
 
   const {
     myOrders, orderHistory, ordersLoading, activeOrdersCount,
-    submitOrder, callWaiter, requestBill,
+    refreshOrders, submitOrder, callWaiter, requestBill,
   } = useMenuOrders({
     restaurantId, tableId, seatId, sessionToken, sessionStartedAt,
     isDemo, tokenValid, tableChecked,
@@ -201,6 +218,14 @@ const CustomerMenu = () => {
 
   const getCategoryColor = (cat: string) =>
     categoryColors[cat] ?? colorPalette[0];
+
+  // ── Track header height for dynamic sticky category bar ───────────────────
+  useEffect(() => {
+    if (!headerRef.current) return;
+    const obs = new ResizeObserver(() => setHeaderH(headerRef.current?.offsetHeight || 73));
+    obs.observe(headerRef.current);
+    return () => obs.disconnect();
+  }, []);
 
   // ── Fetch menu data ────────────────────────────────────────────────────────
   const fetchMenuData = useCallback(async () => {
@@ -238,6 +263,27 @@ const CustomerMenu = () => {
   useEffect(() => {
     fetchMenuData();
   }, [fetchMenuData]);
+
+  // ── Auto-refresh: re-fetch on tab focus + 60s interval fallback ────────────
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        fetchMenuData();
+        refreshOrders();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchMenuData();
+        refreshOrders();
+      }
+    }, 60000);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      clearInterval(interval);
+    };
+  }, [fetchMenuData, refreshOrders]);
 
   // ── Realtime menu updates (availability, price, stock changes) ─────────────
   // NOTE: fetchMenuData is intentionally NOT in this dependency array.
@@ -395,22 +441,28 @@ const CustomerMenu = () => {
   };
 
   const handleCallWaiter = async () => {
-    if (isDemo) { toast.success("🔔 ওয়েটারকে ডাকা হয়েছে! (ডেমো)"); return; }
+    if (waiterCooldown) return;
+    if (isDemo) { toast.success("🔔 ওয়েটারকে ডাকা হয়েছে! (ডেমো)"); setWaiterCooldown(true); setTimeout(() => setWaiterCooldown(false), 3000); return; }
     if (!sessionToken) { toast.error("সেশন টোকেন নেই। QR কোড স্ক্যান করুন।"); return; }
     try {
       await callWaiter({ restaurantId: restaurantId!, tableId, seatId, sessionToken, tableName, seatNumber });
       toast.success("🔔 ওয়েটারকে ডাকা হয়েছে! একটু অপেক্ষা করুন।");
+      setWaiterCooldown(true);
+      setTimeout(() => setWaiterCooldown(false), 3000);
     } catch {
       toast.error("ওয়েটার ডাকতে সমস্যা হয়েছে");
     }
   };
 
   const handleRequestBill = async () => {
-    if (isDemo) { toast.success("🧾 বিলের জন্য অনুরোধ পাঠানো হয়েছে! (ডেমো)"); return; }
+    if (billCooldown) return;
+    if (isDemo) { toast.success("🧾 বিলের জন্য অনুরোধ পাঠানো হয়েছে! (ডেমো)"); setBillCooldown(true); setTimeout(() => setBillCooldown(false), 3000); return; }
     if (!sessionToken) { toast.error("সেশন টোকেন নেই। QR কোড স্ক্যান করুন।"); return; }
     try {
       await requestBill({ restaurantId: restaurantId!, tableId, seatId, sessionToken, tableName, seatNumber });
       toast.success("🧾 বিলের জন্য অনুরোধ পাঠানো হয়েছে!");
+      setBillCooldown(true);
+      setTimeout(() => setBillCooldown(false), 3000);
     } catch {
       toast.error("বিল অনুরোধ পাঠাতে সমস্যা হয়েছে");
     }
@@ -519,7 +571,7 @@ const CustomerMenu = () => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-background via-background to-accent/20">
       {/* Header */}
-      <header className="sticky top-0 z-20 bg-card/80 backdrop-blur-2xl border-b border-border/50 shadow-sm">
+      <header ref={headerRef} className="sticky top-0 z-20 bg-card/80 backdrop-blur-2xl border-b border-border/50 shadow-sm">
         <div className="max-w-2xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div
@@ -575,11 +627,11 @@ const CustomerMenu = () => {
       {/* AI Recommendations Section */}
       {aiRecommendations.length > 0 && (
         <div className="max-w-2xl mx-auto px-4 pt-4">
-          <div className="bg-gradient-to-r from-purple-500/10 via-pink-500/10 to-blue-500/10 rounded-2xl border border-purple-500/20 p-4 mb-4">
+          <div className="bg-primary/5 rounded-2xl border border-primary/20 p-4 mb-4">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center">
-                  <Flame className="w-4 h-4 text-purple-500" />
+                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Flame className="w-4 h-4 text-primary" />
                 </div>
                 <div>
                   <h3 className="font-bold text-foreground text-sm">🤖 AI Recommended for You</h3>
@@ -594,10 +646,13 @@ const CustomerMenu = () => {
                 return (
                   <div
                     key={item.id}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => {
                       trackAIClick(item.id);
                       if (item.available && !cartItem) addToCart(item);
                     }}
+                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { trackAIClick(item.id); if (item.available && !cartItem) addToCart(item); } }}
                     className="flex-shrink-0 w-36 bg-card/50 backdrop-blur-sm rounded-xl border border-border/30 overflow-hidden cursor-pointer hover:shadow-lg transition-all hover:-translate-y-1"
                   >
                     <div className="h-24 relative overflow-hidden bg-gradient-to-br from-accent to-secondary">
@@ -615,7 +670,7 @@ const CustomerMenu = () => {
                       <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-primary/90 text-primary-foreground text-xs font-bold">
                         ৳{item.price}
                       </div>
-                      <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-purple-500/90 text-white text-[10px] font-bold">
+                      <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-primary/90 text-primary-foreground text-[10px] font-bold max-w-[80px] truncate">
                         {explanation}
                       </div>
                     </div>
@@ -644,21 +699,23 @@ const CustomerMenu = () => {
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-success/10 border border-success/20 text-xs font-semibold text-success whitespace-nowrap">
             <CheckCircle className="w-3.5 h-3.5" /> স্টকে {inStockCount}টি
           </div>
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-destructive/10 border border-destructive/20 text-xs font-semibold text-destructive whitespace-nowrap">
-            <XCircle className="w-3.5 h-3.5" /> স্টক আউট {outOfStockCount}টি
-          </div>
+          {outOfStockCount > 0 && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-destructive/10 border border-destructive/20 text-xs font-semibold text-destructive whitespace-nowrap">
+              <XCircle className="w-3.5 h-3.5" /> স্টক আউট {outOfStockCount}টি
+            </div>
+          )}
         </div>
       </div>
 
       {/* Categories */}
-      <div className="sticky top-[73px] z-10 bg-background/80 backdrop-blur-xl border-b border-border/30">
+      <div className="sticky z-10 bg-background/80 backdrop-blur-xl border-b border-border/30" style={{ top: headerH }}>
         <div className="max-w-2xl mx-auto px-4 py-3 flex gap-2 overflow-x-auto scrollbar-hide">
           {categories.map((cat) => {
             const isAll = cat === "সব";
             const color = isAll ? null : getCategoryColor(cat);
             const isActive = activeCategory === cat;
             return (
-              <button key={cat} onClick={() => setActiveCategory(cat)}
+              <button key={cat} onClick={() => { setActiveCategory(cat); setSearchQuery(""); }}
                 className={`px-4 py-2.5 rounded-full text-sm font-semibold whitespace-nowrap transition-all duration-300 flex items-center gap-2 ${
                   isActive ? "gradient-primary text-primary-foreground shadow-md shadow-primary/25 scale-105"
                   : isAll ? "bg-card text-muted-foreground hover:text-foreground hover:bg-accent border border-border/50"
@@ -675,7 +732,7 @@ const CustomerMenu = () => {
       </div>
 
       {/* Menu Items */}
-      <div className="max-w-2xl mx-auto px-4 py-6 space-y-5 pb-40">
+      <div className={`max-w-2xl mx-auto px-4 py-6 space-y-5 ${totalItems > 0 ? 'pb-52' : 'pb-28'}`}>
         {filtered.length === 0 && (
           <div className="text-center py-16">
             <UtensilsCrossed className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
@@ -690,9 +747,9 @@ const CustomerMenu = () => {
           return (
             <div key={item.id}
               className={`group bg-card rounded-2xl border overflow-hidden transition-all duration-500 animate-fade-up ${
-                isOutOfStock ? "border-destructive/20 opacity-75" : "border-border/60 hover:shadow-xl hover:shadow-primary/5 hover:-translate-y-1"
+                isOutOfStock ? "border-destructive/20 opacity-75 cursor-not-allowed" : "border-border/60 hover:shadow-xl hover:shadow-primary/5 hover:-translate-y-1 cursor-pointer"
               }`}
-              style={{ animationDelay: `${index * 80}ms` }}>
+              style={{ animationDelay: `${Math.min(index * 80, 400)}ms` }}>
               <div className="relative h-44 sm:h-52 w-full overflow-hidden bg-gradient-to-br from-accent via-secondary to-accent">
                 {imgUrl ? (
                   <img src={imgUrl} alt={item.name} className={`w-full h-full object-cover transition-transform duration-700 ease-out ${isOutOfStock ? "grayscale" : "group-hover:scale-110"}`} />
@@ -838,17 +895,19 @@ const CustomerMenu = () => {
             {/* Waiter */}
             <button
               onClick={handleCallWaiter}
-              className="flex-1 flex flex-col items-center gap-0.5 py-3 group">
+              disabled={waiterCooldown}
+              className={`flex-1 flex flex-col items-center gap-0.5 py-3 group transition-opacity ${waiterCooldown ? 'opacity-50 cursor-not-allowed' : ''}`}>
               <Phone className="w-5 h-5 text-info group-hover:scale-110 transition-transform" />
-              <span className="text-[10px] font-semibold text-info">ওয়েটার</span>
+              <span className="text-[10px] font-semibold text-info">{waiterCooldown ? 'পাঠানো হয়েছে' : 'ওয়েটার'}</span>
             </button>
 
             {/* Bill */}
             <button
               onClick={handleRequestBill}
-              className="flex-1 flex flex-col items-center gap-0.5 py-3 group">
+              disabled={billCooldown}
+              className={`flex-1 flex flex-col items-center gap-0.5 py-3 group transition-opacity ${billCooldown ? 'opacity-50 cursor-not-allowed' : ''}`}>
               <Receipt className="w-5 h-5 text-amber-500 group-hover:scale-110 transition-transform" />
-              <span className="text-[10px] font-semibold text-amber-500">বিল</span>
+              <span className="text-[10px] font-semibold text-amber-500">{billCooldown ? 'পাঠানো হয়েছে' : 'বিল'}</span>
             </button>
           </div>
         </div>
@@ -896,7 +955,7 @@ const CustomerMenu = () => {
             </div>
 
             {/* Scrollable content */}
-            <div className="overflow-y-auto px-6 pb-8 flex-1">
+            <div className="overflow-y-auto px-6 pb-8 flex-1" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}>
 
               {/* ── Active orders tab ── */}
               {orderStatusTab === "active" && (
@@ -1002,7 +1061,7 @@ const CustomerMenu = () => {
                                   ? <CheckCircle className="w-4 h-4 text-success" />
                                   : <XCircle className="w-4 h-4 text-destructive" />}
                                 <p className="font-semibold text-sm text-foreground">
-                                  অর্ডার #{myOrders.filter(o => !isNotificationOrder(o)).length + hi + 1}
+                                  অর্ডার #{order.id.slice(0, 6).toUpperCase()}
                                 </p>
                               </div>
                               <div className="flex items-center gap-2">
@@ -1052,7 +1111,7 @@ const CustomerMenu = () => {
         <div className="fixed inset-0 z-50 bg-foreground/60 backdrop-blur-md" onClick={() => setShowCart(false)}>
           <div className="absolute bottom-0 left-0 right-0 bg-card rounded-t-3xl max-h-[85vh] overflow-y-auto"
             onClick={e => e.stopPropagation()}
-            style={{ animation: "slideUp 0.35s cubic-bezier(0.32, 0.72, 0, 1)" }}>
+            style={{ animation: "slideUp 0.35s cubic-bezier(0.32, 0.72, 0, 1)", WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}>
             <div className="flex justify-center pt-3 pb-1"><div className="w-10 h-1 rounded-full bg-border" /></div>
             <div className="p-6 pt-3">
               <div className="flex items-center justify-between mb-6">
@@ -1109,7 +1168,8 @@ const CustomerMenu = () => {
                     <label className="flex items-center gap-2 text-sm font-semibold text-foreground mb-2">
                       <MessageSquare className="w-4 h-4 text-primary" /> বিশেষ নির্দেশনা
                     </label>
-                    <textarea value={specialNote} onChange={e => setSpecialNote(e.target.value.replace(/<[^>]*>/g, "").slice(0, 200))}
+                    <textarea ref={textareaRef} value={specialNote} onChange={e => setSpecialNote(e.target.value.replace(/<[^>]*>/g, "").slice(0, 200))}
+                      onFocus={() => setTimeout(() => textareaRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 300)}
                       placeholder="যেমন: কম ঝাল দিন, Extra sauce, পেঁয়াজ ছাড়া..." maxLength={200} rows={2}
                       className="w-full rounded-xl bg-secondary/50 border border-border/50 px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none" />
                     <p className="text-xs text-muted-foreground mt-1 text-right">{specialNote.length}/200</p>
@@ -1197,62 +1257,90 @@ const CustomerMenu = () => {
         </div>
       )}
 
-      {/* Rating modal */}
+      {/* Per-item rating modal */}
       {ratingOrderId && (
         <div className="fixed inset-0 z-[60] bg-foreground/70 backdrop-blur-md flex items-end sm:items-center justify-center p-4">
-          <div className="w-full max-w-sm bg-card rounded-3xl p-6 shadow-2xl animate-fade-up">
-            <div className="text-center mb-5">
+          <div className="w-full max-w-sm bg-card rounded-3xl shadow-2xl animate-fade-up flex flex-col max-h-[85vh]"
+            style={{ WebkitOverflowScrolling: 'touch' }}>
+            {/* Header */}
+            <div className="p-6 pb-3 flex-shrink-0 text-center">
               <div className="w-14 h-14 rounded-2xl bg-warning/10 flex items-center justify-center mx-auto mb-3">
                 <Star className="w-7 h-7 text-warning fill-warning" />
               </div>
-              <h2 className="font-display font-bold text-xl text-foreground">আপনার অভিজ্ঞতা কেমন ছিল?</h2>
-              <p className="text-sm text-muted-foreground mt-1">আপনার রেটিং আমাদের আরো ভালো করতে সাহায্য করবে</p>
+              <h2 className="font-display font-bold text-xl text-foreground">খাবার রেট করুন</h2>
+              <p className="text-sm text-muted-foreground mt-1">প্রতিটি আইটেমে স্টার দিন — আপনার রেটিং অন্যদের সাহায্য করবে</p>
             </div>
-            <div className="flex justify-center gap-3 mb-4">
-              {[1, 2, 3, 4, 5].map(star => (
-                <button key={star} onClick={() => setRatingValue(star)} className="transition-transform active:scale-90">
-                  <Star className={`w-10 h-10 transition-colors ${star <= ratingValue ? "text-warning fill-warning" : "text-muted-foreground/30"}`} />
-                </button>
-              ))}
+
+            {/* Scrollable items */}
+            <div className="overflow-y-auto px-6 flex-1" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}>
+              {ratingItems.length === 0 ? (
+                <p className="text-center text-sm text-muted-foreground py-4">এই অর্ডারে রেট করার মতো কোনো আইটেম নেই।</p>
+              ) : (
+                <div className="space-y-4 py-2">
+                  {ratingItems.map(item => {
+                    const r = perItemRatings[item.menu_item_id!] || 0;
+                    return (
+                      <div key={item.menu_item_id} className="bg-secondary/40 rounded-2xl p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <div>
+                            <p className="font-semibold text-sm text-foreground">{item.name}</p>
+                            {item.quantity > 1 && <p className="text-xs text-muted-foreground">×{item.quantity}</p>}
+                          </div>
+                          {r > 0 && (
+                            <span className="text-xs font-medium text-warning">
+                              {r === 1 ? "😞" : r === 2 ? "😕" : r === 3 ? "😐" : r === 4 ? "😊" : "😍"}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex gap-2">
+                          {[1, 2, 3, 4, 5].map(star => (
+                            <button key={star}
+                              onClick={() => setPerItemRatings(prev => ({ ...prev, [item.menu_item_id!]: star }))}
+                              className="transition-transform active:scale-90 flex-1 flex justify-center">
+                              <Star className={`w-7 h-7 transition-colors ${star <= r ? "text-warning fill-warning" : "text-muted-foreground/25 hover:text-warning/50"}`} />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              <textarea
+                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/50 mb-4 mt-2"
+                rows={2} placeholder="সামগ্রিক মন্তব্য... (ঐচ্ছিক)"
+                value={ratingComment} onChange={e => setRatingComment(e.target.value.replace(/<[^>]*>/g, "").slice(0, 300))} maxLength={300} />
             </div>
-            {ratingValue > 0 && (
-              <p className="text-center text-sm font-medium text-muted-foreground mb-4">
-                {ratingValue === 1 ? "😞 খুব খারাপ" : ratingValue === 2 ? "😕 খারাপ" : ratingValue === 3 ? "😐 মোটামুটি" : ratingValue === 4 ? "😊 ভালো" : "😍 অসাধারণ!"}
-              </p>
-            )}
-            <textarea
-              className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/50 mb-4"
-              rows={2} placeholder="কিছু বলতে চাইলে লিখুন... (ঐচ্ছিক)"
-              value={ratingComment} onChange={e => setRatingComment(e.target.value.replace(/<[^>]*>/g, "").slice(0, 500))} maxLength={500} />
-            <div className="flex gap-2">
+
+            {/* Footer buttons */}
+            <div className="flex gap-2 p-6 pt-3 flex-shrink-0">
               <button
                 onClick={() => {
-                  try { localStorage.setItem(`rated_${ratingOrderId}`, "skipped"); } catch { /* Safari private / iOS WebView — silently ignore */ }
-                  setRatingOrderId(null); setRatingValue(0); setRatingComment("");
+                  try { localStorage.setItem(`rated_${ratingOrderId}`, "skipped"); } catch { /* Safari private / iOS WebView */ }
+                  setRatingOrderId(null); setRatingItems([]); setPerItemRatings({}); setRatingComment("");
                 }}
                 className="flex-1 py-2.5 rounded-xl border border-border text-sm text-muted-foreground hover:bg-secondary transition-colors">
                 এড়িয়ে যান
               </button>
               <button
-                disabled={ratingValue === 0 || ratingSubmitting}
+                disabled={Object.keys(perItemRatings).length === 0 || ratingSubmitting}
                 onClick={async () => {
-                  if (!ratingValue || !ratingOrderId) return;
-                  if (ratingValue < 1 || ratingValue > 5) return;
-                  const cleanComment = ratingComment ? sanitize(ratingComment, 500) : null;
+                  if (!ratingOrderId) return;
+                  const ratingsToSubmit = Object.entries(perItemRatings)
+                    .filter(([, r]) => r >= 1 && r <= 5)
+                    .map(([menu_item_id, rating]) => ({ menu_item_id, rating, comment: ratingComment ? sanitize(ratingComment, 300) : null }));
+                  if (ratingsToSubmit.length === 0) return;
                   setRatingSubmitting(true);
-                  const { data: ok } = await supabase.rpc(
-                    "submit_order_rating" as any,
-                    { p_order_id: ratingOrderId, p_rating: ratingValue, p_comment: cleanComment, p_token: sessionToken } as any,
-                  );
+                  const { error } = await supabase.from("reviews").insert(ratingsToSubmit as any);
                   setRatingSubmitting(false);
-                  if (ok) {
-                    try { localStorage.setItem(`rated_${ratingOrderId}`, "done"); } catch { /* Safari private / iOS WebView — silently ignore */ }
-                    toast("🙏 ধন্যবাদ! আপনার রেটিং পেয়েছি।", { duration: 4000 });
+                  if (!error) {
+                    try { localStorage.setItem(`rated_${ratingOrderId}`, "done"); } catch { /* Safari private / iOS WebView */ }
+                    toast("🙏 ধন্যবাদ! রেটিং পেয়েছি।", { duration: 4000 });
                   }
-                  setRatingOrderId(null); setRatingValue(0); setRatingComment("");
+                  setRatingOrderId(null); setRatingItems([]); setPerItemRatings({}); setRatingComment("");
                 }}
                 className="flex-1 py-2.5 rounded-xl gradient-primary text-primary-foreground font-semibold text-sm disabled:opacity-50 transition-opacity">
-                {ratingSubmitting ? "পাঠানো হচ্ছে..." : "রেটিং দিন"}
+                {ratingSubmitting ? "পাঠানো হচ্ছে..." : `রেটিং দিন (${Object.values(perItemRatings).filter(r => r > 0).length}/${ratingItems.length})`}
               </button>
             </div>
           </div>
