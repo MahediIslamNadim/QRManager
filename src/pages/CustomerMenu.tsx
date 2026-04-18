@@ -26,6 +26,7 @@ interface MenuItem {
   available: boolean;
   image_url?: string | null;
   stock_quantity?: number | null;
+  prep_time_minutes?: number | null;
 }
 
 interface CartItem extends MenuItem {
@@ -834,7 +835,21 @@ const CustomerMenu = () => {
                 <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-card to-transparent" />
               </div>
               <div className="px-4 pb-4 -mt-4 relative z-10">
-                <h3 className="font-display font-bold text-foreground text-lg leading-snug">{item.name}</h3>
+                <div className="flex items-start justify-between gap-2">
+                  <h3 className="font-display font-bold text-foreground text-lg leading-snug">{item.name}</h3>
+                  {item.prep_time_minutes && (
+                    <span className={`flex-shrink-0 flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg mt-0.5 ${
+                      item.prep_time_minutes <= 10
+                        ? "bg-success/10 text-success border border-success/20"
+                        : item.prep_time_minutes <= 20
+                        ? "bg-warning/10 text-warning border border-warning/20"
+                        : "bg-muted text-muted-foreground border border-border"
+                    }`}>
+                      <Clock className="w-3 h-3" />
+                      {item.prep_time_minutes <= 5 ? "⚡ রেডি" : `~${item.prep_time_minutes} মিনিট`}
+                    </span>
+                  )}
+                </div>
                 <p className="text-sm text-muted-foreground mt-1.5 line-clamp-2 leading-relaxed">{item.description}</p>
 
                 {/* ── Customer ratings row ── */}

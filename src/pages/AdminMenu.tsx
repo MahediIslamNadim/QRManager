@@ -2,7 +2,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Edit, Trash2, Image as ImageIcon, Upload, X, CheckCircle, XCircle } from "lucide-react";
+import { Plus, Edit, Trash2, Image as ImageIcon, Upload, X, CheckCircle, XCircle, Clock } from "lucide-react";
 import { useState, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -29,7 +29,7 @@ const AdminMenu = () => {
   const [activeCategory, setActiveCategory] = useState("সব");
   const [showForm, setShowForm] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
-  const [form, setForm] = useState({ name: "", price: "", category: "other", description: "", available: true, hasStock: false, stockQty: "" });
+  const [form, setForm] = useState({ name: "", price: "", category: "other", description: "", available: true, hasStock: false, stockQty: "", prepTime: "" });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -114,6 +114,7 @@ const AdminMenu = () => {
         available: form.available,
         image_url,
         stock_quantity: form.hasStock ? (Number(form.stockQty) || 0) : null,
+        prep_time_minutes: form.prepTime ? Number(form.prepTime) : null,
       };
 
       if (editingItem) {
@@ -155,7 +156,7 @@ const AdminMenu = () => {
   });
 
   const resetForm = () => {
-    setForm({ name: "", price: "", category: "other", description: "", available: true, hasStock: false, stockQty: "" });
+    setForm({ name: "", price: "", category: "other", description: "", available: true, hasStock: false, stockQty: "", prepTime: "" });
     setEditingItem(null);
     setShowForm(false);
     setImageFile(null);
@@ -164,7 +165,7 @@ const AdminMenu = () => {
 
   const openEdit = (item: any) => {
     const hasStock = item.stock_quantity !== null && item.stock_quantity !== undefined;
-    setForm({ name: item.name, price: String(item.price), category: item.category, description: item.description || "", available: item.available, hasStock, stockQty: hasStock ? String(item.stock_quantity) : "" });
+    setForm({ name: item.name, price: String(item.price), category: item.category, description: item.description || "", available: item.available, hasStock, stockQty: hasStock ? String(item.stock_quantity) : "", prepTime: item.prep_time_minutes ? String(item.prep_time_minutes) : "" });
     setEditingItem(item);
     setImageFile(null);
     setImagePreview(item.image_url ? getImageUrl(item.image_url) : null);
@@ -278,6 +279,39 @@ const AdminMenu = () => {
                 <Label>উপলব্ধ</Label>
               </div>
 
+              {/* Prep time */}
+              <div className="border border-border rounded-xl p-3 bg-secondary/20">
+                <Label className="flex items-center gap-1.5 mb-2">
+                  <Clock className="w-3.5 h-3.5 text-primary" /> রান্নার আনুমানিক সময় (মিনিট)
+                </Label>
+                <div className="flex gap-2 flex-wrap mb-2">
+                  {["5","10","15","20","30","45","60"].map(t => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, prepTime: f.prepTime === t ? "" : t }))}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                        form.prepTime === t
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-background border-border hover:bg-accent"
+                      }`}
+                    >
+                      {t} মিনিট
+                    </button>
+                  ))}
+                </div>
+                <Input
+                  type="number"
+                  min="1"
+                  max="180"
+                  placeholder="নিজে লিখুন (যেমন: ২৫)"
+                  value={form.prepTime}
+                  onChange={e => setForm(f => ({ ...f, prepTime: e.target.value }))}
+                  className="text-sm"
+                />
+                <p className="text-xs text-muted-foreground mt-1">খালি রাখলে customer-এ সময় দেখাবে না।</p>
+              </div>
+
               {/* Stock quantity */}
               <div className="border border-border rounded-xl p-3 space-y-3 bg-secondary/20">
                 <div className="flex items-center gap-2">
@@ -360,8 +394,16 @@ const AdminMenu = () => {
                   <div className="p-5">
                     <h3 className="font-display font-semibold text-foreground text-lg">{item.name}</h3>
                     <p className="text-sm text-muted-foreground mt-1">{item.description}</p>
-                    <div className="flex items-center justify-between mt-4">
+                    <div className="flex items-center gap-3 mt-2 flex-wrap">
                       <span className="text-xl font-bold text-primary">৳{item.price}</span>
+                      {item.prep_time_minutes && (
+                        <span className="flex items-center gap-1 text-xs font-medium text-muted-foreground bg-secondary px-2 py-1 rounded-lg">
+                          <Clock className="w-3 h-3" /> ~{item.prep_time_minutes} মিনিট
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between mt-3">
+                      <span />
                       <div className="flex items-center gap-2">
                         <div className="flex items-center gap-1.5">
                           <Switch
