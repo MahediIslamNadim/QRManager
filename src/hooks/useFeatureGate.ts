@@ -89,6 +89,11 @@ export const FEATURES = {
     name: 'Predictive Analytics',
     tiers: ['high_smart'] as TierName[],
     requiresActiveSub: true
+  },
+  dedicated_manager: {
+    name: 'Dedicated Manager',
+    tiers: ['high_smart'] as TierName[],
+    requiresActiveSub: true
   }
 } as const;
 
