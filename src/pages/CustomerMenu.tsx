@@ -794,23 +794,30 @@ const CustomerMenu = () => {
               <div className="px-4 pb-4 -mt-4 relative z-10">
                 <h3 className="font-display font-bold text-foreground text-lg leading-snug">{item.name}</h3>
                 <p className="text-sm text-muted-foreground mt-1.5 line-clamp-2 leading-relaxed">{item.description}</p>
-                <div className="mt-4 flex items-center justify-between">
-                  <div className="flex items-center gap-1">
-                    {itemRatings[item.id] ? (
-                      <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-50 dark:bg-yellow-400/10 border border-yellow-200 dark:border-yellow-400/20">
+
+                {/* ── Customer ratings row ── */}
+                <div className="mt-2.5 flex items-center gap-2">
+                  {itemRatings[item.id] ? (
+                    <>
+                      <div className="flex items-center gap-0.5">
                         {[1,2,3,4,5].map(s => (
-                          <Star key={s} className={`w-3.5 h-3.5 ${s <= Math.round(itemRatings[item.id].avg) ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground/20"}`} />
+                          <Star key={s} className={`w-4 h-4 ${s <= Math.round(itemRatings[item.id].avg) ? "fill-yellow-400 text-yellow-400" : "fill-muted text-muted-foreground/20"}`} />
                         ))}
-                        <span className="text-xs font-semibold text-yellow-700 dark:text-yellow-400 ml-0.5">{itemRatings[item.id].avg}</span>
-                        <span className="text-[10px] text-muted-foreground">({itemRatings[item.id].count})</span>
                       </div>
-                    ) : (
-                      <>
-                        <Flame className="w-3.5 h-3.5 text-muted-foreground/60" />
-                        <span className="text-xs font-medium text-muted-foreground/60">জনপ্রিয়</span>
-                      </>
-                    )}
-                  </div>
+                      <span className="text-sm font-bold text-yellow-600 dark:text-yellow-400">{itemRatings[item.id].avg}</span>
+                      <span className="text-xs text-muted-foreground">({itemRatings[item.id].count} জন রেটিং দিয়েছেন)</span>
+                    </>
+                  ) : (
+                    <div className="flex items-center gap-1.5">
+                      {[1,2,3,4,5].map(s => (
+                        <Star key={s} className="w-3.5 h-3.5 fill-muted text-muted-foreground/20" />
+                      ))}
+                      <span className="text-xs text-muted-foreground/50">এখনো রেটিং নেই</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-3 flex items-center justify-end">
                   {isOutOfStock ? (
                     <span className="px-4 py-2 rounded-xl bg-muted text-muted-foreground text-sm font-medium cursor-not-allowed">অপ্রাপ্য</span>
                   ) : cartItem ? (
