@@ -1,4 +1,4 @@
-export type PlanId = "basic" | "premium" | "enterprise" | "medium_smart" | "high_smart";
+export type PlanId = "medium_smart" | "high_smart";
 
 export interface PlanLimits {
   maxMenuItems: number;
@@ -8,24 +8,6 @@ export interface PlanLimits {
 }
 
 export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
-  basic: {
-    maxMenuItems: 50,
-    maxTables: 5,
-    maxStaff: 3,
-    label: "বেসিক",
-  },
-  premium: {
-    maxMenuItems: 200,
-    maxTables: 20,
-    maxStaff: 15,
-    label: "প্রিমিয়াম",
-  },
-  enterprise: {
-    maxMenuItems: Infinity,
-    maxTables: Infinity,
-    maxStaff: Infinity,
-    label: "এন্টারপ্রাইজ",
-  },
   medium_smart: {
     maxMenuItems: 100,
     maxTables: 20,
@@ -41,7 +23,7 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
 };
 
 export const getPlanLimits = (plan: string): PlanLimits => {
-  return PLAN_LIMITS[plan as PlanId] || PLAN_LIMITS.basic;
+  return PLAN_LIMITS[plan as PlanId] || PLAN_LIMITS.medium_smart;
 };
 
 export const formatLimit = (limit: number): string => {
