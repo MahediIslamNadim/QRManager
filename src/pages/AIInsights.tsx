@@ -15,6 +15,7 @@ import DashboardLayout from '@/components/DashboardLayout';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, LineChart, Line, Area, AreaChart, Legend,
+  ComposedChart, ReferenceLine,
 } from 'recharts';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
@@ -37,6 +38,7 @@ async function getGeminiAdvancedInsights(payload: {
     marketingTips: 'নিয়মিত কাস্টমারদের জন্য loyalty discount চালু করুন।',
     forecastTip: 'পর্যাপ্ত ডেটা সংগ্রহ হলে ফোরকাস্ট পাওয়া যাবে।',
     menuOptimization: 'কম বিক্রীত আইটেমের দাম পর্যালোচনা করুন এবং জনপ্রিয় আইটেম promote করুন।',
+    predictiveForecast: 'পর্যাপ্ত ডেটা সংগ্রহ হলে বিস্তারিত পূর্বাভাস পাওয়া যাবে। নিয়মিত অর্ডার ডেটা সংগ্রহ অব্যাহত রাখুন।',
     actionItems: [
       'স্টক আউট আইটেম দ্রুত রিস্টক করুন',
       'পিক আওয়ারে অতিরিক্ত স্টাফ রাখুন',
@@ -65,6 +67,7 @@ async function getGeminiAdvancedInsights(payload: {
   "marketingTips": "মার্কেটিং ও প্রমোশন বিষয়ক পরামর্শ",
   "forecastTip": "আগামী সপ্তাহে কী হতে পারে তার পূর্বাভাস",
   "menuOptimization": "মেনু অপ্টিমাইজেশনের জন্য সুনির্দিষ্ট পরামর্শ",
+  "predictiveForecast": "ট্রেন্ড বিশ্লেষণ করে আগামী ২ সপ্তাহের বিস্তারিত পূর্বাভাস — কোন দিন ব্যস্ত হবে, কোন আইটেমের চাহিদা বাড়বে, রাজস্ব কেমন হতে পারে",
   "actionItems": ["এখনই করণীয় ১", "এখনই করণীয় ২", "এখনই করণীয় ৩", "এখনই করণীয় ৪"]
 }`;
 
@@ -86,6 +89,8 @@ interface InsightData {
   weeklyTrend: { week: string; revenue: number; orders: number }[];
   dayOfWeek: { day: string; orders: number; revenue: number }[];
   menuScores: { name: string; score: number; trend: 'up' | 'down' | 'stable' }[];
+  forecastRevenue: { week: string; actual?: number; predicted: number; isFuture?: boolean }[];
+  demandForecast: { name: string; predictedOrders: number; trend: 'up' | 'down' | 'stable'; changePercent: number }[];
   avgOrderValue: number;
   revenueGrowth: string | null;
   peakHour: string | null;
@@ -96,10 +101,39 @@ interface InsightData {
   marketingTips: string;
   forecastTip: string;
   menuOptimization: string;
+  predictiveForecast: string;
   actionItems: string[];
 }
 
 const DAY_NAMES = ['রবি', 'সোম', 'মঙ্গল', 'বুধ', 'বৃহ', 'শুক্র', 'শনি'];
+
+function linearRegression(ys: number[]) {
+  const n = ys.length;
+  if (n < 2) return { slope: 0, intercept: ys[0] || 0 };
+  const xs = ys.map((_, i) => i);
+  const sumX = xs.reduce((a, b) => a + b, 0);
+  const sumY = ys.reduce((a, b) => a + b, 0);
+  const sumXY = xs.reduce((s, x, i) => s + x * ys[i], 0);
+  const sumX2 = xs.reduce((s, x) => s + x * x, 0);
+  const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+  const intercept = (sumY - slope * sumX) / n;
+  return { slope, intercept };
+}
+
+function buildForecastRevenue(weeklyTrend: { week: string; revenue: number }[]) {
+  if (weeklyTrend.length === 0) return [];
+  const ys = weeklyTrend.map(w => w.revenue);
+  const { slope, intercept } = linearRegression(ys);
+  const predict = (x: number) => Math.max(0, Math.round(intercept + slope * x));
+  const result: { week: string; actual?: number; predicted: number; isFuture?: boolean }[] = weeklyTrend.map((w, i) => ({
+    week: w.week,
+    actual: w.revenue,
+    predicted: predict(i),
+  }));
+  result.push({ week: 'আগামী সপ্তাহ', predicted: predict(weeklyTrend.length), isFuture: true });
+  result.push({ week: '২ সপ্তাহ পর', predicted: predict(weeklyTrend.length + 1), isFuture: true });
+  return result;
+}
 
 export default function AIInsights() {
   const { restaurantId } = useAuth();
@@ -227,6 +261,33 @@ export default function AIInsights() {
         ? `${((thisW - lastW) / lastW * 100) >= 0 ? '+' : ''}${Math.round((thisW - lastW) / lastW * 100)}%`
         : thisW > 0 ? 'নতুন' : null;
 
+      // ── Predictive: revenue forecast ──
+      const forecastRevenue = buildForecastRevenue(weeklyTrend);
+
+      // ── Predictive: demand forecast per item (recent 2w vs prior 2w) ──
+      const recentCutoff = now - 14 * 86400000;
+      const recentFreq: Record<string, number> = {};
+      const olderFreq: Record<string, number> = {};
+      allOrders.forEach((o: any) => {
+        const isRecent = new Date(o.created_at).getTime() > recentCutoff;
+        (o.order_items || []).forEach((oi: any) => {
+          const id = oi.menu_item_id;
+          if (!id) return;
+          if (isRecent) recentFreq[id] = (recentFreq[id] || 0) + oi.quantity;
+          else olderFreq[id] = (olderFreq[id] || 0) + oi.quantity;
+        });
+      });
+      const demandForecast = Object.entries(recentFreq)
+        .map(([id, recent]) => {
+          const older = olderFreq[id] || 0;
+          const changePercent = older > 0 ? Math.round(((recent - older) / older) * 100) : recent > 0 ? 100 : 0;
+          const predictedOrders = Math.round(recent * 1.1);
+          const trend: 'up' | 'down' | 'stable' = changePercent > 10 ? 'up' : changePercent < -10 ? 'down' : 'stable';
+          return { name: items.find(m => m.id === id)?.name || id, predictedOrders, trend, changePercent };
+        })
+        .sort((a, b) => b.predictedOrders - a.predictedOrders)
+        .slice(0, 6);
+
       // ── Gemini AI ──
       const aiResult = await getGeminiAdvancedInsights({
         orders: allOrders,
@@ -242,6 +303,7 @@ export default function AIInsights() {
       setInsights({
         topPerformers, lowPerformers, categoryRevenue,
         hourlyPattern, weeklyTrend, dayOfWeek, menuScores,
+        forecastRevenue, demandForecast,
         avgOrderValue, revenueGrowth, peakHour,
         totalRevenue30d, totalOrders: allOrders.length,
         ...aiResult,
@@ -406,6 +468,145 @@ export default function AIInsights() {
                   </CardContent>
                 </Card>
               )}
+
+              {/* ── Predictive Analytics ── */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 pb-1">
+                  <div className="w-9 h-9 rounded-xl bg-blue-500/15 flex items-center justify-center flex-shrink-0">
+                    <TrendingUp className="w-5 h-5 text-blue-500" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-base">প্রেডিক্টিভ অ্যানালিটিক্স</h3>
+                    <p className="text-xs text-muted-foreground">Linear Regression + Gemini AI পূর্বাভাস</p>
+                  </div>
+                  <Badge className="ml-auto text-xs bg-blue-500/15 text-blue-500 border-blue-500/30 border">
+                    AI Forecast
+                  </Badge>
+                </div>
+
+                {/* Revenue Forecast Chart */}
+                {insights.forecastRevenue.length > 1 && (
+                  <Card className="border-blue-500/20">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <TrendingUp className="w-5 h-5 text-blue-500" /> রাজস্ব পূর্বাভাস (আগামী ২ সপ্তাহ)
+                        <Badge variant="outline" className="ml-auto text-xs border-blue-500/30 text-blue-400">
+                          রিগ্রেশন মডেল
+                        </Badge>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={260}>
+                        <ComposedChart data={insights.forecastRevenue} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                          <defs>
+                            <linearGradient id="actualGrad" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.7} />
+                              <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                          <XAxis dataKey="week" stroke="hsl(var(--muted-foreground))" fontSize={11} />
+                          <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} tickFormatter={v => `৳${v}`} />
+                          <Tooltip
+                            contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }}
+                            formatter={(v: any, name: string) => [`৳${v}`, name === 'actual' ? 'প্রকৃত রাজস্ব' : 'পূর্বাভাস']}
+                          />
+                          <Legend formatter={v => v === 'actual' ? 'প্রকৃত রাজস্ব' : 'পূর্বাভাস (মডেল)'} />
+                          <ReferenceLine
+                            x={insights.forecastRevenue.find(d => d.isFuture)?.week}
+                            stroke="#3b82f6"
+                            strokeDasharray="4 2"
+                            label={{ value: 'পূর্বাভাস →', fill: '#3b82f6', fontSize: 11 }}
+                          />
+                          <Bar dataKey="actual" fill="url(#actualGrad)" radius={[5, 5, 0, 0]} name="actual" />
+                          <Line
+                            type="monotone"
+                            dataKey="predicted"
+                            stroke="#3b82f6"
+                            strokeWidth={2.5}
+                            strokeDasharray="7 3"
+                            dot={{ r: 4, fill: '#3b82f6', strokeWidth: 2, stroke: '#fff' }}
+                            activeDot={{ r: 6 }}
+                            name="predicted"
+                          />
+                        </ComposedChart>
+                      </ResponsiveContainer>
+                      <p className="text-xs text-muted-foreground text-center mt-2">
+                        নীল ড্যাশ লাইন = মডেল পূর্বাভাস • ব্লু বার = প্রকৃত রাজস্ব
+                      </p>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Demand Forecast + Gemini Predictive */}
+                <div className="grid gap-6 md:grid-cols-2">
+                  <Card className="border-blue-500/20">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <ShoppingBag className="w-5 h-5 text-blue-500" /> আইটেম চাহিদা পূর্বাভাস
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      {insights.demandForecast.length > 0 ? insights.demandForecast.map((item, i) => (
+                        <div key={i} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-secondary/50 transition-colors">
+                          <span className="text-xs font-bold text-muted-foreground w-4 flex-shrink-0">{i + 1}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{item.name}</p>
+                            <p className="text-xs text-muted-foreground">পূর্বাভাস: ~{item.predictedOrders} অর্ডার</p>
+                          </div>
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            {item.trend === 'up' && (
+                              <Badge className="text-xs bg-success/15 text-success border-success/30 border gap-1">
+                                <TrendingUp className="w-3 h-3" /> +{item.changePercent}%
+                              </Badge>
+                            )}
+                            {item.trend === 'down' && (
+                              <Badge className="text-xs bg-destructive/15 text-destructive border-destructive/30 border gap-1">
+                                <TrendingDown className="w-3 h-3" /> {item.changePercent}%
+                              </Badge>
+                            )}
+                            {item.trend === 'stable' && (
+                              <Badge variant="outline" className="text-xs text-muted-foreground">
+                                স্থিতিশীল
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      )) : (
+                        <p className="text-sm text-muted-foreground text-center py-8">পর্যাপ্ত অর্ডার ডেটা নেই</p>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-blue-500/20 bg-gradient-to-br from-blue-500/5 to-transparent">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <div className="w-7 h-7 rounded-lg bg-blue-500/15 flex items-center justify-center">
+                          <Brain className="w-4 h-4 text-blue-500" />
+                        </div>
+                        Gemini প্রেডিক্টিভ ইনসাইট
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {insights.predictiveForecast ? (
+                        <div className="p-4 rounded-xl bg-blue-500/8 border border-blue-500/20">
+                          <div className="flex items-start gap-3">
+                            <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                              <span className="text-base">🔮</span>
+                            </div>
+                            <div>
+                              <p className="text-xs font-semibold text-blue-400 mb-2">আগামী ২ সপ্তাহের পূর্বাভাস</p>
+                              <p className="text-sm leading-relaxed">{insights.predictiveForecast}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground text-center py-8">পূর্বাভাস লোড হচ্ছে...</p>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
 
               {/* ── Day of Week + Hourly ── */}
               <div className="grid gap-6 md:grid-cols-2">
