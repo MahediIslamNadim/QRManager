@@ -41,6 +41,7 @@ import BillingPage from "./pages/BillingPage";
 import AIInsights from "./pages/AIInsights";
 import AdminReports from "./pages/AdminReports";
 import AdminFeedback from "./pages/AdminFeedback";
+import AdminSupport from "./pages/AdminSupport";
 import PaymentResultPage from "./pages/PaymentResultPage";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
@@ -202,6 +203,10 @@ const App = () => (
               <Route
                 path="/admin/feedback"
                 element={<ProtectedRoute allowedRoles={["admin", "super_admin"]}><AdminFeedback /></ProtectedRoute>}
+              />
+              <Route
+                path="/admin/support"
+                element={<ProtectedRoute allowedRoles={["admin", "super_admin"]}><AdminSupport /></ProtectedRoute>}
               />
               <Route
                 path="/upgrade"
