@@ -225,11 +225,11 @@ const AdminMenu = () => {
 
         {/* Add/Edit Dialog */}
         <Dialog open={showForm} onOpenChange={setShowForm}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
+          <DialogContent className="max-w-md flex flex-col max-h-[90vh]">
+            <DialogHeader className="flex-shrink-0">
               <DialogTitle className="font-display">{editingItem ? "আইটেম সম্পাদনা" : "নতুন আইটেম"}</DialogTitle>
             </DialogHeader>
-            <form onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(); }} className="space-y-4">
+            <form onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(); }} className="space-y-4 overflow-y-auto flex-1 pr-1">
               {/* Image Upload */}
               <div>
                 <Label>ছবি</Label>
@@ -337,7 +337,7 @@ const AdminMenu = () => {
                 )}
               </div>
 
-              <Button type="submit" variant="hero" className="w-full" disabled={saveMutation.isPending || uploading}>
+              <Button type="submit" variant="hero" className="w-full sticky bottom-0" disabled={saveMutation.isPending || uploading}>
                 {uploading ? "আপলোড হচ্ছে..." : saveMutation.isPending ? "সেভ হচ্ছে..." : "সেভ করুন"}
               </Button>
             </form>
