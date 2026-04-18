@@ -123,7 +123,7 @@ export function useMenuOrders({
       const orderIds = ordersData.map(o => o.id);
       const { data: itemsData } = await supabase
         .from("order_items")
-        .select("id, name, price, quantity, order_id")
+        .select("id, name, price, quantity, menu_item_id, order_id")
         .in("order_id", orderIds);
 
       setMyOrders(
@@ -162,7 +162,7 @@ export function useMenuOrders({
       const ids = historyData.map(o => o.id);
       const { data: itemsData } = await supabase
         .from("order_items")
-        .select("id, name, price, quantity, order_id")
+        .select("id, name, price, quantity, menu_item_id, order_id")
         .in("order_id", ids);
 
       setOrderHistory(

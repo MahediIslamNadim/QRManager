@@ -167,10 +167,16 @@ const CustomerMenu = () => {
     return () => { supabase.removeChannel(channel); };
   }, [restaurantId, isDemo, buildRatings]);
 
-  // ── Quick inline rating (tap stars on card) ───────────────────────────��───
+  // ── Quick inline rating (only for items this customer has ordered) ──────────
   const [quickRatingItem, setQuickRatingItem] = useState<MenuItem | null>(null);
   const [quickRatingValue, setQuickRatingValue] = useState(0);
   const [quickRatingSubmitting, setQuickRatingSubmitting] = useState(false);
+  const [ratedItemIds, setRatedItemIds] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem(`rated_items_${restaurantId || "demo"}`);
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch { return new Set(); }
+  });
 
   const submitQuickRating = async (star: number) => {
     if (!quickRatingItem || !restaurantId || star < 1) return;
@@ -183,6 +189,9 @@ const CustomerMenu = () => {
     } as any);
     setQuickRatingSubmitting(false);
     if (!error) {
+      const newRated = new Set(ratedItemIds).add(quickRatingItem.id);
+      setRatedItemIds(newRated);
+      try { localStorage.setItem(`rated_items_${restaurantId}`, JSON.stringify([...newRated])); } catch { /* private */ }
       toast("🙏 ধন্যবাদ! রেটিং দেওয়ার জন্য।", { duration: 3000 });
       setQuickRatingItem(null);
       setQuickRatingValue(0);
@@ -220,6 +229,15 @@ const CustomerMenu = () => {
     isDemo, tokenValid, tableChecked,
     onRatingRequest,
   });
+
+  // ── Set of menu_item_ids this customer has already ordered this session ──
+  const orderedMenuItemIds = useMemo(() => {
+    const ids = new Set<string>();
+    [...myOrders, ...orderHistory].forEach(order =>
+      order.items.forEach(item => { if (item.menu_item_id) ids.add(item.menu_item_id); })
+    );
+    return ids;
+  }, [myOrders, orderHistory]);
 
   // ── Branding (custom colors/logo from DB — High Smart only) ───────────
   const isHighSmart    = restaurant?.tier === 'high_smart';
@@ -819,34 +837,68 @@ const CustomerMenu = () => {
                 <h3 className="font-display font-bold text-foreground text-lg leading-snug">{item.name}</h3>
                 <p className="text-sm text-muted-foreground mt-1.5 line-clamp-2 leading-relaxed">{item.description}</p>
 
-                {/* ── Customer ratings row (tap to rate) ── */}
-                <button
-                  onClick={e => { e.stopPropagation(); setQuickRatingItem(item); setQuickRatingValue(0); }}
-                  className="mt-2.5 w-full flex items-center gap-2 py-1.5 px-2 rounded-xl hover:bg-yellow-50 dark:hover:bg-yellow-400/10 active:scale-95 transition-all group/rate"
-                >
-                  {itemRatings[item.id] ? (
-                    <>
-                      <div className="flex items-center gap-0.5">
-                        {[1,2,3,4,5].map(s => (
-                          <Star key={s} className={`w-4 h-4 ${s <= Math.round(itemRatings[item.id].avg) ? "fill-yellow-400 text-yellow-400" : "fill-muted text-muted-foreground/20"}`} />
-                        ))}
+                {/* ── Customer ratings row ── */}
+                {(() => {
+                  const hasOrdered = orderedMenuItemIds.has(item.id);
+                  const alreadyRated = ratedItemIds.has(item.id);
+                  const rating = itemRatings[item.id];
+
+                  const starsDisplay = (
+                    <div className="flex items-center gap-0.5">
+                      {[1,2,3,4,5].map(s => (
+                        <Star key={s} className={`w-4 h-4 ${rating && s <= Math.round(rating.avg) ? "fill-yellow-400 text-yellow-400" : "fill-muted text-muted-foreground/20"}`} />
+                      ))}
+                    </div>
+                  );
+
+                  if (hasOrdered && !alreadyRated) {
+                    // Customer ordered this item and hasn't rated yet — tappable
+                    return (
+                      <button
+                        onClick={e => { e.stopPropagation(); setQuickRatingItem(item); setQuickRatingValue(0); }}
+                        className="mt-2.5 w-full flex items-center gap-2 py-1.5 px-2 rounded-xl bg-yellow-50 dark:bg-yellow-400/10 border border-yellow-200 dark:border-yellow-400/20 active:scale-95 transition-all"
+                      >
+                        {starsDisplay}
+                        {rating ? (
+                          <>
+                            <span className="text-sm font-bold text-yellow-600 dark:text-yellow-400">{rating.avg}</span>
+                            <span className="text-xs text-muted-foreground">({rating.count} জন)</span>
+                          </>
+                        ) : (
+                          <span className="text-xs text-muted-foreground/60">এখনো রেটিং নেই</span>
+                        )}
+                        <span className="text-[10px] font-semibold text-primary ml-auto">⭐ রেটিং দিন</span>
+                      </button>
+                    );
+                  }
+
+                  if (hasOrdered && alreadyRated) {
+                    // Already rated — show with checkmark
+                    return (
+                      <div className="mt-2.5 flex items-center gap-2 py-1.5 px-2 rounded-xl bg-success/10 border border-success/20">
+                        {starsDisplay}
+                        {rating && <span className="text-sm font-bold text-yellow-600 dark:text-yellow-400">{rating.avg}</span>}
+                        {rating && <span className="text-xs text-muted-foreground">({rating.count} জন)</span>}
+                        <span className="text-[10px] font-semibold text-success ml-auto">✓ রেটিং দেওয়া হয়েছে</span>
                       </div>
-                      <span className="text-sm font-bold text-yellow-600 dark:text-yellow-400">{itemRatings[item.id].avg}</span>
-                      <span className="text-xs text-muted-foreground">({itemRatings[item.id].count} জন)</span>
-                      <span className="text-[10px] text-primary ml-auto opacity-0 group-hover/rate:opacity-100 transition-opacity">আপনার রেটিং দিন →</span>
-                    </>
-                  ) : (
-                    <>
-                      <div className="flex items-center gap-0.5">
-                        {[1,2,3,4,5].map(s => (
-                          <Star key={s} className="w-4 h-4 fill-muted text-muted-foreground/20" />
-                        ))}
-                      </div>
-                      <span className="text-xs text-muted-foreground/60">রেটিং দিন</span>
-                      <span className="text-[10px] text-primary ml-auto">ট্যাপ করুন →</span>
-                    </>
-                  )}
-                </button>
+                    );
+                  }
+
+                  // Read-only — show rating for others to see, no tap
+                  return (
+                    <div className="mt-2.5 flex items-center gap-2 py-1 px-2">
+                      {starsDisplay}
+                      {rating ? (
+                        <>
+                          <span className="text-sm font-bold text-yellow-600 dark:text-yellow-400">{rating.avg}</span>
+                          <span className="text-xs text-muted-foreground">({rating.count} জন রেটিং দিয়েছেন)</span>
+                        </>
+                      ) : (
+                        <span className="text-xs text-muted-foreground/50">এখনো রেটিং নেই</span>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 <div className="mt-3 flex items-center justify-end">
                   {isOutOfStock ? (
