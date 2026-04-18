@@ -167,7 +167,31 @@ const CustomerMenu = () => {
     return () => { supabase.removeChannel(channel); };
   }, [restaurantId, isDemo, buildRatings]);
 
-  // ── Per-item rating ────────────────────────────────────────────────────────
+  // ── Quick inline rating (tap stars on card) ───────────────────────────��───
+  const [quickRatingItem, setQuickRatingItem] = useState<MenuItem | null>(null);
+  const [quickRatingValue, setQuickRatingValue] = useState(0);
+  const [quickRatingSubmitting, setQuickRatingSubmitting] = useState(false);
+
+  const submitQuickRating = async (star: number) => {
+    if (!quickRatingItem || !restaurantId || star < 1) return;
+    setQuickRatingSubmitting(true);
+    const { error } = await supabase.from("reviews").insert({
+      menu_item_id: quickRatingItem.id,
+      restaurant_id: restaurantId,
+      rating: star,
+      comment: null,
+    } as any);
+    setQuickRatingSubmitting(false);
+    if (!error) {
+      toast("🙏 ধন্যবাদ! রেটিং দেওয়ার জন্য।", { duration: 3000 });
+      setQuickRatingItem(null);
+      setQuickRatingValue(0);
+    } else {
+      toast.error("রেটিং দেওয়া যায়নি, আবার চেষ্টা করুন।");
+    }
+  };
+
+  // ── Per-item rating (post-order modal) ────────────────────────────────────
   const [ratingOrderId, setRatingOrderId] = useState<string | null>(null);
   const [ratingItems, setRatingItems] = useState<OrderItem[]>([]);
   const [perItemRatings, setPerItemRatings] = useState<Record<string, number>>({});
@@ -795,8 +819,11 @@ const CustomerMenu = () => {
                 <h3 className="font-display font-bold text-foreground text-lg leading-snug">{item.name}</h3>
                 <p className="text-sm text-muted-foreground mt-1.5 line-clamp-2 leading-relaxed">{item.description}</p>
 
-                {/* ── Customer ratings row ── */}
-                <div className="mt-2.5 flex items-center gap-2">
+                {/* ── Customer ratings row (tap to rate) ── */}
+                <button
+                  onClick={e => { e.stopPropagation(); setQuickRatingItem(item); setQuickRatingValue(0); }}
+                  className="mt-2.5 w-full flex items-center gap-2 py-1.5 px-2 rounded-xl hover:bg-yellow-50 dark:hover:bg-yellow-400/10 active:scale-95 transition-all group/rate"
+                >
                   {itemRatings[item.id] ? (
                     <>
                       <div className="flex items-center gap-0.5">
@@ -805,17 +832,21 @@ const CustomerMenu = () => {
                         ))}
                       </div>
                       <span className="text-sm font-bold text-yellow-600 dark:text-yellow-400">{itemRatings[item.id].avg}</span>
-                      <span className="text-xs text-muted-foreground">({itemRatings[item.id].count} জন রেটিং দিয়েছেন)</span>
+                      <span className="text-xs text-muted-foreground">({itemRatings[item.id].count} জন)</span>
+                      <span className="text-[10px] text-primary ml-auto opacity-0 group-hover/rate:opacity-100 transition-opacity">আপনার রেটিং দিন →</span>
                     </>
                   ) : (
-                    <div className="flex items-center gap-1.5">
-                      {[1,2,3,4,5].map(s => (
-                        <Star key={s} className="w-3.5 h-3.5 fill-muted text-muted-foreground/20" />
-                      ))}
-                      <span className="text-xs text-muted-foreground/50">এখনো রেটিং নেই</span>
-                    </div>
+                    <>
+                      <div className="flex items-center gap-0.5">
+                        {[1,2,3,4,5].map(s => (
+                          <Star key={s} className="w-4 h-4 fill-muted text-muted-foreground/20" />
+                        ))}
+                      </div>
+                      <span className="text-xs text-muted-foreground/60">রেটিং দিন</span>
+                      <span className="text-[10px] text-primary ml-auto">ট্যাপ করুন →</span>
+                    </>
                   )}
-                </div>
+                </button>
 
                 <div className="mt-3 flex items-center justify-end">
                   {isOutOfStock ? (
@@ -1265,6 +1296,52 @@ const CustomerMenu = () => {
                 {feedbackSubmitting ? "পাঠানো হচ্ছে..." : "পাঠান"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick rating modal — tap stars on any food card */}
+      {quickRatingItem && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-foreground/40 backdrop-blur-sm animate-fade-in" onClick={() => { setQuickRatingItem(null); setQuickRatingValue(0); }}>
+          <div className="w-full max-w-md bg-card rounded-t-3xl p-6 pb-10 animate-fade-up shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="w-10 h-1 rounded-full bg-muted mx-auto mb-5" />
+            <h3 className="font-display text-xl font-bold text-foreground text-center mb-1">{quickRatingItem.name}</h3>
+            <p className="text-sm text-muted-foreground text-center mb-6">এই খাবারটি কেমন লাগলো?</p>
+
+            <div className="flex items-center justify-center gap-3 mb-6">
+              {[1,2,3,4,5].map(star => (
+                <button
+                  key={star}
+                  onClick={() => setQuickRatingValue(star)}
+                  disabled={quickRatingSubmitting}
+                  className="transition-all active:scale-90 hover:scale-110"
+                >
+                  <Star className={`w-12 h-12 transition-colors ${star <= quickRatingValue ? "fill-yellow-400 text-yellow-400 drop-shadow-sm" : "text-muted-foreground/25"}`} />
+                </button>
+              ))}
+            </div>
+
+            <p className="text-center text-sm font-medium text-muted-foreground mb-5 h-5">
+              {quickRatingValue === 1 && "😞 একদম ভালো লাগেনি"}
+              {quickRatingValue === 2 && "😐 তেমন ভালো না"}
+              {quickRatingValue === 3 && "🙂 মোটামুটি ঠিকআছে"}
+              {quickRatingValue === 4 && "😊 বেশ ভালো!"}
+              {quickRatingValue === 5 && "🤩 অসাধারণ!"}
+            </p>
+
+            <button
+              onClick={() => submitQuickRating(quickRatingValue)}
+              disabled={quickRatingValue === 0 || quickRatingSubmitting}
+              className="w-full py-3.5 rounded-2xl gradient-primary text-primary-foreground font-bold text-base disabled:opacity-40 transition-opacity active:scale-95"
+            >
+              {quickRatingSubmitting ? "পাঠানো হচ্ছে..." : "রেটিং দিন ✓"}
+            </button>
+            <button
+              onClick={() => { setQuickRatingItem(null); setQuickRatingValue(0); }}
+              className="w-full mt-3 py-2.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              বাতিল
+            </button>
           </div>
         </div>
       )}
