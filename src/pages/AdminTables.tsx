@@ -211,9 +211,7 @@ const AdminTables = () => {
   };
 
   // Draw QR code onto canvas with label
-  const drawQR = useCallback(async (url: string, label: string, sublabel: string) => {
-    const canvas = qrCanvasRef.current;
-    if (!canvas) return;
+  const drawQR = useCallback(async (canvas: HTMLCanvasElement, url: string, label: string, sublabel: string) => {
     const qrSize = 240;
     const pad = 20;
     const bottomH = sublabel ? 72 : 52;
@@ -253,8 +251,10 @@ const AdminTables = () => {
     }
   }, []);
 
-  useEffect(() => {
-    if (showQR) drawQR(showQR, qrLabel, qrSublabel);
+  // Callback ref: fires when canvas mounts (after Dialog animation), avoids null-ref timing issue
+  const qrCanvasCallback = useCallback((canvas: HTMLCanvasElement | null) => {
+    qrCanvasRef.current = canvas;
+    if (canvas && showQR) drawQR(canvas, showQR, qrLabel, qrSublabel);
   }, [showQR, qrLabel, qrSublabel, drawQR]);
 
   const handleQRDownload = () => {
@@ -395,7 +395,7 @@ const AdminTables = () => {
               {/* QR Canvas */}
               <div className="flex justify-center">
                 <canvas
-                  ref={qrCanvasRef}
+                  ref={qrCanvasCallback}
                   className="rounded-2xl border border-border shadow-md"
                   style={{ maxWidth: "100%", height: "auto" }}
                 />

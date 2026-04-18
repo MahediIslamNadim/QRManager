@@ -137,6 +137,8 @@ const CustomerMenu = () => {
     supabase
       .from("reviews")
       .select("menu_item_id, rating")
+      .eq("restaurant_id", restaurantId)
+      .not("menu_item_id", "is", null)
       .then(({ data }) => {
         if (!data) return;
         setRawReviews(data);
@@ -151,8 +153,10 @@ const CustomerMenu = () => {
       .channel(`reviews-realtime-${restaurantId}`)
       .on("postgres_changes", {
         event: "INSERT", schema: "public", table: "reviews",
+        filter: `restaurant_id=eq.${restaurantId}`,
       }, (payload) => {
         const newReview = payload.new as { menu_item_id: string; rating: number };
+        if (!newReview.menu_item_id) return;
         setRawReviews(prev => {
           const updated = [...prev, newReview];
           buildRatings(updated);
@@ -793,12 +797,13 @@ const CustomerMenu = () => {
                 <div className="mt-4 flex items-center justify-between">
                   <div className="flex items-center gap-1">
                     {itemRatings[item.id] ? (
-                      <>
+                      <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-50 dark:bg-yellow-400/10 border border-yellow-200 dark:border-yellow-400/20">
                         {[1,2,3,4,5].map(s => (
-                          <Star key={s} className={`w-3 h-3 ${s <= Math.round(itemRatings[item.id].avg) ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground/25"}`} />
+                          <Star key={s} className={`w-3.5 h-3.5 ${s <= Math.round(itemRatings[item.id].avg) ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground/20"}`} />
                         ))}
-                        <span className="text-[11px] text-muted-foreground ml-0.5">{itemRatings[item.id].avg} ({itemRatings[item.id].count})</span>
-                      </>
+                        <span className="text-xs font-semibold text-yellow-700 dark:text-yellow-400 ml-0.5">{itemRatings[item.id].avg}</span>
+                        <span className="text-[10px] text-muted-foreground">({itemRatings[item.id].count})</span>
+                      </div>
                     ) : (
                       <>
                         <Flame className="w-3.5 h-3.5 text-muted-foreground/60" />
@@ -1328,7 +1333,7 @@ const CustomerMenu = () => {
                   if (!ratingOrderId) return;
                   const ratingsToSubmit = Object.entries(perItemRatings)
                     .filter(([, r]) => r >= 1 && r <= 5)
-                    .map(([menu_item_id, rating]) => ({ menu_item_id, rating, comment: ratingComment ? sanitize(ratingComment, 300) : null }));
+                    .map(([menu_item_id, rating]) => ({ menu_item_id, restaurant_id: restaurantId, rating, comment: ratingComment ? sanitize(ratingComment, 300) : null }));
                   if (ratingsToSubmit.length === 0) return;
                   setRatingSubmitting(true);
                   const { error } = await supabase.from("reviews").insert(ratingsToSubmit as any);

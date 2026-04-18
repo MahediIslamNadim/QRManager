@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Plus, Trash2, QrCode, Armchair, Copy } from "lucide-react";
+import { Plus, Trash2, QrCode, Armchair, Copy, Download, Printer, Share2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import QRCodeLib from "qrcode";
 
 interface SeatManagementProps {
   table: any;
@@ -15,7 +16,68 @@ interface SeatManagementProps {
 
 const SeatManagement = ({ table, restaurantId, open, onClose }: SeatManagementProps) => {
   const queryClient = useQueryClient();
-  const [showSeatQR, setShowSeatQR] = useState<{ url: string; label: string } | null>(null);
+  const [showSeatQR, setShowSeatQR] = useState<{ url: string; label: string; sublabel?: string } | null>(null);
+  const qrCanvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  const drawQR = useCallback(async (canvas: HTMLCanvasElement, url: string, label: string, sublabel?: string) => {
+    const qrSize = 240; const pad = 20;
+    const bottomH = sublabel ? 72 : 52;
+    canvas.width = qrSize + pad * 2;
+    canvas.height = qrSize + pad * 2 + bottomH;
+    const ctx = canvas.getContext("2d")!;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const tmp = document.createElement("canvas");
+    await QRCodeLib.toCanvas(tmp, url, { width: qrSize, margin: 1, color: { dark: "#000000", light: "#ffffff" } });
+    ctx.drawImage(tmp, pad, pad);
+    ctx.strokeStyle = "#e5e7eb"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(pad, qrSize + pad + 10); ctx.lineTo(canvas.width - pad, qrSize + pad + 10); ctx.stroke();
+    ctx.textAlign = "center"; ctx.fillStyle = "#111827";
+    if (sublabel) {
+      ctx.font = "bold 15px system-ui, -apple-system, sans-serif";
+      ctx.fillText(label, canvas.width / 2, qrSize + pad + 30);
+      ctx.font = "13px system-ui, -apple-system, sans-serif";
+      ctx.fillStyle = "#6b7280";
+      ctx.fillText(sublabel, canvas.width / 2, qrSize + pad + 50);
+    } else {
+      ctx.font = "bold 17px system-ui, -apple-system, sans-serif";
+      ctx.fillText(label, canvas.width / 2, qrSize + pad + 34);
+    }
+  }, []);
+
+  const qrCanvasCallback = useCallback((canvas: HTMLCanvasElement | null) => {
+    qrCanvasRef.current = canvas;
+    if (canvas && showSeatQR) drawQR(canvas, showSeatQR.url, showSeatQR.label, showSeatQR.sublabel);
+  }, [showSeatQR, drawQR]);
+
+  const handleQRDownload = () => {
+    const canvas = qrCanvasRef.current; if (!canvas) return;
+    const a = document.createElement("a");
+    a.download = `qr-${showSeatQR?.label?.replace(/\s+/g, "-") || "seat"}.png`;
+    a.href = canvas.toDataURL("image/png"); a.click();
+    toast.success("QR কোড ডাউনলোড হয়েছে!");
+  };
+
+  const handleQRPrint = () => {
+    const canvas = qrCanvasRef.current; if (!canvas) return;
+    const img = canvas.toDataURL("image/png");
+    const w = window.open("", "_blank")!;
+    w.document.write(`<html><body style="margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#fff"><div style="text-align:center"><img src="${img}" style="max-width:320px"/></div></body></html>`);
+    w.document.close(); w.focus();
+    setTimeout(() => { w.print(); w.close(); }, 300);
+  };
+
+  const handleQRShare = async () => {
+    const canvas = qrCanvasRef.current; if (!canvas) return;
+    if (navigator.share) {
+      canvas.toBlob(async (blob) => {
+        if (!blob) return;
+        try {
+          await navigator.share({ title: `QR — ${showSeatQR?.label}`, files: [new File([blob], `qr.png`, { type: "image/png" })] });
+        } catch { navigator.clipboard.writeText(showSeatQR!.url); toast.success("লিংক কপি হয়েছে!"); }
+      }, "image/png");
+    } else { navigator.clipboard.writeText(showSeatQR!.url); toast.success("লিংক কপি হয়েছে!"); }
+  };
 
   const { data: seats = [] } = useQuery({
     queryKey: ["table-seats", table?.id],
@@ -121,12 +183,9 @@ const SeatManagement = ({ table, restaurantId, open, onClose }: SeatManagementPr
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => {
-                    navigator.clipboard.writeText(tableMenuUrl());
-                    toast.success("টেবিল QR লিংক কপি হয়েছে!");
-                  }}
+                  onClick={() => setShowSeatQR({ url: tableMenuUrl(), label: `টেবিল ${table.name}` })}
                 >
-                  <Copy className="w-3.5 h-3.5" /> কপি
+                  <QrCode className="w-3.5 h-3.5" /> QR
                 </Button>
               </div>
             </div>
@@ -182,7 +241,7 @@ const SeatManagement = ({ table, restaurantId, open, onClose }: SeatManagementPr
                       <div className="flex gap-1">
                         <button
                           onClick={() => {
-                            setShowSeatQR({ url: seatMenuUrl(seat.id), label: `সিট ${seat.seat_number}` });
+                            setShowSeatQR({ url: seatMenuUrl(seat.id), label: `টেবিল ${table.name}`, sublabel: `সিট ${seat.seat_number}` });
                           }}
                           className="flex-1 h-7 rounded-lg bg-card border border-border text-xs flex items-center justify-center gap-1 hover:bg-accent transition-colors"
                         >
@@ -222,31 +281,53 @@ const SeatManagement = ({ table, restaurantId, open, onClose }: SeatManagementPr
         </DialogContent>
       </Dialog>
 
-      {/* Seat QR Dialog */}
+      {/* Seat/Table QR Dialog — canvas-based */}
       <Dialog open={!!showSeatQR} onOpenChange={() => setShowSeatQR(null)}>
-        <DialogContent>
+        <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle className="font-display">
-              {showSeatQR?.label} — QR কোড লিংক
+            <DialogTitle className="font-display flex items-center gap-2">
+              <QrCode className="w-5 h-5 text-primary" />
+              {showSeatQR?.label}{showSeatQR?.sublabel ? ` — ${showSeatQR.sublabel}` : ""}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              এই লিংকটি QR কোড হিসেবে প্রিন্ট করুন। স্ক্যান করলে সিট অটো-সিলেক্ট হবে।
-            </p>
-            <code className="block p-3 bg-secondary rounded-lg text-xs break-all">
-              {showSeatQR?.url}
-            </code>
-            <Button
-              variant="hero"
-              className="w-full"
-              onClick={() => {
-                navigator.clipboard.writeText(showSeatQR!.url);
-                toast.success("কপি করা হয়েছে!");
-              }}
-            >
-              লিংক কপি করুন
-            </Button>
+            <div className={`px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${
+              showSeatQR?.sublabel
+                ? "bg-info/10 border border-info/30 text-info"
+                : "bg-success/10 border border-success/30 text-success"
+            }`}>
+              {showSeatQR?.sublabel ? "🪑 সিট QR — সরাসরি মেনুতে যাবে" : "👥 টেবিল QR — Seat Select করতে হবে"}
+            </div>
+
+            <div className="flex justify-center">
+              <canvas
+                ref={qrCanvasCallback}
+                className="rounded-2xl border border-border shadow-md"
+                style={{ maxWidth: "100%", height: "auto" }}
+              />
+            </div>
+
+            <details className="group">
+              <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground transition-colors select-none">
+                🔗 লিংক দেখুন
+              </summary>
+              <code className="block mt-2 p-2.5 bg-secondary rounded-lg text-[11px] break-all text-foreground">{showSeatQR?.url}</code>
+            </details>
+
+            <div className="grid grid-cols-2 gap-2">
+              <Button variant="hero" className="h-11" onClick={handleQRDownload}>
+                <Download className="w-4 h-4 mr-1.5" /> ডাউনলোড
+              </Button>
+              <Button variant="outline" className="h-11" onClick={handleQRPrint}>
+                <Printer className="w-4 h-4 mr-1.5" /> প্রিন্ট
+              </Button>
+              <Button variant="outline" className="h-11" onClick={handleQRShare}>
+                <Share2 className="w-4 h-4 mr-1.5" /> শেয়ার
+              </Button>
+              <Button variant="outline" className="h-11" onClick={() => { navigator.clipboard.writeText(showSeatQR!.url); toast.success("লিংক কপি হয়েছে!"); }}>
+                <Copy className="w-4 h-4 mr-1.5" /> কপি লিংক
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
