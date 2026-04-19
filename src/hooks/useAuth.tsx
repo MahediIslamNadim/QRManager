@@ -128,21 +128,37 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               { onConflict: "user_id,role" }
             );
           } else {
-            // Check restaurant ownership (owner = admin)
-            const { data: ownedRest } = await client
-              .from("restaurants")
+            // Check dedicated_managers (manager login)
+            const { data: mgrRow } = await (client.from("dedicated_managers") as any)
               .select("id")
-              .eq("owner_id", userId)
+              .eq("user_id", userId)
               .limit(1)
               .maybeSingle();
 
-            if (ownedRest?.id) {
-              bestRole = "admin";
-              authDebug("useAuth", "Role resolved from restaurant ownership fallback", { userId });
+            if (mgrRow?.id) {
+              bestRole = "dedicated_manager";
+              authDebug("useAuth", "Role resolved from dedicated_managers fallback", { userId });
               await (client.from("user_roles") as any).upsert(
-                { user_id: userId, role: "admin", restaurant_id: ownedRest.id },
+                { user_id: userId, role: "dedicated_manager" },
                 { onConflict: "user_id,role" }
               );
+            } else {
+              // Check restaurant ownership (owner = admin)
+              const { data: ownedRest } = await client
+                .from("restaurants")
+                .select("id")
+                .eq("owner_id", userId)
+                .limit(1)
+                .maybeSingle();
+
+              if (ownedRest?.id) {
+                bestRole = "admin";
+                authDebug("useAuth", "Role resolved from restaurant ownership fallback", { userId });
+                await (client.from("user_roles") as any).upsert(
+                  { user_id: userId, role: "admin", restaurant_id: ownedRest.id },
+                  { onConflict: "user_id,role" }
+                );
+              }
             }
           }
         }

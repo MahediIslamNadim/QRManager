@@ -134,8 +134,27 @@ const Login = () => {
       }
     }
 
-    // Fallback 2: check restaurants ownership (owner = admin)
-    authDebug("Login", "staff_restaurants fallback empty — checking restaurants owner", { userId });
+    // Fallback 2: check dedicated_managers (manager login)
+    authDebug("Login", "staff_restaurants fallback empty — checking dedicated_managers", { userId });
+    const { data: mgrRow } = await authedClient
+      .from("dedicated_managers" as any)
+      .select("id")
+      .eq("user_id", userId)
+      .limit(1)
+      .maybeSingle();
+
+    if ((mgrRow as any)?.id) {
+      authDebug("Login", "User is a dedicated manager — assigning dedicated_manager role", { userId });
+      await (authedClient.from("user_roles") as any).upsert(
+        { user_id: userId, role: "dedicated_manager" },
+        { onConflict: "user_id,role" }
+      );
+      await refetchUserData(userId, accessToken);
+      return "dedicated_manager";
+    }
+
+    // Fallback 3: check restaurants ownership (owner = admin)
+    authDebug("Login", "dedicated_managers fallback empty — checking restaurants owner", { userId });
     const { data: ownedRestaurant } = await authedClient
       .from("restaurants")
       .select("id")
@@ -217,6 +236,7 @@ const Login = () => {
     });
     if (!email.trim() || !password.trim()) { toast.error("সব ফিল্ড পূরণ করুন"); return; }
     if (mode === "signup" && !restaurantName.trim()) { toast.error("রেস্টুরেন্টের নাম দিন"); return; }
+    if (mode === "signup" && password.length < 6) { toast.error("পাসওয়ার্ড কমপক্ষে ৬ অক্ষর হতে হবে"); return; }
     setSubmitting(true);
     try {
       if (mode === "signup") {
@@ -376,7 +396,7 @@ const Login = () => {
   };
 
   const gold = "linear-gradient(135deg, #f5d780, #c9a84c, #e8c04a)";
-  const goldText: React.CSSProperties = { background: gold, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" };
+  const goldText: React.CSSProperties = { background: gold, WebkitBackgroundClip: "text", backgroundClip: "text", WebkitTextFillColor: "transparent" };
 
   const inputStyle: React.CSSProperties = {
     width: "100%", height: 48,
@@ -431,10 +451,10 @@ const Login = () => {
         background: "linear-gradient(145deg, hsl(0 0% 5%) 0%, hsl(0 0% 6%) 60%, hsl(0 0% 4%) 100%)",
         borderRight: "1px solid hsl(0 0% 14%)",
       }} className="hidden lg:flex">
-        <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, pointerEvents: "none" }}>
           <div style={{ position: "absolute", top: "-5%", right: "-10%", width: 500, height: 500, borderRadius: "50%", background: "radial-gradient(circle, rgba(201,168,76,0.07) 0%, transparent 65%)" }} />
           <div style={{ position: "absolute", bottom: "-10%", left: "-5%", width: 400, height: 400, borderRadius: "50%", background: "radial-gradient(circle, rgba(201,168,76,0.04) 0%, transparent 65%)" }} />
-          <div style={{ position: "absolute", inset: 0, backgroundImage: "linear-gradient(rgba(201,168,76,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(201,168,76,0.04) 1px, transparent 1px)", backgroundSize: "60px 60px" }} />
+          <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundImage: "linear-gradient(rgba(201,168,76,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(201,168,76,0.04) 1px, transparent 1px)", backgroundSize: "60px 60px" }} />
         </div>
         <div style={{ position: "relative", zIndex: 1 }}><Logo /></div>
         <div style={{ position: "relative", zIndex: 1 }}>
@@ -513,7 +533,7 @@ const Login = () => {
                 <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
                   <div>
                     <label style={labelStyle}>ইমেইল</label>
-                    <input type="email" placeholder="your@email.com" value={email} onChange={e => setEmail(e.target.value)} style={inputStyle} required
+                    <input type="email" placeholder="your@email.com" value={email} onChange={e => setEmail(e.target.value)} style={inputStyle} required autoComplete="email"
                       onFocus={e => { e.target.style.borderColor = "hsl(38 92% 50% / 0.6)"; e.target.style.backgroundColor = "hsl(0 0% 9%)"; }}
                       onBlur={e => { e.target.style.borderColor = "hsl(0 0% 14%)"; e.target.style.backgroundColor = "hsl(0 0% 7%)"; }} />
                   </div>
@@ -539,13 +559,13 @@ const Login = () => {
                 </p>
                 {/* Tab switcher */}
                 <div style={{ display: "flex", background: "hsl(0 0% 7%)", borderRadius: 12, padding: 4, border: "1px solid hsl(0 0% 14%)" }}>
-                  <button type="button" onClick={() => { setMode("login"); setPassword(""); }}
+                  <button type="button" onClick={() => { setMode("login"); setPassword(""); setFullName(""); setRestaurantName(""); setRestaurantAddress(""); setRestaurantPhone(""); }}
                     style={{ flex: 1, height: 38, borderRadius: 9, border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600, transition: "all 0.2s",
                       background: mode === "login" ? "linear-gradient(135deg, #f5d780, #c9a84c, #e8c04a)" : "transparent",
                       color: mode === "login" ? "#0a0a0a" : "rgba(255,255,255,0.45)",
                       boxShadow: mode === "login" ? "0 2px 12px rgba(201,168,76,0.35)" : "none",
                     }}>লগইন</button>
-                  <button type="button" onClick={() => { setMode("signup"); setPassword(""); }}
+                  <button type="button" onClick={() => { setMode("signup"); setPassword(""); setFullName(""); setRestaurantName(""); setRestaurantAddress(""); setRestaurantPhone(""); }}
                     style={{ flex: 1, height: 38, borderRadius: 9, border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600, transition: "all 0.2s",
                       background: mode === "signup" ? "linear-gradient(135deg, #f5d780, #c9a84c, #e8c04a)" : "transparent",
                       color: mode === "signup" ? "#0a0a0a" : "rgba(255,255,255,0.45)",
@@ -560,26 +580,26 @@ const Login = () => {
                     <>
                       <div>
                         <label style={labelStyle}>আপনার নাম</label>
-                        <input type="text" placeholder="আপনার পুরো নাম" value={fullName} onChange={e => setFullName(e.target.value)} style={inputStyle}
+                        <input type="text" placeholder="আপনার পুরো নাম" value={fullName} onChange={e => setFullName(e.target.value)} style={inputStyle} autoComplete="name"
                           onFocus={e => { e.target.style.borderColor = "hsl(38 92% 50% / 0.6)"; e.target.style.backgroundColor = "hsl(0 0% 9%)"; }}
                           onBlur={e => { e.target.style.borderColor = "hsl(0 0% 14%)"; e.target.style.backgroundColor = "hsl(0 0% 7%)"; }} />
                       </div>
                       <div>
                         <label style={labelStyle}>রেস্টুরেন্টের নাম <span style={{ color: "#f87171" }}>*</span></label>
-                        <input type="text" placeholder="আপনার রেস্টুরেন্টের নাম" value={restaurantName} onChange={e => setRestaurantName(e.target.value)} style={inputStyle} required
+                        <input type="text" placeholder="আপনার রেস্টুরেন্টের নাম" value={restaurantName} onChange={e => setRestaurantName(e.target.value)} style={inputStyle} required autoComplete="organization"
                           onFocus={e => { e.target.style.borderColor = "hsl(38 92% 50% / 0.6)"; e.target.style.backgroundColor = "hsl(0 0% 9%)"; }}
                           onBlur={e => { e.target.style.borderColor = "hsl(0 0% 14%)"; e.target.style.backgroundColor = "hsl(0 0% 7%)"; }} />
                       </div>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
                         <div>
                           <label style={labelStyle}>ঠিকানা</label>
-                          <input type="text" placeholder="ঠিকানা" value={restaurantAddress} onChange={e => setRestaurantAddress(e.target.value)} style={inputStyle}
+                          <input type="text" placeholder="ঠিকানা" value={restaurantAddress} onChange={e => setRestaurantAddress(e.target.value)} style={inputStyle} autoComplete="off"
                             onFocus={e => { e.target.style.borderColor = "hsl(38 92% 50% / 0.6)"; e.target.style.backgroundColor = "hsl(0 0% 9%)"; }}
                             onBlur={e => { e.target.style.borderColor = "hsl(0 0% 14%)"; e.target.style.backgroundColor = "hsl(0 0% 7%)"; }} />
                         </div>
                         <div>
                           <label style={labelStyle}>ফোন</label>
-                          <input type="text" placeholder="+880..." value={restaurantPhone} onChange={e => setRestaurantPhone(e.target.value)} style={inputStyle}
+                          <input type="text" placeholder="+880..." value={restaurantPhone} onChange={e => setRestaurantPhone(e.target.value)} style={inputStyle} autoComplete="off"
                             onFocus={e => { e.target.style.borderColor = "hsl(38 92% 50% / 0.6)"; e.target.style.backgroundColor = "hsl(0 0% 9%)"; }}
                             onBlur={e => { e.target.style.borderColor = "hsl(0 0% 14%)"; e.target.style.backgroundColor = "hsl(0 0% 7%)"; }} />
                         </div>
@@ -651,7 +671,7 @@ const Login = () => {
                       )}
                     </div>
                     <div style={{ position: "relative" }}>
-                      <input type={showPassword ? "text" : "password"} placeholder={mode === "signup" ? "যেমন: Admin@123" : "••••••••"} value={password} onChange={e => setPassword(e.target.value)} style={{ ...inputStyle, paddingRight: 48 }} required minLength={6}
+                      <input type={showPassword ? "text" : "password"} placeholder={mode === "signup" ? "যেমন: Admin@123" : "••••••••"} value={password} onChange={e => setPassword(e.target.value)} style={{ ...inputStyle, paddingRight: 48 }} required minLength={6} autoComplete={mode === "signup" ? "new-password" : "current-password"}
                         onFocus={e => { e.target.style.borderColor = "hsl(38 92% 50% / 0.6)"; e.target.style.backgroundColor = "hsl(0 0% 9%)"; }}
                         onBlur={e => { e.target.style.borderColor = "hsl(0 0% 14%)"; e.target.style.backgroundColor = "hsl(0 0% 7%)"; }} />
                       <button type="button" onClick={() => setShowPassword(!showPassword)}
