@@ -280,9 +280,12 @@ export default function AdminManager() {
     setAccountOpen(true);
   };
 
-  const invokeManager = async (body: object) => {
-    const { data, error } = await supabase.functions.invoke("create-manager", { body });
-    if (error) throw new Error(`Edge function error: ${error.message}`);
+  const callStaffFn = async (body: object) => {
+    const { data, error } = await supabase.functions.invoke("create-staff", { body });
+    if (error) {
+      const msg = (error as any)?.context?.error || error.message;
+      throw new Error(msg);
+    }
     if (data?.error) throw new Error(data.error);
     return data;
   };
@@ -291,8 +294,8 @@ export default function AdminManager() {
     if (!manager || !accountEmail.trim()) { toast.error("ইমেইল লিখুন"); return; }
     setAccountSaving(true);
     try {
-      await invokeManager({
-        action: "create",
+      await callStaffFn({
+        role: "dedicated_manager",
         manager_id: manager.id,
         email: accountEmail.trim(),
         password: accountPassword || undefined,
@@ -310,7 +313,7 @@ export default function AdminManager() {
     if (!manager) return;
     if (!confirm(`${manager.name} এর লগইন অ্যাক্সেস সরিয়ে দেবেন?`)) return;
     try {
-      await invokeManager({ action: "remove", manager_id: manager.id });
+      await callStaffFn({ action: "remove", manager_id: manager.id });
       toast.success("লগইন অ্যাক্সেস সরানো হয়েছে");
       load();
     } catch (err: any) { toast.error(err.message); }

@@ -174,22 +174,27 @@ export default function SuperAdminManagers() {
     setAccountPassword("");
   };
 
+  const callStaffFn = async (body: object) => {
+    const { data, error } = await supabase.functions.invoke("create-staff", { body });
+    if (error) {
+      const msg = (error as any)?.context?.error || error.message;
+      throw new Error(msg);
+    }
+    if (data?.error) throw new Error(data.error);
+    return data;
+  };
+
   const createManagerAccount = async () => {
     if (!accountDialogMgr || !accountEmail.trim()) { toast.error("ইমেইল লিখুন"); return; }
     setAccountSaving(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await supabase.functions.invoke("create-manager", {
-        body: {
-          action: "create",
-          manager_id: accountDialogMgr.id,
-          email: accountEmail.trim(),
-          password: accountPassword || undefined,
-          full_name: accountDialogMgr.name,
-        },
-        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : undefined,
+      await callStaffFn({
+        role: "dedicated_manager",
+        manager_id: accountDialogMgr.id,
+        email: accountEmail.trim(),
+        password: accountPassword || undefined,
+        full_name: accountDialogMgr.name,
       });
-      if (res.error || res.data?.error) throw new Error(res.data?.error || res.error?.message);
       toast.success("ম্যানেজার অ্যাকাউন্ট তৈরি হয়েছে! এখন লগইন করতে পারবেন।");
       setAccountDialogMgr(null);
       load();
@@ -201,12 +206,7 @@ export default function SuperAdminManagers() {
   const removeManagerAccount = async (mgr: Manager) => {
     if (!confirm(`${mgr.name} এর লগইন অ্যাক্সেস সরিয়ে দেবেন?`)) return;
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await supabase.functions.invoke("create-manager", {
-        body: { action: "remove", manager_id: mgr.id },
-        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : undefined,
-      });
-      if (res.error || res.data?.error) throw new Error(res.data?.error || res.error?.message);
+      await callStaffFn({ action: "remove", manager_id: mgr.id });
       toast.success("লগইন অ্যাক্সেস সরানো হয়েছে");
       load();
     } catch (err: any) { toast.error(err.message); }
