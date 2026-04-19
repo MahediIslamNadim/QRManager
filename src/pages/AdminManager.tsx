@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import {
   UserCircle2, Phone, Mail, MessageSquare, Send,
   Clock, CheckCheck, Check, RefreshCw, Star, Headphones,
-  Lock, Zap, ChevronRight, Plus, Edit2, Trash2,
+  Lock, Zap, ChevronRight, Plus, Edit2, Trash2, KeyRound, UserX, LogIn,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -26,6 +26,7 @@ interface Manager {
   photo_url: string | null;
   bio: string | null;
   specialty: string | null;
+  user_id: string | null;
 }
 
 interface Message {
@@ -136,6 +137,12 @@ export default function AdminManager() {
   const [form,      setForm]      = useState(EMPTY_FORM);
   const [saving,    setSaving]    = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+
+  // account creation dialog
+  const [accountOpen,     setAccountOpen]     = useState(false);
+  const [accountEmail,    setAccountEmail]    = useState("");
+  const [accountPassword, setAccountPassword] = useState("");
+  const [accountSaving,   setAccountSaving]   = useState(false);
 
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -267,6 +274,51 @@ export default function AdminManager() {
     }
   };
 
+  const openAccountDialog = () => {
+    setAccountEmail(manager?.email || "");
+    setAccountPassword("");
+    setAccountOpen(true);
+  };
+
+  const createManagerAccount = async () => {
+    if (!manager || !accountEmail.trim()) { toast.error("ইমেইল লিখুন"); return; }
+    setAccountSaving(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await supabase.functions.invoke("create-manager", {
+        body: {
+          action: "create",
+          manager_id: manager.id,
+          email: accountEmail.trim(),
+          password: accountPassword || undefined,
+          full_name: manager.name,
+        },
+        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : undefined,
+      });
+      if (res.error || res.data?.error) throw new Error(res.data?.error || res.error?.message);
+      toast.success("লগইন অ্যাকাউন্ট তৈরি হয়েছে! ম্যানেজার এখন লগইন করতে পারবেন।");
+      setAccountOpen(false);
+      load();
+    } catch (err: any) {
+      toast.error(err.message || "অ্যাকাউন্ট তৈরিতে সমস্যা হয়েছে");
+    } finally { setAccountSaving(false); }
+  };
+
+  const removeManagerAccount = async () => {
+    if (!manager) return;
+    if (!confirm(`${manager.name} এর লগইন অ্যাক্সেস সরিয়ে দেবেন?`)) return;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await supabase.functions.invoke("create-manager", {
+        body: { action: "remove", manager_id: manager.id },
+        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : undefined,
+      });
+      if (res.error || res.data?.error) throw new Error(res.data?.error || res.error?.message);
+      toast.success("লগইন অ্যাক্সেস সরানো হয়েছে");
+      load();
+    } catch (err: any) { toast.error(err.message); }
+  };
+
   const removeManager = async () => {
     if (!restaurantId || !manager) return;
     if (!confirm("এই ম্যানেজার সরিয়ে দেবেন?")) return;
@@ -364,6 +416,17 @@ export default function AdminManager() {
                             className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10">
                             <Trash2 className="w-3.5 h-3.5" />
                           </Button>
+                          {manager.user_id ? (
+                            <Button size="sm" variant="ghost" onClick={removeManagerAccount}
+                              className="h-8 px-2 text-xs gap-1 text-destructive/70 hover:text-destructive hover:bg-destructive/10">
+                              <UserX className="w-3.5 h-3.5" /> লগইন সরান
+                            </Button>
+                          ) : (
+                            <Button size="sm" variant="outline" onClick={openAccountDialog}
+                              className="h-8 px-2 text-xs gap-1 text-primary border-primary/40 hover:bg-primary/10">
+                              <KeyRound className="w-3.5 h-3.5" /> লগইন তৈরি করুন
+                            </Button>
+                          )}
                         </div>
                       </div>
 
@@ -372,6 +435,11 @@ export default function AdminManager() {
                       <div className="flex items-center gap-1 mt-3 text-xs text-muted-foreground">
                         {[1,2,3,4,5].map(i => <Star key={i} className="w-3.5 h-3.5 text-warning fill-warning" />)}
                         <span className="ml-1">ডেডিকেটেড ম্যানেজার</span>
+                        {manager.user_id && (
+                          <span className="ml-2 flex items-center gap-1 text-success">
+                            <LogIn className="w-3 h-3" /> লগইন সক্রিয়
+                          </span>
+                        )}
                       </div>
 
                       <div className="flex flex-wrap gap-2 mt-4">
@@ -495,6 +563,53 @@ export default function AdminManager() {
             </Card>
           )}
         </div>
+
+        {/* Account creation dialog */}
+        <Dialog open={accountOpen} onOpenChange={setAccountOpen}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <KeyRound className="w-5 h-5 text-primary" />
+                লগইন অ্যাকাউন্ট তৈরি করুন
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 mt-2">
+              <p className="text-sm text-muted-foreground">
+                <strong>{manager?.name}</strong> এর জন্য একটি লগইন তৈরি হবে।
+                তিনি এই ইমেইল ও পাসওয়ার্ড দিয়ে সরাসরি লগইন করতে পারবেন।
+              </p>
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium text-muted-foreground">ইমেইল *</p>
+                <Input
+                  type="email"
+                  value={accountEmail}
+                  onChange={e => setAccountEmail(e.target.value)}
+                  placeholder="manager@example.com"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium text-muted-foreground">পাসওয়ার্ড (নতুন অ্যাকাউন্টের জন্য)</p>
+                <Input
+                  type="password"
+                  value={accountPassword}
+                  onChange={e => setAccountPassword(e.target.value)}
+                  placeholder="কমপক্ষে ৬ অক্ষর"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  যদি এই ইমেইলে আগেই অ্যাকাউন্ট থাকে তাহলে পাসওয়ার্ড লাগবে না।
+                </p>
+              </div>
+              <div className="flex gap-3 pt-1">
+                <Button onClick={createManagerAccount} disabled={accountSaving} className="flex-1 gap-2">
+                  {accountSaving
+                    ? <><RefreshCw className="w-4 h-4 animate-spin" />তৈরি হচ্ছে...</>
+                    : <><KeyRound className="w-4 h-4" />অ্যাকাউন্ট তৈরি করুন</>}
+                </Button>
+                <Button variant="outline" onClick={() => setAccountOpen(false)}>বাতিল</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Manager form dialog */}
         <Dialog open={formOpen} onOpenChange={setFormOpen}>

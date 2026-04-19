@@ -41,14 +41,30 @@ Deno.serve(async (req) => {
       .eq("user_id", caller.id);
 
     const isSuperAdmin = callerRoles?.some((r: any) => r.role === "super_admin");
-    if (!isSuperAdmin) {
-      return new Response(JSON.stringify({ error: "Only super admins can manage manager accounts" }), {
+    const isAdmin      = callerRoles?.some((r: any) => r.role === "admin");
+    if (!isSuperAdmin && !isAdmin) {
+      return new Response(JSON.stringify({ error: "Permission denied" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     const { action, manager_id, email, password, full_name } = await req.json();
+
+    // If caller is a regular admin, verify the manager belongs to their restaurant
+    if (!isSuperAdmin && isAdmin && manager_id) {
+      const { data: ownerRest } = await callerClient
+        .from("restaurants")
+        .select("dedicated_manager_id")
+        .eq("owner_id", caller.id)
+        .maybeSingle();
+      if (!ownerRest || ownerRest.dedicated_manager_id !== manager_id) {
+        return new Response(JSON.stringify({ error: "This manager is not assigned to your restaurant" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
 
     if (action === "remove") {
       if (!manager_id) {
