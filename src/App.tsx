@@ -44,6 +44,7 @@ import AdminFeedback from "./pages/AdminFeedback";
 import AdminSupport from "./pages/AdminSupport";
 import AdminManager from "./pages/AdminManager";
 import SuperAdminManagers from "./pages/SuperAdminManagers";
+import ManagerDashboard from "./pages/ManagerDashboard";
 import PaymentResultPage from "./pages/PaymentResultPage";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
@@ -239,6 +240,19 @@ const App = () => (
               <Route
                 path="/waiter/notifications"
                 element={<ProtectedRoute allowedRoles={["waiter", "admin", "super_admin"]}><WaiterNotifications /></ProtectedRoute>}
+              />
+
+              <Route
+                path="/manager"
+                element={<ProtectedRoute allowedRoles={["dedicated_manager", "super_admin"]}><ManagerDashboard /></ProtectedRoute>}
+              />
+              <Route
+                path="/manager/messages"
+                element={<ProtectedRoute allowedRoles={["dedicated_manager", "super_admin"]}><ManagerDashboard /></ProtectedRoute>}
+              />
+              <Route
+                path="/manager/profile"
+                element={<ProtectedRoute allowedRoles={["dedicated_manager", "super_admin"]}><ManagerDashboard /></ProtectedRoute>}
               />
 
               <Route path="/trial-expired" element={<TrialExpired />} />

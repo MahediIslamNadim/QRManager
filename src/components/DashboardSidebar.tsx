@@ -10,7 +10,7 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 
-type Role = "super_admin" | "admin" | "waiter";
+type Role = "super_admin" | "admin" | "waiter" | "dedicated_manager";
 interface SidebarProps {
   role: Role;
   mobileOpen?: boolean;
@@ -48,6 +48,13 @@ const navItems: Record<Role, { title: string; href: string; icon: any }[]> = {
     { title: "সিট রিকোয়েস্ট", href: "/waiter/seats", icon: UserCheck },
     { title: "কিচেন ডিসপ্লে", href: "/waiter/kitchen", icon: ChefHat },
     { title: "নোটিফিকেশন", href: "/waiter/notifications", icon: Bell },
+  ],
+  dedicated_manager: [
+    { title: "ড্যাশবোর্ড", href: "/manager", icon: LayoutDashboard },
+    { title: "রেস্টুরেন্টসমূহ", href: "/manager/restaurants", icon: Store },
+    { title: "মেসেজ", href: "/manager/messages", icon: MessageSquare },
+    { title: "প্রোফাইল", href: "/manager/profile", icon: UserCircle2 },
+    { title: "সেটিংস", href: "/manager/settings", icon: Settings },
   ],
 };
 

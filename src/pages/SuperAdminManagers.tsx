@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import {
   UserCircle2, Plus, Edit2, Trash2, Send, MessageSquare,
   Store, Check, RefreshCw, Users, Building2, ChevronDown, ChevronUp,
+  KeyRound, LogIn, UserX,
 } from "lucide-react";
 
 interface Manager {
@@ -25,6 +26,7 @@ interface Manager {
   specialty: string | null;
   is_active: boolean;
   created_at: string;
+  user_id: string | null;
 }
 
 interface Restaurant {
@@ -60,6 +62,12 @@ export default function SuperAdminManagers() {
   const [editId,     setEditId]     = useState<string | null>(null);
   const [form,       setForm]       = useState(EMPTY_FORM);
   const [saving,     setSaving]     = useState(false);
+
+  // Account creation dialog
+  const [accountDialogMgr, setAccountDialogMgr] = useState<Manager | null>(null);
+  const [accountEmail,     setAccountEmail]     = useState("");
+  const [accountPassword,  setAccountPassword]  = useState("");
+  const [accountSaving,    setAccountSaving]    = useState(false);
 
   // Messages tab
   const [selectedRest, setSelectedRest] = useState<string | null>(null);
@@ -160,6 +168,50 @@ export default function SuperAdminManagers() {
     finally { setReplying(false); }
   };
 
+  const openAccountDialog = (mgr: Manager) => {
+    setAccountDialogMgr(mgr);
+    setAccountEmail(mgr.email || "");
+    setAccountPassword("");
+  };
+
+  const createManagerAccount = async () => {
+    if (!accountDialogMgr || !accountEmail.trim()) { toast.error("ইমেইল লিখুন"); return; }
+    setAccountSaving(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await supabase.functions.invoke("create-manager", {
+        body: {
+          action: "create",
+          manager_id: accountDialogMgr.id,
+          email: accountEmail.trim(),
+          password: accountPassword || undefined,
+          full_name: accountDialogMgr.name,
+        },
+        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : undefined,
+      });
+      if (res.error || res.data?.error) throw new Error(res.data?.error || res.error?.message);
+      toast.success("ম্যানেজার অ্যাকাউন্ট তৈরি হয়েছে! এখন লগইন করতে পারবেন।");
+      setAccountDialogMgr(null);
+      load();
+    } catch (err: any) {
+      toast.error(err.message || "অ্যাকাউন্ট তৈরি করতে সমস্যা হয়েছে");
+    } finally { setAccountSaving(false); }
+  };
+
+  const removeManagerAccount = async (mgr: Manager) => {
+    if (!confirm(`${mgr.name} এর লগইন অ্যাক্সেস সরিয়ে দেবেন?`)) return;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await supabase.functions.invoke("create-manager", {
+        body: { action: "remove", manager_id: mgr.id },
+        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : undefined,
+      });
+      if (res.error || res.data?.error) throw new Error(res.data?.error || res.error?.message);
+      toast.success("লগইন অ্যাক্সেস সরানো হয়েছে");
+      load();
+    } catch (err: any) { toast.error(err.message); }
+  };
+
   const highSmartRests = restaurants.filter(r => r.tier === "high_smart");
   const restWithMsgs   = [...new Set(messages.map(m => m.restaurant_id))];
   const unreadCount    = messages.filter(m => m.sender_type === "restaurant" && !m.is_read).length;
@@ -257,18 +309,34 @@ export default function SuperAdminManagers() {
                         <p className="text-xs text-muted-foreground">
                           অ্যাসাইন: {restaurants.filter(r => r.dedicated_manager_id === mgr.id).length} রেস্টুরেন্ট
                         </p>
-                        <div className="flex gap-2 mt-3">
+                        <div className="flex flex-wrap gap-2 mt-3">
                           <Button size="sm" variant="outline" onClick={() => openEdit(mgr)} className="h-7 text-xs gap-1">
                             <Edit2 className="w-3 h-3" /> সম্পাদনা
                           </Button>
                           <Button size="sm" variant="outline" onClick={() => toggleActive(mgr.id, mgr.is_active)}
                             className={`h-7 text-xs gap-1 ${mgr.is_active ? "text-warning border-warning/40" : "text-success border-success/40"}`}>
-                            {mgr.is_active ? "নিষ্ক্রিয় করুন" : "সক্রিয় করুন"}
+                            {mgr.is_active ? "নিষ্ক্রিয়" : "সক্রিয়"}
                           </Button>
+                          {mgr.user_id ? (
+                            <Button size="sm" variant="ghost" onClick={() => removeManagerAccount(mgr)}
+                              className="h-7 text-xs gap-1 text-destructive hover:text-destructive hover:bg-destructive/10">
+                              <UserX className="w-3 h-3" /> লগইন সরান
+                            </Button>
+                          ) : (
+                            <Button size="sm" variant="outline" onClick={() => openAccountDialog(mgr)}
+                              className="h-7 text-xs gap-1 text-primary border-primary/40 hover:bg-primary/10">
+                              <KeyRound className="w-3 h-3" /> লগইন তৈরি করুন
+                            </Button>
+                          )}
                           <Button size="sm" variant="ghost" onClick={() => deleteManager(mgr.id)} className="h-7 text-destructive hover:text-destructive hover:bg-destructive/10">
                             <Trash2 className="w-3.5 h-3.5" />
                           </Button>
                         </div>
+                        {mgr.user_id && (
+                          <p className="text-[10px] text-success flex items-center gap-1 mt-2">
+                            <LogIn className="w-3 h-3" /> লগইন সক্রিয়
+                          </p>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
@@ -439,6 +507,51 @@ export default function SuperAdminManagers() {
           </div>
         )}
       </div>
+
+      {/* Account creation dialog */}
+      <Dialog open={!!accountDialogMgr} onOpenChange={open => !open && setAccountDialogMgr(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <KeyRound className="w-5 h-5 text-primary" />
+              লগইন অ্যাকাউন্ট তৈরি করুন
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <p className="text-sm text-muted-foreground">
+              <strong>{accountDialogMgr?.name}</strong> এর জন্য একটি লগইন অ্যাকাউন্ট তৈরি হবে।
+              তিনি এই ইমেইল ও পাসওয়ার্ড দিয়ে সরাসরি লগইন করতে পারবেন।
+            </p>
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium text-muted-foreground">ইমেইল *</p>
+              <Input
+                type="email"
+                value={accountEmail}
+                onChange={e => setAccountEmail(e.target.value)}
+                placeholder="manager@example.com"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium text-muted-foreground">পাসওয়ার্ড (নতুন অ্যাকাউন্টের জন্য)</p>
+              <Input
+                type="password"
+                value={accountPassword}
+                onChange={e => setAccountPassword(e.target.value)}
+                placeholder="কমপক্ষে ৬ অক্ষর"
+              />
+              <p className="text-[10px] text-muted-foreground">
+                যদি এই ইমেইলে ইতিমধ্যে অ্যাকাউন্ট থাকে তাহলে পাসওয়ার্ড লাগবে না।
+              </p>
+            </div>
+            <div className="flex gap-3 pt-1">
+              <Button onClick={createManagerAccount} disabled={accountSaving} className="flex-1 gap-2">
+                {accountSaving ? <><RefreshCw className="w-4 h-4 animate-spin" />তৈরি হচ্ছে...</> : <><KeyRound className="w-4 h-4" />অ্যাকাউন্ট তৈরি করুন</>}
+              </Button>
+              <Button variant="outline" onClick={() => setAccountDialogMgr(null)}>বাতিল</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Manager form dialog */}
       <Dialog open={formOpen} onOpenChange={setFormOpen}>

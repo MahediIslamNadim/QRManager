@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/hhnad/AppData/Local/com.vercel.cli/**)",
+      "Read(//c/Users/hhnad/.local/share/com.vercel.cli/**)",
+      "Read(//c/Users/hhnad/AppData/Roaming/com.vercel.cli/**)",
+      "Read(//c/Users/hhnad/AppData/Local/**)"
+    ]
+  }
+}

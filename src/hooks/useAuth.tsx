@@ -103,6 +103,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         if (roles.includes("super_admin")) bestRole = "super_admin";
         else if (roles.includes("admin")) bestRole = "admin";
+        else if (roles.includes("dedicated_manager")) bestRole = "dedicated_manager";
         else if (roles.includes("waiter")) bestRole = "waiter";
         else if (roles.includes("kitchen")) bestRole = "kitchen";
 
