@@ -1,9 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Crown, Mail, Shield, Trash2, UserPlus, Users } from "lucide-react";
+import {
+  AlertTriangle, Crown, Mail, Shield, Trash2, UserPlus,
+  Users, ChefHat, RefreshCw, Search, Calendar,
+} from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -14,20 +18,60 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 type StaffRole = "admin" | "waiter" | "kitchen";
+
 type StaffMember = {
   id: string;
   user_id: string;
   restaurant_id: string;
   created_at: string;
   role: string;
-  users: {
-    id: string;
-    full_name: string | null;
-    email: string | null;
-  } | null;
+  users: { id: string; full_name: string | null; email: string | null } | null;
 };
 
-const AdminStaff = () => {
+const ROLES: { value: StaffRole; label: string; icon: any; color: string; bg: string; desc: string }[] = [
+  {
+    value: "admin",
+    label: "অ্যাডমিন",
+    icon: Crown,
+    color: "text-purple-500",
+    bg: "bg-purple-500/15 text-purple-500 border-purple-500/30",
+    desc: "সব ফিচারে পূর্ণ অ্যাক্সেস",
+  },
+  {
+    value: "waiter",
+    label: "ওয়েটার",
+    icon: Users,
+    color: "text-primary",
+    bg: "bg-primary/15 text-primary border-primary/30",
+    desc: "অর্ডার, টেবিল ও পেমেন্ট",
+  },
+  {
+    value: "kitchen",
+    label: "কিচেন",
+    icon: ChefHat,
+    color: "text-warning",
+    bg: "bg-warning/15 text-warning border-warning/30",
+    desc: "কিচেন ডিসপ্লে ও অর্ডার স্ট্যাটাস",
+  },
+];
+
+const getRoleConfig = (role: string) =>
+  ROLES.find(r => r.value === role) || ROLES[1];
+
+const avatarInitials = (staff: StaffMember) => {
+  const name = staff.users?.full_name || staff.users?.email || "U";
+  return name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+};
+
+const AVATAR_COLORS = [
+  "from-purple-500/60 to-purple-600/40",
+  "from-primary/60 to-primary/40",
+  "from-success/60 to-success/40",
+  "from-warning/60 to-warning/40",
+  "from-blue-500/60 to-blue-600/40",
+];
+
+export default function AdminStaff() {
   const { restaurantId } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -44,17 +88,20 @@ const AdminStaff = () => {
   } = useCanInviteStaff(restaurantId);
 
   const [showInviteDialog, setShowInviteDialog] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteFullName, setInviteFullName] = useState("");
-  const [invitePassword, setInvitePassword] = useState("");
-  const [inviteRole, setInviteRole] = useState<StaffRole>("waiter");
+  const [inviteEmail,     setInviteEmail]     = useState("");
+  const [inviteFullName,  setInviteFullName]  = useState("");
+  const [invitePassword,  setInvitePassword]  = useState("");
+  const [inviteRole,      setInviteRole]      = useState<StaffRole>("waiter");
+  const [search,          setSearch]          = useState("");
+  const [roleFilter,      setRoleFilter]      = useState<StaffRole | "all">("all");
+  const [updatingRole,    setUpdatingRole]    = useState<string | null>(null);
 
+  // ── Fetch staff ─────────────────────────────────────────────────────────
   const { data: staffMembers = [], isLoading } = useQuery<StaffMember[]>({
     queryKey: ["staff", restaurantId],
     queryFn: async () => {
       if (!restaurantId) return [];
 
-      // Step 1: fetch staff rows
       const { data: staffRows, error: staffErr } = await supabase
         .from("staff_restaurants")
         .select("id, user_id, restaurant_id, created_at")
@@ -62,364 +109,342 @@ const AdminStaff = () => {
         .order("created_at", { ascending: false });
 
       if (staffErr) throw staffErr;
-      if (!staffRows || staffRows.length === 0) return [];
+      if (!staffRows?.length) return [];
 
-      const userIds = staffRows.map((r) => r.user_id);
+      const userIds = staffRows.map(r => r.user_id);
 
-      // Step 2: fetch profiles (RLS policy "Admins can view staff profiles" allows this)
-      const { data: profiles, error: profilesErr } = await supabase
-        .from("profiles")
-        .select("id, full_name, email")
-        .in("id", userIds);
+      const [{ data: profiles }, { data: roleRows }] = await Promise.all([
+        supabase.from("profiles").select("id, full_name, email").in("id", userIds),
+        supabase.from("user_roles").select("user_id, role").in("user_id", userIds),
+      ]);
 
-      if (profilesErr) {
-        console.error("profiles fetch error:", profilesErr);
-      }
-
-      // Step 3: fetch roles
-      const { data: roleRows, error: roleErr } = await supabase
-        .from("user_roles")
-        .select("user_id, role")
-        .in("user_id", userIds);
-
-      if (roleErr) {
-        console.error("user_roles fetch error:", roleErr);
-      }
-
-      // Step 4: try RPC as best-effort for email (gets from auth.users directly)
       let rpcEmailMap: Record<string, string> = {};
       try {
-        const { data: rpcRows, error: rpcError } = await (supabase as any)
-          .rpc("get_restaurant_staff", { _restaurant_id: restaurantId });
-        if (!rpcError && rpcRows) {
-          for (const row of rpcRows) {
-            if (row.email) rpcEmailMap[row.user_id] = row.email;
-          }
-        } else if (rpcError) {
-          console.error("get_restaurant_staff RPC error:", rpcError);
-        }
-      } catch (e) {
-        console.error("RPC call failed:", e);
-      }
+        const { data: rpcRows } = await (supabase as any).rpc("get_restaurant_staff", { _restaurant_id: restaurantId });
+        if (rpcRows) rpcRows.forEach((row: any) => { if (row.email) rpcEmailMap[row.user_id] = row.email; });
+      } catch { /* best-effort */ }
 
       const allowedRoles = ["admin", "waiter", "kitchen"] as const;
       const roleMap = new Map(
         (roleRows || [])
-          .filter((r) => allowedRoles.includes(r.role as any))
-          .map((r) => [r.user_id, r.role])
+          .filter(r => allowedRoles.includes(r.role as any))
+          .map(r => [r.user_id, r.role])
       );
 
-      return staffRows.map((row) => {
-        const profile = profiles?.find((p) => p.id === row.user_id);
-        const email = profile?.email || rpcEmailMap[row.user_id] || null;
+      return staffRows.map(row => {
+        const profile  = profiles?.find(p => p.id === row.user_id);
+        const email    = profile?.email || rpcEmailMap[row.user_id] || null;
         const fullName = profile?.full_name || null;
         return {
           ...row,
           role: (roleMap.get(row.user_id) as string) || "waiter",
-          users: email || fullName
-            ? { id: row.user_id, full_name: fullName, email }
-            : null,
+          users: email || fullName ? { id: row.user_id, full_name: fullName, email } : null,
         };
       });
     },
     enabled: !!restaurantId,
   });
 
+  // ── Invite ───────────────────────────────────────────────────────────────
   const inviteMutation = useMutation({
     mutationFn: async () => {
       if (!restaurantId) throw new Error("No restaurant");
-
       const normalizedEmail = inviteEmail.trim().toLowerCase();
       if (!normalizedEmail) throw new Error("ইমেইল দিন।");
-
       const check = checkBeforeInvite();
-      if (!check.allowed) {
-        throw new Error(upgradeMessage || "Staff limit reached. Please upgrade to add more staff.");
-      }
+      if (!check.allowed) throw new Error(upgradeMessage || "Staff limit reached.");
 
-      const body: Record<string, string> = {
-        email: normalizedEmail,
-        role: inviteRole,
-        restaurant_id: restaurantId,
-      };
-
+      const body: Record<string, string> = { email: normalizedEmail, role: inviteRole, restaurant_id: restaurantId };
       if (inviteFullName.trim()) body.full_name = inviteFullName.trim();
-      if (invitePassword.trim()) body.password = invitePassword.trim();
+      if (invitePassword.trim()) body.password  = invitePassword.trim();
 
       const { data, error } = await supabase.functions.invoke("create-staff", { body });
-
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-
       return data as { already_exists?: boolean; role_updated?: boolean };
     },
-    onSuccess: (result) => {
+    onSuccess: result => {
       queryClient.invalidateQueries({ queryKey: ["staff", restaurantId] });
-
-      if (result?.already_exists) {
-        toast.success("এই স্টাফ ইতিমধ্যেই যুক্ত আছেন।");
-      } else if (result?.role_updated) {
-        toast.success("স্টাফের রোল আপডেট হয়েছে।");
-      } else {
-        toast.success("স্টাফ সফলভাবে যোগ হয়েছে।");
-      }
-
+      if (result?.already_exists)  toast.success("এই স্টাফ ইতিমধ্যেই যুক্ত আছেন।");
+      else if (result?.role_updated) toast.success("স্টাফের রোল আপডেট হয়েছে।");
+      else toast.success("স্টাফ সফলভাবে যোগ হয়েছে।");
       setShowInviteDialog(false);
-      setInviteEmail("");
-      setInviteFullName("");
-      setInvitePassword("");
-      setInviteRole("waiter");
+      setInviteEmail(""); setInviteFullName(""); setInvitePassword(""); setInviteRole("waiter");
     },
-    onError: (err: Error) => {
-      toast.error(err.message);
-    },
+    onError: (err: Error) => toast.error(err.message),
   });
 
+  // ── Remove ───────────────────────────────────────────────────────────────
   const removeMutation = useMutation({
     mutationFn: async (staff: Pick<StaffMember, "id" | "user_id">) => {
       if (!restaurantId) throw new Error("No restaurant");
-
       const { data, error } = await supabase.functions.invoke("create-staff", {
-        body: {
-          action: "remove",
-          user_id: staff.user_id,
-          restaurant_id: restaurantId,
-        },
+        body: { action: "remove", user_id: staff.user_id, restaurant_id: restaurantId },
       });
-
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-
-      return data as {
-        link_removed?: boolean;
-        role_revoked?: boolean;
-        role_preserved_reason?: "super_admin" | "restaurant_owner" | "other_staff_links" | null;
-      };
+      return data;
     },
-    onSuccess: (result) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["staff", restaurantId] });
-
-      if (result?.role_revoked) {
-        toast.success("স্টাফ সরানো হয়েছে এবং অ্যাক্সেস বাতিল করা হয়েছে।");
-      } else if (result?.role_preserved_reason === "other_staff_links") {
-        toast.success("স্টাফ সরানো হয়েছে। অন্য রেস্টুরেন্টে থাকায় অ্যাপ রোল বহাল রাখা হয়েছে।");
-      } else if (
-        result?.role_preserved_reason === "restaurant_owner" ||
-        result?.role_preserved_reason === "super_admin"
-      ) {
-        toast.success("স্টাফ লিংক সরানো হয়েছে। উচ্চতর অ্যাক্সেস বহাল রাখা হয়েছে।");
-      } else {
-        toast.success("স্টাফ সরানো হয়েছে।");
-      }
+      toast.success("স্টাফ সরানো হয়েছে।");
     },
-    onError: (err: Error) => {
-      toast.error(err.message);
-    },
+    onError: (err: Error) => toast.error(err.message),
   });
 
-  const getRoleIcon = (role: string) => {
-    switch (role) {
-      case "admin":
-        return Crown;
-      case "waiter":
-        return Users;
-      case "kitchen":
-        return Shield;
-      default:
-        return Users;
+  // ── Role update ───────────────────────────────────────────────────────────
+  const updateRole = async (userId: string, newRole: StaffRole) => {
+    setUpdatingRole(userId);
+    try {
+      const { error } = await supabase
+        .from("user_roles")
+        .update({ role: newRole })
+        .eq("user_id", userId);
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ["staff", restaurantId] });
+      toast.success("রোল আপডেট হয়েছে।");
+    } catch (err: any) {
+      toast.error(err.message || "রোল আপডেট করতে সমস্যা হয়েছে।");
+    } finally {
+      setUpdatingRole(null);
     }
   };
 
-  const getRoleColor = (role: string) => {
-    switch (role) {
-      case "admin":
-        return "text-purple-600 bg-purple-100";
-      case "waiter":
-        return "text-blue-600 bg-blue-100";
-      case "kitchen":
-        return "text-orange-600 bg-orange-100";
-      default:
-        return "text-gray-600 bg-gray-100";
-    }
-  };
+  // ── Filtered list ─────────────────────────────────────────────────────────
+  const filtered = staffMembers.filter(s => {
+    const matchSearch = !search ||
+      (s.users?.full_name || "").toLowerCase().includes(search.toLowerCase()) ||
+      (s.users?.email || "").toLowerCase().includes(search.toLowerCase());
+    const matchRole = roleFilter === "all" || s.role === roleFilter;
+    return matchSearch && matchRole;
+  });
+
+  const countByRole = (role: StaffRole) => staffMembers.filter(s => s.role === role).length;
 
   return (
     <DashboardLayout role="admin" title="স্টাফ ম্যানেজমেন্ট">
-      <div className="space-y-6">
+      <div className="space-y-6 animate-fade-up max-w-5xl">
+
+        {/* ── Header ────────────────────────────────────────────────────── */}
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
-            <h2 className="text-2xl font-bold">টিম মেম্বার</h2>
-            <p className="text-sm text-muted-foreground">
-              বিদ্যমান QRManager অ্যাকাউন্ট যোগ করুন এবং রোল নির্ধারণ করুন।
+            <h2 className="text-2xl font-bold flex items-center gap-2">
+              <div className="w-9 h-9 rounded-xl bg-primary/15 flex items-center justify-center">
+                <Users className="w-5 h-5 text-primary" />
+              </div>
+              স্টাফ ম্যানেজমেন্ট
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              রেস্টুরেন্টের টিম মেম্বার পরিচালনা করুন
             </p>
           </div>
-
           <div className="flex items-center gap-3">
-            <span className="text-xs text-muted-foreground bg-secondary px-3 py-1.5 rounded-full">
-              {staffCount}/{maxStaff} জন স্টাফ
+            <span className="text-xs text-muted-foreground bg-secondary px-3 py-1.5 rounded-full border border-border">
+              {staffCount} / {maxStaff === Infinity ? "আনলিমিটেড" : maxStaff} জন স্টাফ
             </span>
-            <Button
-              onClick={() => setShowInviteDialog(true)}
-              disabled={!canInviteStaff || limitLoading}
-              variant="hero"
-            >
-              <UserPlus className="w-4 h-4 mr-2" />
-              স্টাফ যোগ করুন
+            <Button onClick={() => setShowInviteDialog(true)} disabled={!canInviteStaff || limitLoading} variant="hero" className="gap-2">
+              <UserPlus className="w-4 h-4" /> স্টাফ যোগ করুন
             </Button>
           </div>
         </div>
 
-        {isAtLimit && (
-          <div className="bg-warning/10 border border-warning/30 rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <AlertTriangle className="w-5 h-5 text-warning" />
-              <span className="font-semibold text-warning">স্টাফ সীমা পূর্ণ হয়েগেছে</span>
+        {/* ── Stats row ─────────────────────────────────────────────────── */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { label: "মোট স্টাফ",  value: staffMembers.length, color: "border-border bg-secondary/30" },
+            { label: "অ্যাডমিন",   value: countByRole("admin"),   color: "border-purple-500/20 bg-purple-500/5" },
+            { label: "ওয়েটার",    value: countByRole("waiter"),  color: "border-primary/20 bg-primary/5" },
+            { label: "কিচেন",      value: countByRole("kitchen"), color: "border-warning/20 bg-warning/5" },
+          ].map((s, i) => (
+            <div key={i} className={`rounded-2xl border px-4 py-3 text-center ${s.color}`}>
+              <p className="text-2xl font-bold">{s.value}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{s.label}</p>
             </div>
-            <p className="text-sm text-muted-foreground mb-3">
-              {upgradeMessage || `আপনার বর্তমান প্ল্যানে সর্বোচ্চ ${maxStaff} জন স্টাফ যোগ করা যাবে।`}
-            </p>
-            {tier === "medium_smart" && (
-              <Button
-                variant="default"
-                size="sm"
-                className="bg-purple-600 hover:bg-purple-700 text-white"
-                onClick={() => navigate('/upgrade')}
-              >
-                হাই স্মার্টে আপগ্রেড করুন
-              </Button>
-            )}
+          ))}
+        </div>
+
+        {/* ── Limit warning ─────────────────────────────────────────────── */}
+        {isAtLimit && (
+          <div className="bg-warning/10 border border-warning/30 rounded-xl p-4 flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-warning flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-semibold text-warning text-sm">স্টাফ সীমা পূর্ণ হয়ে গেছে</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                {upgradeMessage || `আপনার প্ল্যানে সর্বোচ্চ ${maxStaff} জন স্টাফ যোগ করা যাবে।`}
+              </p>
+              {tier === "medium_smart" && (
+                <Button size="sm" className="mt-2 bg-purple-600 hover:bg-purple-700 text-white h-8 text-xs"
+                  onClick={() => navigate("/upgrade")}>
+                  হাই স্মার্টে আপগ্রেড করুন
+                </Button>
+              )}
+            </div>
           </div>
         )}
 
+        {/* ── Invite dialog ─────────────────────────────────────────────── */}
         <Dialog open={showInviteDialog} onOpenChange={setShowInviteDialog}>
-          <DialogContent>
+          <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle>স্টাফ যোগ করুন</DialogTitle>
+              <DialogTitle className="flex items-center gap-2">
+                <UserPlus className="w-5 h-5 text-primary" /> নতুন স্টাফ যোগ করুন
+              </DialogTitle>
             </DialogHeader>
-
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                inviteMutation.mutate();
-              }}
-              className="space-y-4"
-            >
-              <div>
+            <form onSubmit={e => { e.preventDefault(); inviteMutation.mutate(); }} className="space-y-4 mt-2">
+              <div className="space-y-1.5">
                 <Label>ইমেইল *</Label>
-                <Input
-                  type="email"
-                  placeholder="staff@example.com"
-                  value={inviteEmail}
-                  onChange={(event) => setInviteEmail(event.target.value)}
-                  required
-                />
+                <Input type="email" placeholder="staff@example.com"
+                  value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} required />
               </div>
-
-              <div>
+              <div className="space-y-1.5">
                 <Label>পুরো নাম (ঐচ্ছিক)</Label>
-                <Input
-                  type="text"
-                  placeholder="যেমন: Rahim Uddin"
-                  value={inviteFullName}
-                  onChange={(event) => setInviteFullName(event.target.value)}
-                />
+                <Input placeholder="যেমন: Rahim Uddin"
+                  value={inviteFullName} onChange={e => setInviteFullName(e.target.value)} />
               </div>
-
-              <div>
+              <div className="space-y-1.5">
                 <Label>পাসওয়ার্ড</Label>
-                <Input
-                  type="password"
-                  placeholder="নতুন স্টাফ হলে পাসওয়ার্ড দিন"
-                  value={invitePassword}
-                  onChange={(event) => setInvitePassword(event.target.value)}
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  স্টাফের আগে থেকে অ্যাকাউন্ট থাকলে পাসওয়ার্ড লাগবে না। নতুন হলে পাসওয়ার্ড দিন — অ্যাকাউন্ট তৈরি হয়ে যাবে।
-                </p>
+                <Input type="password" placeholder="নতুন স্টাফ হলে দিন"
+                  value={invitePassword} onChange={e => setInvitePassword(e.target.value)} />
+                <p className="text-xs text-muted-foreground">আগে অ্যাকাউন্ট থাকলে পাসওয়ার্ড লাগবে না।</p>
               </div>
-
-              <div>
+              <div className="space-y-2">
                 <Label>ভূমিকা</Label>
-                <select
-                  value={inviteRole}
-                  onChange={(event) => setInviteRole(event.target.value as StaffRole)}
-                  className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="waiter">ওয়েটার — অর্ডার ও টেবিল পরিচালনা</option>
-                  <option value="kitchen">কিচেন — রান্নাঘরের ডিসপ্লে দেখতে পারবে</option>
-                  <option value="admin">অ্যাডমিন — সব ফিচারে পূর্ণ অ্যাক্সেস</option>
-                </select>
+                <div className="grid grid-cols-3 gap-2">
+                  {ROLES.map(r => (
+                    <button key={r.value} type="button" onClick={() => setInviteRole(r.value)}
+                      className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border text-xs font-medium transition-all ${
+                        inviteRole === r.value
+                          ? `${r.bg} border-current`
+                          : "bg-secondary/50 border-border text-muted-foreground hover:text-foreground"
+                      }`}>
+                      <r.icon className="w-4 h-4" />
+                      {r.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">{ROLES.find(r => r.value === inviteRole)?.desc}</p>
               </div>
-
-              <Button
-                type="submit"
-                variant="hero"
-                className="w-full"
-                disabled={inviteMutation.isPending}
-              >
-                {inviteMutation.isPending ? "যোগ হচ্ছে..." : "স্টাফ যোগ করুন"}
+              <Button type="submit" variant="hero" className="w-full" disabled={inviteMutation.isPending}>
+                {inviteMutation.isPending ? <><RefreshCw className="w-4 h-4 animate-spin mr-2" />যোগ হচ্ছে...</> : "স্টাফ যোগ করুন"}
               </Button>
             </form>
           </DialogContent>
         </Dialog>
 
+        {/* ── Search + filter ───────────────────────────────────────────── */}
+        {staffMembers.length > 0 && (
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input placeholder="নাম বা ইমেইলে খুঁজুন..." value={search}
+                onChange={e => setSearch(e.target.value)} className="pl-9" />
+            </div>
+            <div className="flex gap-2">
+              {(["all", ...ROLES.map(r => r.value)] as const).map(f => (
+                <button key={f} onClick={() => setRoleFilter(f as any)}
+                  className={`px-3 py-2 rounded-lg text-xs font-medium border transition-colors ${
+                    roleFilter === f
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-secondary/50 border-border text-muted-foreground hover:text-foreground"
+                  }`}>
+                  {f === "all" ? "সবাই" : ROLES.find(r => r.value === f)?.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── Staff list ────────────────────────────────────────────────── */}
         {isLoading ? (
-          <div className="text-center py-12 text-muted-foreground">স্টাফ তালিকা লোড হচ্ছে...</div>
+          <div className="space-y-3">
+            {[1,2,3].map(i => <div key={i} className="h-24 rounded-2xl bg-secondary/40 animate-pulse" />)}
+          </div>
         ) : staffMembers.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <Users className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-              <p className="text-muted-foreground mb-4">
-                এখনো কোনো স্টাফ নেই। স্টাফ যোগ করুন।
-              </p>
-              <Button onClick={() => setShowInviteDialog(true)} variant="outline">
-                <UserPlus className="w-4 h-4 mr-2" />
-                প্রথম স্টাফ যোগ করুন
+          <Card className="border-dashed">
+            <CardContent className="py-16 text-center space-y-4">
+              <div className="w-16 h-16 rounded-2xl bg-secondary flex items-center justify-center mx-auto">
+                <Users className="w-8 h-8 text-muted-foreground/40" />
+              </div>
+              <div>
+                <p className="font-semibold">এখনো কোনো স্টাফ নেই</p>
+                <p className="text-sm text-muted-foreground mt-1">স্টাফ যোগ করে আপনার টিম গড়ুন।</p>
+              </div>
+              <Button onClick={() => setShowInviteDialog(true)} variant="outline" className="gap-2">
+                <UserPlus className="w-4 h-4" /> প্রথম স্টাফ যোগ করুন
               </Button>
             </CardContent>
           </Card>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-12 text-muted-foreground text-sm">কোনো ফলাফল নেই।</div>
         ) : (
-          <div className="grid gap-4">
-            {staffMembers.map((staff) => {
-              const RoleIcon = getRoleIcon(staff.role);
-              const roleColor = getRoleColor(staff.role);
+          <div className="grid gap-3">
+            {filtered.map((staff, idx) => {
+              const rc   = getRoleConfig(staff.role);
+              const RIcon = rc.icon;
+              const avatarGrad = AVATAR_COLORS[idx % AVATAR_COLORS.length];
+              const isUpdating = updatingRole === staff.user_id;
 
               return (
-                <Card key={staff.id}>
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center text-white font-semibold text-lg">
-                          {staff.users?.full_name?.[0]?.toUpperCase() || staff.users?.email?.[0]?.toUpperCase() || "U"}
-                        </div>
+                <Card key={staff.id} className="hover:shadow-md transition-shadow">
+                  <CardContent className="p-5">
+                    <div className="flex items-center gap-4">
+                      {/* Avatar */}
+                      <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${avatarGrad} flex items-center justify-center text-white font-bold text-base flex-shrink-0`}>
+                        {avatarInitials(staff)}
+                      </div>
 
-                        <div>
-                          <h3 className="font-semibold text-lg">{staff.users?.full_name || "নাম নেই"}</h3>
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Mail className="w-3 h-3" />
-                            {staff.users?.email || "ইমেইল নেই"}
-                          </div>
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-semibold truncate">{staff.users?.full_name || "নাম নেই"}</p>
+                          <Badge className={`text-xs border ${rc.bg} flex items-center gap-1`}>
+                            <RIcon className="w-3 h-3" /> {rc.label}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground flex-wrap">
+                          {staff.users?.email && (
+                            <span className="flex items-center gap-1">
+                              <Mail className="w-3 h-3" /> {staff.users.email}
+                            </span>
+                          )}
+                          <span className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3" />
+                            {new Date(staff.created_at).toLocaleDateString("bn-BD", { day: "2-digit", month: "short", year: "numeric" })}
+                          </span>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-3">
-                        <div className={`px-3 py-1.5 rounded-full flex items-center gap-1.5 ${roleColor}`}>
-                          <RoleIcon className="w-4 h-4" />
-                          <span className="text-xs font-medium">
-                            {{ admin: "অ্যাডমিন", waiter: "ওয়েটার", kitchen: "কিচেন" }[staff.role] ?? staff.role}
-                          </span>
+                      {/* Actions */}
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {/* Role change buttons */}
+                        <div className="hidden sm:flex gap-1">
+                          {ROLES.filter(r => r.value !== staff.role).map(r => (
+                            <button key={r.value} disabled={isUpdating}
+                              onClick={() => updateRole(staff.user_id, r.value)}
+                              title={`${r.label} বানান`}
+                              className="w-7 h-7 rounded-lg bg-secondary/60 hover:bg-secondary border border-border flex items-center justify-center transition-colors disabled:opacity-50">
+                              {isUpdating ? <RefreshCw className="w-3 h-3 animate-spin" /> : <r.icon className={`w-3.5 h-3.5 ${r.color}`} />}
+                            </button>
+                          ))}
                         </div>
 
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        {/* Mobile role select */}
+                        <select
+                          className="sm:hidden h-8 rounded-lg border border-border bg-background text-xs px-2"
+                          value={staff.role}
+                          disabled={isUpdating}
+                          onChange={e => updateRole(staff.user_id, e.target.value as StaffRole)}
+                        >
+                          {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                        </select>
+
+                        <Button variant="ghost" size="icon"
+                          className="w-8 h-8 text-destructive hover:text-destructive hover:bg-destructive/10"
                           onClick={() => {
                             if (confirm(`"${staff.users?.full_name || "এই স্টাফ"}" কে সরিয়ে দেবেন?`)) {
                               removeMutation.mutate({ id: staff.id, user_id: staff.user_id });
                             }
-                          }}
-                        >
+                          }}>
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
@@ -431,67 +456,47 @@ const AdminStaff = () => {
           </div>
         )}
 
+        {/* ── Role descriptions ─────────────────────────────────────────── */}
         <div>
-          <h3 className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wide">স্টাফ রোলের বিবরণ</h3>
+          <h3 className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wide">রোলের বিবরণ</h3>
           <div className="grid gap-3 sm:grid-cols-3">
-            {/* Admin */}
-            <Card className="border-purple-200 bg-purple-50/50">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
-                    <Crown className="w-4 h-4 text-purple-600" />
-                  </div>
-                  <span className="font-semibold text-purple-700">অ্যাডমিন</span>
-                </div>
-                <ul className="text-xs text-purple-800 space-y-1">
-                  <li>✓ মেনু ও টেবিল ম্যানেজমেন্ট</li>
-                  <li>✓ স্টাফ যোগ/বাদ দেওয়া</li>
-                  <li>✓ অর্ডার ও অ্যানালিটিক্স</li>
-                  <li>✓ বিলিং ও সেটিংস</li>
-                </ul>
-              </CardContent>
-            </Card>
-
-            {/* Waiter */}
-            <Card className="border-blue-200 bg-blue-50/50">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
-                    <Users className="w-4 h-4 text-blue-600" />
-                  </div>
-                  <span className="font-semibold text-blue-700">ওয়েটার</span>
-                </div>
-                <ul className="text-xs text-blue-800 space-y-1">
-                  <li>✓ অর্ডার গ্রহণ ও পরিচালনা</li>
-                  <li>✓ টেবিল ও সিট ম্যানেজমেন্ট</li>
-                  <li>✓ বিল ও পেমেন্ট গ্রহণ</li>
-                  <li>✓ সার্ভিস রিকোয়েস্ট দেখা</li>
-                </ul>
-              </CardContent>
-            </Card>
-
-            {/* Kitchen */}
-            <Card className="border-orange-200 bg-orange-50/50">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center">
-                    <Shield className="w-4 h-4 text-orange-600" />
-                  </div>
-                  <span className="font-semibold text-orange-700">কিচেন</span>
-                </div>
-                <ul className="text-xs text-orange-800 space-y-1">
-                  <li>✓ কিচেন ডিসপ্লে দেখা</li>
-                  <li>✓ অর্ডার স্ট্যাটাস আপডেট</li>
-                  <li>✓ রান্না সম্পন্ন মার্ক করা</li>
-                  <li className="text-orange-400">✗ বিলিং ও স্টাফ অ্যাক্সেস নেই</li>
-                </ul>
-              </CardContent>
-            </Card>
+            {[
+              {
+                role: ROLES[0],
+                perms: ["মেনু ও টেবিল ম্যানেজমেন্ট", "স্টাফ যোগ ও বাদ দেওয়া", "অর্ডার ও অ্যানালিটিক্স", "বিলিং ও সেটিংস"],
+                blocked: [],
+              },
+              {
+                role: ROLES[1],
+                perms: ["অর্ডার গ্রহণ ও পরিচালনা", "টেবিল ও সিট ম্যানেজমেন্ট", "বিল ও পেমেন্ট গ্রহণ", "সার্ভিস রিকোয়েস্ট দেখা"],
+                blocked: ["মেনু সম্পাদনা নেই"],
+              },
+              {
+                role: ROLES[2],
+                perms: ["কিচেন ডিসপ্লে দেখা", "অর্ডার স্ট্যাটাস আপডেট", "রান্না সম্পন্ন মার্ক করা"],
+                blocked: ["বিলিং ও স্টাফ অ্যাক্সেস নেই"],
+              },
+            ].map(({ role, perms, blocked }) => (
+              <Card key={role.value} className={`border-${role.value === "admin" ? "purple-500" : role.value === "waiter" ? "primary" : "warning"}/20`}>
+                <CardHeader className="pb-2 pt-4 px-4">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <div className={`w-7 h-7 rounded-lg ${role.bg.split(" ")[0]} flex items-center justify-center`}>
+                      <role.icon className={`w-3.5 h-3.5 ${role.color}`} />
+                    </div>
+                    <span className={role.color}>{role.label}</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pb-4">
+                  <ul className="text-xs space-y-1">
+                    {perms.map(p => <li key={p} className="text-muted-foreground">✓ {p}</li>)}
+                    {blocked.map(b => <li key={b} className="text-muted-foreground/50">✗ {b}</li>)}
+                  </ul>
+                </CardContent>
+              </Card>
+            ))}
           </div>
         </div>
       </div>
     </DashboardLayout>
   );
-};
-
-export default AdminStaff;
+}
