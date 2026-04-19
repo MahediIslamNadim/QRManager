@@ -280,22 +280,24 @@ export default function AdminManager() {
     setAccountOpen(true);
   };
 
+  const invokeManager = async (body: object) => {
+    const { data, error } = await supabase.functions.invoke("create-manager", { body });
+    if (error) throw new Error(`Edge function error: ${error.message}`);
+    if (data?.error) throw new Error(data.error);
+    return data;
+  };
+
   const createManagerAccount = async () => {
     if (!manager || !accountEmail.trim()) { toast.error("ইমেইল লিখুন"); return; }
     setAccountSaving(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await supabase.functions.invoke("create-manager", {
-        body: {
-          action: "create",
-          manager_id: manager.id,
-          email: accountEmail.trim(),
-          password: accountPassword || undefined,
-          full_name: manager.name,
-        },
-        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : undefined,
+      await invokeManager({
+        action: "create",
+        manager_id: manager.id,
+        email: accountEmail.trim(),
+        password: accountPassword || undefined,
+        full_name: manager.name,
       });
-      if (res.error || res.data?.error) throw new Error(res.data?.error || res.error?.message);
       toast.success("লগইন অ্যাকাউন্ট তৈরি হয়েছে! ম্যানেজার এখন লগইন করতে পারবেন।");
       setAccountOpen(false);
       load();
@@ -308,12 +310,7 @@ export default function AdminManager() {
     if (!manager) return;
     if (!confirm(`${manager.name} এর লগইন অ্যাক্সেস সরিয়ে দেবেন?`)) return;
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await supabase.functions.invoke("create-manager", {
-        body: { action: "remove", manager_id: manager.id },
-        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : undefined,
-      });
-      if (res.error || res.data?.error) throw new Error(res.data?.error || res.error?.message);
+      await invokeManager({ action: "remove", manager_id: manager.id });
       toast.success("লগইন অ্যাক্সেস সরানো হয়েছে");
       load();
     } catch (err: any) { toast.error(err.message); }
