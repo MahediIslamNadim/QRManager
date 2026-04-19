@@ -11,7 +11,9 @@ import { toast } from "sonner";
 import {
   UserCircle2, Phone, Mail, MessageSquare, Send,
   Clock, CheckCheck, Check, RefreshCw, Star, Headphones,
+  Lock, Zap, ChevronRight,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 interface Manager {
   id: string;
@@ -31,6 +33,105 @@ interface Message {
   is_read: boolean;
   created_at: string;
 }
+
+// ── Upgrade fallback shown to Medium Smart users ───────────────────────────
+function ManagerUpgradePrompt() {
+  const navigate = useNavigate();
+  return (
+    <div className="space-y-6 animate-fade-up max-w-2xl mx-auto">
+      {/* Hero card */}
+      <Card className="border-primary/20 overflow-hidden">
+        <div className="h-1.5 bg-gradient-to-r from-primary via-purple-500 to-primary" />
+        <CardContent className="py-10 text-center space-y-5 px-8">
+          <div className="relative inline-block">
+            <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-primary/20 to-purple-500/10 flex items-center justify-center mx-auto">
+              <UserCircle2 className="w-10 h-10 text-primary" />
+            </div>
+            <div className="absolute -top-1 -right-1 w-7 h-7 rounded-full bg-destructive/15 border-2 border-background flex items-center justify-center">
+              <Lock className="w-3.5 h-3.5 text-destructive" />
+            </div>
+          </div>
+
+          <div>
+            <h2 className="text-xl font-bold">ডেডিকেটেড ম্যানেজার</h2>
+            <p className="text-sm text-muted-foreground mt-2 max-w-md mx-auto leading-relaxed">
+              আপনার রেস্টুরেন্টের জন্য একজন ব্যক্তিগত ম্যানেজার পান — যিনি সরাসরি আপনাকে সাহায্য করবেন,
+              পরামর্শ দেবেন এবং সমস্যা সমাধান করবেন।
+            </p>
+          </div>
+
+          {/* Features */}
+          <div className="grid sm:grid-cols-2 gap-3 text-left max-w-lg mx-auto">
+            {[
+              { icon: "👤", title: "ব্যক্তিগত ম্যানেজার", desc: "শুধু আপনার জন্য নির্ধারিত একজন বিশেষজ্ঞ" },
+              { icon: "💬", title: "সরাসরি চ্যাট", desc: "যেকোনো সময় মেসেজ করুন, দ্রুত উত্তর পান" },
+              { icon: "📞", title: "ফোন / WhatsApp", desc: "সরাসরি ফোন ও WhatsApp যোগাযোগ" },
+              { icon: "⚡", title: "দ্রুত সমস্যা সমাধান", desc: "২ ঘণ্টার মধ্যে রেসপন্স গ্যারান্টি" },
+            ].map(f => (
+              <div key={f.title} className="flex items-start gap-3 p-3 rounded-xl bg-secondary/40">
+                <span className="text-xl flex-shrink-0">{f.icon}</span>
+                <div>
+                  <p className="text-sm font-semibold">{f.title}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{f.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* CTA */}
+          <div className="space-y-3 pt-2">
+            <Button
+              onClick={() => navigate("/upgrade")}
+              className="bg-gradient-to-r from-primary to-purple-600 text-white gap-2 px-8 py-3 h-auto rounded-xl font-semibold hover:opacity-90 transition-opacity"
+            >
+              <Zap className="w-4 h-4" /> হাই স্মার্টে আপগ্রেড করুন
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              ১৪ দিনের ফ্রি ট্রায়াল • যেকোনো সময় বাতিল করুন
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Plan comparison */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm text-muted-foreground uppercase tracking-wide">প্ল্যান তুলনা</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="divide-y divide-border/40">
+            {[
+              { feature: "ডেডিকেটেড ম্যানেজার",      medium: false, high: true },
+              { feature: "সরাসরি চ্যাট সাপোর্ট",    medium: false, high: true },
+              { feature: "প্রায়োরিটি সাপোর্ট ২৪/৭",  medium: false, high: true },
+              { feature: "AI অ্যাডভান্সড অ্যানালিটিক্স", medium: false, high: true },
+              { feature: "আনলিমিটেড মেনু আইটেম",    medium: false, high: true },
+              { feature: "বেসিক অ্যানালিটিক্স",      medium: true,  high: true },
+              { feature: "QR অর্ডারিং",              medium: true,  high: true },
+            ].map(r => (
+              <div key={r.feature} className="flex items-center px-5 py-3 text-sm">
+                <span className="flex-1 text-muted-foreground">{r.feature}</span>
+                <span className={`w-24 text-center text-xs font-medium ${r.medium ? "text-success" : "text-muted-foreground/40"}`}>
+                  {r.medium ? "✓ মিডিয়াম" : "✗"}
+                </span>
+                <span className={`w-24 text-center text-xs font-medium ${r.high ? "text-primary" : "text-muted-foreground/40"}`}>
+                  {r.high ? "✓ হাই স্মার্ট" : "✗"}
+                </span>
+              </div>
+            ))}
+          </div>
+          <div className="p-4 border-t">
+            <Button variant="outline" onClick={() => navigate("/upgrade")} className="w-full gap-2">
+              পূর্ণ প্ল্যান বিস্তারিত দেখুন <ChevronRight className="w-4 h-4" />
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export default function AdminManager() {
   const { restaurantId } = useAuth();
@@ -135,7 +236,7 @@ export default function AdminManager() {
 
   return (
     <DashboardLayout role="admin" title="ডেডিকেটেড ম্যানেজার">
-      <FeatureGate feature="dedicated_manager">
+      <FeatureGate feature="dedicated_manager" fallback={<ManagerUpgradePrompt />}>
         <div className="space-y-6 animate-fade-up max-w-3xl">
 
           {/* Header */}
