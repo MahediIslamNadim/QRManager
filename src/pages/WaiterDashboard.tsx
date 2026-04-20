@@ -9,7 +9,6 @@ import {
   ShoppingCart, Clock, CheckCircle, Plus, Minus, Edit, X,
   Volume2, VolumeX, Users, UserPlus, UserMinus, Banknote,
   Smartphone, User, Mail, Phone, KeyRound, Save, Bell, XCircle,
-  MessageSquare, UserCircle2, Send, RefreshCw,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrderActions } from "@/hooks/useOrderActions";
@@ -38,14 +37,8 @@ const WaiterDashboard = () => {
   const [paymentOrder, setPaymentOrder] = useState<any>(null);
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "bkash">("cash");
   const [cancelOrderId, setCancelOrderId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"orders" | "tables" | "manager" | "profile">("orders");
+  const [activeTab, setActiveTab] = useState<"orders" | "tables" | "profile">("orders");
 
-  // Manager messages state
-  const [managerMessages, setManagerMessages] = useState<any[]>([]);
-  const [managerProfile, setManagerProfile] = useState<any>(null);
-  const [newMgrMsg, setNewMgrMsg] = useState("");
-  const [sendingMgrMsg, setSendingMgrMsg] = useState(false);
-  const [unreadMgrCount, setUnreadMgrCount] = useState(0);
   const [handlingRequestId, setHandlingRequestId] = useState<string | null>(null);
 
   // Profile state
@@ -235,56 +228,6 @@ const WaiterDashboard = () => {
     return () => { supabase.removeChannel(channel); };
   }, [restaurantId, queryClient]);
 
-  // Load manager messages
-  const loadManagerMessages = async () => {
-    if (!restaurantId) return;
-    const { data: rest } = await supabase
-      .from("restaurants").select("dedicated_manager_id").eq("id", restaurantId).maybeSingle();
-    if (!rest?.dedicated_manager_id) return;
-    const { data: mgr } = await supabase
-      .from("dedicated_managers").select("*").eq("id", rest.dedicated_manager_id).maybeSingle();
-    setManagerProfile(mgr || null);
-    const { data: msgs } = await supabase
-      .from("manager_messages").select("*")
-      .eq("restaurant_id", restaurantId).order("created_at", { ascending: true });
-    setManagerMessages(msgs || []);
-    const unread = (msgs || []).filter((m: any) => m.sender_type === "manager" && !m.is_read).length;
-    setUnreadMgrCount(unread);
-  };
-
-  useEffect(() => { loadManagerMessages(); }, [restaurantId]);
-
-  useEffect(() => {
-    if (!restaurantId) return;
-    const ch = supabase.channel(`waiter_mgr_${restaurantId}`)
-      .on("postgres_changes", {
-        event: "INSERT", schema: "public", table: "manager_messages",
-        filter: `restaurant_id=eq.${restaurantId}`,
-      }, payload => {
-        setManagerMessages(prev => [...prev, payload.new as any]);
-        if ((payload.new as any).sender_type === "manager") {
-          setUnreadMgrCount(c => c + 1);
-          toast.info("ম্যানেজারের নতুন বার্তা এসেছে");
-        }
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(ch); };
-  }, [restaurantId]);
-
-  const sendManagerMessage = async () => {
-    if (!restaurantId || !newMgrMsg.trim()) return;
-    setSendingMgrMsg(true);
-    try {
-      await supabase.from("manager_messages").insert({
-        restaurant_id: restaurantId,
-        sender_type: "restaurant",
-        message: newMgrMsg.trim(),
-      });
-      setNewMgrMsg("");
-    } catch { toast.error("বার্তা পাঠাতে সমস্যা হয়েছে"); }
-    finally { setSendingMgrMsg(false); }
-  };
-
   const openEditOrder = (order: any) => {
     setEditOrder(order);
     setEditItems((order.order_items || []).map((i: any) => ({ ...i })));
@@ -464,7 +407,6 @@ const WaiterDashboard = () => {
           {[
             { key: "orders",  label: `অর্ডার${pendingCount > 0 ? ` (${pendingCount})` : ""}${notifOrders.length > 0 ? ` 🔔${notifOrders.length}` : ""}`, icon: ShoppingCart },
             { key: "tables",  label: "টেবিল", icon: Users },
-            { key: "manager", label: `ম্যানেজার${unreadMgrCount > 0 ? ` (${unreadMgrCount})` : ""}`, icon: MessageSquare },
             { key: "profile", label: "প্রোফাইল", icon: User },
           ].map(({ key, label, icon: Icon }) => (
             <button
@@ -639,77 +581,6 @@ const WaiterDashboard = () => {
                 );
               })}
             </div>
-          </div>
-        )}
-
-        {/* ── Manager Tab ── */}
-        {activeTab === "manager" && (
-          <div className="space-y-4">
-            {!managerProfile ? (
-              <div className="text-center py-12 bg-secondary/20 rounded-2xl border border-border/30">
-                <UserCircle2 className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
-                <p className="text-muted-foreground text-sm">কোনো ডেডিকেটেড ম্যানেজার নেই</p>
-              </div>
-            ) : (
-              <>
-                {/* Manager profile strip */}
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-primary/5 border border-primary/20">
-                  <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center flex-shrink-0">
-                    <UserCircle2 className="w-5 h-5 text-primary" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-sm">{managerProfile.name}</p>
-                    {managerProfile.specialty && <p className="text-xs text-primary">{managerProfile.specialty}</p>}
-                  </div>
-                  <span className="text-[10px] px-2 py-1 rounded-full bg-success/15 text-success border border-success/30">সক্রিয়</span>
-                </div>
-
-                {/* Chat */}
-                <div className="rounded-2xl border border-border/40 overflow-hidden">
-                  <div className="h-[320px] overflow-y-auto p-3 space-y-2 bg-secondary/10">
-                    {managerMessages.length === 0 ? (
-                      <div className="flex items-center justify-center h-full">
-                        <p className="text-xs text-muted-foreground">কোনো বার্তা নেই</p>
-                      </div>
-                    ) : managerMessages.map((msg: any) => {
-                      const isManager = msg.sender_type === "manager";
-                      return (
-                        <div key={msg.id} className={`flex ${isManager ? "justify-start" : "justify-end"}`}>
-                          <div className={`max-w-[80%] px-3 py-2 rounded-2xl text-sm ${
-                            isManager
-                              ? "bg-card border border-border/50 text-foreground rounded-bl-sm"
-                              : "bg-primary text-primary-foreground rounded-br-sm"
-                          }`}>
-                            {isManager && <p className="text-[10px] text-primary font-semibold mb-1">{managerProfile.name}</p>}
-                            {msg.message}
-                            <p className={`text-[10px] mt-1 ${isManager ? "text-muted-foreground" : "text-primary-foreground/70"}`}>
-                              {new Date(msg.created_at).toLocaleTimeString("bn-BD", { hour: "2-digit", minute: "2-digit" })}
-                            </p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <div className="p-3 border-t border-border/40 flex gap-2 bg-card">
-                    <input
-                      type="text"
-                      value={newMgrMsg}
-                      onChange={e => setNewMgrMsg(e.target.value)}
-                      onKeyDown={e => { if (e.key === "Enter") sendManagerMessage(); }}
-                      placeholder={`${managerProfile.name} কে বার্তা পাঠান...`}
-                      className="flex-1 text-sm px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
-                    />
-                    <button
-                      onClick={sendManagerMessage}
-                      disabled={sendingMgrMsg || !newMgrMsg.trim()}
-                      className="w-9 h-9 rounded-lg gradient-primary flex items-center justify-center text-primary-foreground disabled:opacity-50 flex-shrink-0"
-                    >
-                      {sendingMgrMsg ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
-              </>
-            )}
           </div>
         )}
 

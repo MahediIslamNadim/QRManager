@@ -1,19 +1,18 @@
 import { useState, useEffect, useRef } from "react";
-import { Routes, Route, NavLink, useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
   UserCircle2, Store, MessageSquare, Send, RefreshCw,
-  Phone, Mail, Check, CheckCheck, Star, Clock,
-  Building2, Edit2, Eye,
+  Check, CheckCheck, Star,
+  Building2, Edit2,
 } from "lucide-react";
 
 interface ManagerProfile {
@@ -47,11 +46,12 @@ interface Message {
 const initials = (name: string) => name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
 const fmtTime  = (iso: string) => new Date(iso).toLocaleString("bn-BD", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 
-// ── Overview ──────────────────────────────────────────────────────────────────
+// -- Overview --
 function Overview({ profile, restaurants, messages, onSelectChat }: {
   profile: ManagerProfile | null;
   restaurants: AssignedRestaurant[];
   messages: Message[];
+  // Bug 3 fix: restId is now properly forwarded to parent for pre-selection
   onSelectChat: (restId: string) => void;
 }) {
   if (!profile) return (
@@ -149,6 +149,7 @@ function Overview({ profile, restaurants, messages, onSelectChat }: {
                         {unread}
                       </span>
                     )}
+                    {/* Bug 3 fix: pass rest.id so the correct thread is pre-selected */}
                     <Button size="sm" variant="outline" onClick={() => onSelectChat(rest.id)} className="h-8 gap-1 text-xs flex-shrink-0">
                       <MessageSquare className="w-3.5 h-3.5" /> চ্যাট
                     </Button>
@@ -163,16 +164,19 @@ function Overview({ profile, restaurants, messages, onSelectChat }: {
   );
 }
 
-// ── Messages (all threads) ────────────────────────────────────────────────────
-function MessagesTab({ profile, restaurants, messages, onReload }: {
+// -- Messages (all threads) --
+// Bug 3 fix: selectedRest / setSelectedRest lifted to parent so Overview can pre-select
+// the correct restaurant before the tab switches.
+function MessagesTab({ profile, restaurants, messages, onReload, selectedRest, setSelectedRest }: {
   profile: ManagerProfile | null;
   restaurants: AssignedRestaurant[];
   messages: Message[];
   onReload: () => void;
+  selectedRest: string | null;
+  setSelectedRest: (id: string | null) => void;
 }) {
-  const [selectedRest, setSelectedRest] = useState<string | null>(null);
-  const [replyText,    setReplyText]    = useState("");
-  const [sending,      setSending]      = useState(false);
+  const [replyText, setReplyText] = useState("");
+  const [sending,   setSending]   = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, selectedRest]);
@@ -304,7 +308,7 @@ function MessagesTab({ profile, restaurants, messages, onReload }: {
   );
 }
 
-// ── Profile edit ──────────────────────────────────────────────────────────────
+// -- Profile edit --
 function ProfileTab({ profile, onReload }: { profile: ManagerProfile | null; onReload: () => void }) {
   const [form, setForm]     = useState({ name: "", specialty: "", phone: "", whatsapp: "", email: "", photo_url: "", bio: "" });
   const [saving, setSaving] = useState(false);
@@ -384,14 +388,26 @@ function ProfileTab({ profile, onReload }: { profile: ManagerProfile | null; onR
   );
 }
 
-// ── Main wrapper ──────────────────────────────────────────────────────────────
+// -- Main wrapper --
 export default function ManagerDashboard() {
   const { user } = useAuth();
-  const [profile,     setProfile]     = useState<ManagerProfile | null>(null);
-  const [restaurants, setRestaurants] = useState<AssignedRestaurant[]>([]);
-  const [messages,    setMessages]    = useState<Message[]>([]);
-  const [loading,     setLoading]     = useState(true);
-  const [activeTab,   setActiveTab]   = useState<"overview" | "messages" | "profile">("overview");
+  const location = useLocation();
+
+  const [profile,      setProfile]      = useState<ManagerProfile | null>(null);
+  const [restaurants,  setRestaurants]  = useState<AssignedRestaurant[]>([]);
+  const [messages,     setMessages]     = useState<Message[]>([]);
+  const [loading,      setLoading]      = useState(true);
+  const [activeTab,    setActiveTab]    = useState<"overview" | "messages" | "profile">("overview");
+
+  // Bug 3 fix: lifted so Overview's chat button pre-selects the correct thread
+  const [selectedRest, setSelectedRest] = useState<string | null>(null);
+
+  // Bug 2 fix: sync active tab with URL path on every navigation
+  useEffect(() => {
+    if (location.pathname.includes("/profile")) setActiveTab("profile");
+    else if (location.pathname.includes("/messages")) setActiveTab("messages");
+    else setActiveTab("overview");
+  }, [location.pathname]);
 
   const load = async () => {
     if (!user) return;
@@ -445,6 +461,12 @@ export default function ManagerDashboard() {
     return "ড্যাশবোর্ড";
   };
 
+  // Bug 3 fix: pre-set the selected restaurant then switch to the messages tab
+  const handleSelectChat = (restId: string) => {
+    setSelectedRest(restId);
+    setActiveTab("messages");
+  };
+
   return (
     <DashboardLayout role="dedicated_manager" title={getTitle()}>
       {loading ? (
@@ -490,7 +512,7 @@ export default function ManagerDashboard() {
               profile={profile}
               restaurants={restaurants}
               messages={messages}
-              onSelectChat={() => setActiveTab("messages")}
+              onSelectChat={handleSelectChat}
             />
           )}
           {activeTab === "messages" && (
@@ -499,6 +521,8 @@ export default function ManagerDashboard() {
               restaurants={restaurants}
               messages={messages}
               onReload={load}
+              selectedRest={selectedRest}
+              setSelectedRest={setSelectedRest}
             />
           )}
           {activeTab === "profile" && (

@@ -11,7 +11,7 @@ import {
 import { APP_NAME, COMPANY_NAME, FREE_TRIAL_DAYS } from "@/constants/app";
 
 type Mode = "login" | "signup" | "forgot" | "forgot_sent";
-type RedirectRole = "super_admin" | "admin" | "waiter" | "kitchen" | "dedicated_manager";
+type RedirectRole = "super_admin" | "admin" | "waiter" | "kitchen";
 
 /**
  * Wait for session to be fully propagated in Supabase client
@@ -38,7 +38,6 @@ const pickRedirectRole = (
 
   if (roles.has("super_admin")) return "super_admin";
   if (roles.has("admin")) return "admin";
-  if (roles.has("dedicated_manager")) return "dedicated_manager";
   if (roles.has("waiter")) return "waiter";
   if (roles.has("kitchen")) return "kitchen";
   return null;
@@ -46,7 +45,6 @@ const pickRedirectRole = (
 
 const getRedirectPath = (resolvedRole: RedirectRole, inviteId: string | null) => {
   if (resolvedRole === "super_admin") return "/super-admin";
-  if (resolvedRole === "dedicated_manager") return "/manager";
   if (resolvedRole === "waiter") return "/waiter";
   if (resolvedRole === "kitchen") return "/admin/kitchen";
   if (inviteId) return `/admin-setup?invite=${inviteId}`;
@@ -134,18 +132,7 @@ const Login = () => {
       }
     }
 
-    // Fallback 2: server-side resolve for dedicated_manager (handles email match + backfill)
-    authDebug("Login", "staff_restaurants fallback empty — calling resolve_manager_role RPC", { userId });
-    const { data: resolvedMgrRole } = await authedClient
-      .rpc("resolve_manager_role" as any);
-
-    if (resolvedMgrRole === "dedicated_manager") {
-      authDebug("Login", "resolve_manager_role returned dedicated_manager", { userId });
-      await refetchUserData(userId, accessToken);
-      return "dedicated_manager";
-    }
-
-    // Fallback 3: check restaurants ownership (owner = admin)
+    // Fallback 2: check restaurants ownership (owner = admin)
     authDebug("Login", "dedicated_managers fallback empty — checking restaurants owner", { userId });
     const { data: ownedRestaurant } = await authedClient
       .from("restaurants")

@@ -57,6 +57,7 @@ Deno.serve(async (req) => {
       role?: unknown;
       restaurant_id?: unknown;
       user_id?: unknown;
+      manager_id?: unknown;  // Bug 5 fix: was missing from the type, causing TS errors
     };
     try {
       parsed = await req.json();

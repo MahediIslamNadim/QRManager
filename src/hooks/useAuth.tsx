@@ -103,7 +103,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         if (roles.includes("super_admin")) bestRole = "super_admin";
         else if (roles.includes("admin")) bestRole = "admin";
-        else if (roles.includes("dedicated_manager")) bestRole = "dedicated_manager";
         else if (roles.includes("waiter")) bestRole = "waiter";
         else if (roles.includes("kitchen")) bestRole = "kitchen";
 
@@ -128,12 +127,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               { onConflict: "user_id,role" }
             );
           } else {
-            // Check dedicated_managers via SECURITY DEFINER RPC (handles email match + backfill)
-            const { data: resolvedMgrRole } = await (client.rpc as any)("resolve_manager_role");
-            if (resolvedMgrRole === "dedicated_manager") {
-              bestRole = "dedicated_manager";
-              authDebug("useAuth", "Role resolved from resolve_manager_role RPC fallback", { userId });
-            } else {
+            {
               // Check restaurant ownership (owner = admin)
               const { data: ownedRest } = await client
                 .from("restaurants")

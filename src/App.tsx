@@ -42,9 +42,7 @@ import AIInsights from "./pages/AIInsights";
 import AdminReports from "./pages/AdminReports";
 import AdminFeedback from "./pages/AdminFeedback";
 import AdminSupport from "./pages/AdminSupport";
-import AdminManager from "./pages/AdminManager";
 import SuperAdminManagers from "./pages/SuperAdminManagers";
-import ManagerDashboard from "./pages/ManagerDashboard";
 import PaymentResultPage from "./pages/PaymentResultPage";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
@@ -216,10 +214,6 @@ const App = () => (
                 element={<ProtectedRoute allowedRoles={["admin", "super_admin"]}><AdminSupport /></ProtectedRoute>}
               />
               <Route
-                path="/admin/manager"
-                element={<ProtectedRoute allowedRoles={["admin", "super_admin"]}><AdminManager /></ProtectedRoute>}
-              />
-              <Route
                 path="/upgrade"
                 element={<ProtectedRoute allowedRoles={["admin", "super_admin"]}><UpgradePage /></ProtectedRoute>}
               />
@@ -240,19 +234,6 @@ const App = () => (
               <Route
                 path="/waiter/notifications"
                 element={<ProtectedRoute allowedRoles={["waiter", "admin", "super_admin"]}><WaiterNotifications /></ProtectedRoute>}
-              />
-
-              <Route
-                path="/manager"
-                element={<ProtectedRoute allowedRoles={["dedicated_manager", "super_admin"]}><ManagerDashboard /></ProtectedRoute>}
-              />
-              <Route
-                path="/manager/messages"
-                element={<ProtectedRoute allowedRoles={["dedicated_manager", "super_admin"]}><ManagerDashboard /></ProtectedRoute>}
-              />
-              <Route
-                path="/manager/profile"
-                element={<ProtectedRoute allowedRoles={["dedicated_manager", "super_admin"]}><ManagerDashboard /></ProtectedRoute>}
               />
 
               <Route path="/trial-expired" element={<TrialExpired />} />

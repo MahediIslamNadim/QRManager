@@ -3,14 +3,14 @@ import { APP_NAME } from "@/constants/app";
 import {
   LayoutDashboard, UtensilsCrossed, Store, Users, BarChart3,
   CreditCard, Menu, QrCode, ShoppingCart, UserCheck, Bell,
-  Settings, LogOut, ChevronLeft, X, ChefHat, Sparkles, Receipt, FileText, MessageSquare, Headphones, UserCircle2
+  Settings, LogOut, ChevronLeft, X, ChefHat, Sparkles, Receipt, FileText, MessageSquare, Headphones
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 
-type Role = "super_admin" | "admin" | "waiter" | "dedicated_manager";
+type Role = "super_admin" | "admin" | "waiter";
 interface SidebarProps {
   role: Role;
   mobileOpen?: boolean;
@@ -24,7 +24,6 @@ const navItems: Record<Role, { title: string; href: string; icon: any }[]> = {
     { title: "পেমেন্টসমূহ", href: "/super-admin/payments", icon: CreditCard },
     { title: "ব্যবহারকারী", href: "/super-admin/users", icon: Users },
     { title: "অ্যানালিটিক্স", href: "/super-admin/analytics", icon: BarChart3 },
-    { title: "ডেডিকেটেড ম্যানেজার", href: "/super-admin/managers", icon: UserCircle2 },
     { title: "সেটিংস", href: "/super-admin/settings", icon: Settings },
   ],
   admin: [
@@ -38,7 +37,6 @@ const navItems: Record<Role, { title: string; href: string; icon: any }[]> = {
     { title: "AI Insights", href: "/admin/ai-insights", icon: Sparkles },
     { title: "কাস্টম রিপোর্ট", href: "/admin/reports", icon: FileText },
     { title: "কাস্টমার ফিডব্যাক", href: "/admin/feedback", icon: MessageSquare },
-    { title: "ডেডিকেটেড ম্যানেজার", href: "/admin/manager", icon: UserCircle2 },
     { title: "প্রায়োরিটি সাপোর্ট", href: "/admin/support", icon: Headphones },
     { title: "প্ল্যান ও বিলিং", href: "/billing", icon: Receipt },
     { title: "সেটিংস", href: "/admin/settings", icon: Settings },
@@ -48,13 +46,6 @@ const navItems: Record<Role, { title: string; href: string; icon: any }[]> = {
     { title: "সিট রিকোয়েস্ট", href: "/waiter/seats", icon: UserCheck },
     { title: "কিচেন ডিসপ্লে", href: "/waiter/kitchen", icon: ChefHat },
     { title: "নোটিফিকেশন", href: "/waiter/notifications", icon: Bell },
-  ],
-  dedicated_manager: [
-    { title: "ড্যাশবোর্ড", href: "/manager", icon: LayoutDashboard },
-    { title: "রেস্টুরেন্টসমূহ", href: "/manager/restaurants", icon: Store },
-    { title: "মেসেজ", href: "/manager/messages", icon: MessageSquare },
-    { title: "প্রোফাইল", href: "/manager/profile", icon: UserCircle2 },
-    { title: "সেটিংস", href: "/manager/settings", icon: Settings },
   ],
 };
 

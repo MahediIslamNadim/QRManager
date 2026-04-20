@@ -10,7 +10,7 @@ type PendingLoginRedirect = {
 
 const canUseWindow = () => typeof window !== "undefined";
 
-export const isAuthDebugEnabled = () => true;
+export const isAuthDebugEnabled = () => import.meta.env.DEV;
 
 export const authDebug = (scope: string, message: string, details?: unknown) => {
   if (!isAuthDebugEnabled()) return;
