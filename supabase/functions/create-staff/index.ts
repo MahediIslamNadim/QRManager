@@ -57,7 +57,6 @@ Deno.serve(async (req) => {
       role?: unknown;
       restaurant_id?: unknown;
       user_id?: unknown;
-      manager_id?: unknown;  // Bug 5 fix: was missing from the type, causing TS errors
     };
     try {
       parsed = await req.json();
@@ -67,72 +66,10 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const { action, email, password, full_name, role, restaurant_id, user_id, manager_id } = parsed;
+    const { action, email, password, full_name, role, restaurant_id, user_id } = parsed;
     const requestedAction = action === "remove" ? "remove" : "add";
     const allowedRoles = ["admin", "waiter", "kitchen"] as const;
 
-    // ── DEDICATED MANAGER special path ────────────────────────────────────────
-    if (role === "dedicated_manager" || (requestedAction === "remove" && manager_id)) {
-      if (requestedAction === "remove") {
-        if (!manager_id) {
-          return new Response(JSON.stringify({ error: "manager_id is required" }), {
-            status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-        const { data: mgr } = await callerClient
-          .from("dedicated_managers").select("user_id").eq("id", manager_id).maybeSingle();
-        if (mgr?.user_id) {
-          await callerClient.from("user_roles").delete()
-            .eq("user_id", mgr.user_id).eq("role", "dedicated_manager");
-          await callerClient.from("dedicated_managers").update({ user_id: null }).eq("id", manager_id);
-        }
-        return new Response(JSON.stringify({ success: true }), {
-          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      // add dedicated_manager
-      if (typeof email !== "string" || !email.trim() || !manager_id) {
-        return new Response(JSON.stringify({ error: "email and manager_id are required" }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      const mgEmail = email.trim().toLowerCase();
-
-      const { data: existingMgrProfile } = await callerClient
-        .from("profiles").select("id").eq("email", mgEmail).maybeSingle();
-
-      let mgrUserId: string;
-      if (existingMgrProfile?.id) {
-        mgrUserId = existingMgrProfile.id;
-      } else {
-        if (typeof password !== "string" || !password) {
-          return new Response(JSON.stringify({
-            error: `"${mgEmail}" এই ইমেইলে কোনো অ্যাকাউন্ট নেই। নতুন অ্যাকাউন্ট তৈরি করতে পাসওয়ার্ড দিন।`,
-          }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-        }
-        const { data: newMgrUser, error: mgrCreateErr } = await callerClient.auth.admin.createUser({
-          email: mgEmail, password,
-          email_confirm: true,
-          user_metadata: { full_name: typeof full_name === "string" ? full_name : "" },
-        });
-        if (mgrCreateErr || !newMgrUser?.user) {
-          return new Response(JSON.stringify({ error: mgrCreateErr?.message || "User creation failed" }), {
-            status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-        mgrUserId = newMgrUser.user.id;
-      }
-
-      await (callerClient.from("user_roles") as any)
-        .upsert({ user_id: mgrUserId, role: "dedicated_manager" }, { onConflict: "user_id,role" });
-      await callerClient.from("dedicated_managers").update({ user_id: mgrUserId }).eq("id", manager_id);
-
-      return new Response(JSON.stringify({ success: true, user_id: mgrUserId }), {
-        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    // ── END dedicated manager path ─────────────────────────────────────────────
 
     if (requestedAction === "remove" && typeof user_id !== "string") {
       return new Response(JSON.stringify({ error: "User ID is required" }), {
