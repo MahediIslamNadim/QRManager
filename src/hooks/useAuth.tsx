@@ -128,20 +128,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               { onConflict: "user_id,role" }
             );
           } else {
-            // Check dedicated_managers (manager login)
-            const { data: mgrRow } = await (client.from("dedicated_managers") as any)
-              .select("id")
-              .eq("user_id", userId)
-              .limit(1)
-              .maybeSingle();
-
-            if (mgrRow?.id) {
+            // Check dedicated_managers via SECURITY DEFINER RPC (handles email match + backfill)
+            const { data: resolvedMgrRole } = await (client.rpc as any)("resolve_manager_role");
+            if (resolvedMgrRole === "dedicated_manager") {
               bestRole = "dedicated_manager";
-              authDebug("useAuth", "Role resolved from dedicated_managers fallback", { userId });
-              await (client.from("user_roles") as any).upsert(
-                { user_id: userId, role: "dedicated_manager" },
-                { onConflict: "user_id,role" }
-              );
+              authDebug("useAuth", "Role resolved from resolve_manager_role RPC fallback", { userId });
             } else {
               // Check restaurant ownership (owner = admin)
               const { data: ownedRest } = await client

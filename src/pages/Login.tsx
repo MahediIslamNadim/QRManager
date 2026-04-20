@@ -134,21 +134,13 @@ const Login = () => {
       }
     }
 
-    // Fallback 2: check dedicated_managers (manager login)
-    authDebug("Login", "staff_restaurants fallback empty — checking dedicated_managers", { userId });
-    const { data: mgrRow } = await authedClient
-      .from("dedicated_managers" as any)
-      .select("id")
-      .eq("user_id", userId)
-      .limit(1)
-      .maybeSingle();
+    // Fallback 2: server-side resolve for dedicated_manager (handles email match + backfill)
+    authDebug("Login", "staff_restaurants fallback empty — calling resolve_manager_role RPC", { userId });
+    const { data: resolvedMgrRole } = await authedClient
+      .rpc("resolve_manager_role" as any);
 
-    if ((mgrRow as any)?.id) {
-      authDebug("Login", "User is a dedicated manager — assigning dedicated_manager role", { userId });
-      await (authedClient.from("user_roles") as any).upsert(
-        { user_id: userId, role: "dedicated_manager" },
-        { onConflict: "user_id,role" }
-      );
+    if (resolvedMgrRole === "dedicated_manager") {
+      authDebug("Login", "resolve_manager_role returned dedicated_manager", { userId });
       await refetchUserData(userId, accessToken);
       return "dedicated_manager";
     }
