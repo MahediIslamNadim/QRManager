@@ -66,8 +66,7 @@ export const TIERS: Record<TierType, TierConfig> = {
       'api_access',
       'advanced_analytics',
       'custom_reports',
-      'priority_support',
-      'dedicated_manager'
+      'priority_support'
     ],
     color: 'purple'
   }

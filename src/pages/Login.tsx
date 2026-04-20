@@ -133,7 +133,7 @@ const Login = () => {
     }
 
     // Fallback 2: check restaurants ownership (owner = admin)
-    authDebug("Login", "dedicated_managers fallback empty — checking restaurants owner", { userId });
+    authDebug("Login", "staff_restaurants fallback empty — checking restaurants owner", { userId });
     const { data: ownedRestaurant } = await authedClient
       .from("restaurants")
       .select("id")

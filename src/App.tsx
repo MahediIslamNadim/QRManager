@@ -42,7 +42,6 @@ import AIInsights from "./pages/AIInsights";
 import AdminReports from "./pages/AdminReports";
 import AdminFeedback from "./pages/AdminFeedback";
 import AdminSupport from "./pages/AdminSupport";
-import SuperAdminManagers from "./pages/SuperAdminManagers";
 import PaymentResultPage from "./pages/PaymentResultPage";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
@@ -160,11 +159,6 @@ const App = () => (
                 path="/super-admin/settings"
                 element={<ProtectedRoute allowedRoles={["super_admin"]}><SuperAdminSettings /></ProtectedRoute>}
               />
-              <Route
-                path="/super-admin/managers"
-                element={<ProtectedRoute allowedRoles={["super_admin"]}><SuperAdminManagers /></ProtectedRoute>}
-              />
-
               <Route
                 path="/admin"
                 element={<ProtectedRoute allowedRoles={["admin", "super_admin"]}><AdminDashboard /></ProtectedRoute>}

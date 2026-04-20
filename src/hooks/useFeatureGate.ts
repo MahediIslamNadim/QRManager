@@ -90,11 +90,6 @@ export const FEATURES = {
     tiers: ['high_smart'] as TierName[],
     requiresActiveSub: true
   },
-  dedicated_manager: {
-    name: 'Dedicated Manager',
-    tiers: ['high_smart'] as TierName[],
-    requiresActiveSub: true
-  }
 } as const;
 
 export type FeatureName = keyof typeof FEATURES;
