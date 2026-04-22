@@ -21,29 +21,29 @@ interface UseMenuSessionResult {
   sessionStartedAt: string | null;
 }
 
-const storageKey = (restaurantId: string, tableId: string) =>
-  `qrm_session_${restaurantId}_${tableId}`;
+const storageKey = (restaurantId: string, tableId: string, seatId?: string | null) =>
+  `qrm_session_${restaurantId}_${tableId}${seatId ? `_${seatId}` : ""}`;
 
-const saveSession = (restaurantId: string, tableId: string, token: string, expiresAt: string) => {
+const saveSession = (restaurantId: string, tableId: string, token: string, expiresAt: string, seatId?: string | null) => {
   const data = { token, expiresAt, startedAt: new Date().toISOString() };
-  localStorage.setItem(storageKey(restaurantId, tableId), JSON.stringify(data));
+  localStorage.setItem(storageKey(restaurantId, tableId, seatId), JSON.stringify(data));
 };
 
-const loadSession = (restaurantId: string, tableId: string): { token: string; startedAt: string } | null => {
+const loadSession = (restaurantId: string, tableId: string, seatId?: string | null): { token: string; startedAt: string } | null => {
   try {
-    const raw = localStorage.getItem(storageKey(restaurantId, tableId));
+    const raw = localStorage.getItem(storageKey(restaurantId, tableId, seatId));
     if (!raw) return null;
     const { token, expiresAt, startedAt } = JSON.parse(raw);
     if (new Date(expiresAt) > new Date()) return { token, startedAt };
-    localStorage.removeItem(storageKey(restaurantId, tableId));
+    localStorage.removeItem(storageKey(restaurantId, tableId, seatId));
     return null;
   } catch {
     return null;
   }
 };
 
-export const clearSession = (restaurantId: string, tableId: string) => {
-  localStorage.removeItem(storageKey(restaurantId, tableId));
+export const clearSession = (restaurantId: string, tableId: string, seatId?: string | null) => {
+  localStorage.removeItem(storageKey(restaurantId, tableId, seatId));
 };
 
 export function useMenuSession({
@@ -110,7 +110,7 @@ export function useMenuSession({
         }
 
         // Check localStorage first (restores session on refresh)
-        const stored = loadSession(restaurantId, tableId);
+        const stored = loadSession(restaurantId, tableId, seatId);
         const existingToken = tokenParam ?? stored?.token ?? null;
 
         const { data: sessionResult, error: sessionErr } = await supabase.rpc(
@@ -129,10 +129,10 @@ export function useMenuSession({
           setSessionToken(token);
           setTokenValid(true);
 
-          // Persist session to localStorage
+          // Persist session to localStorage (keyed by seat so each seat has its own token)
           const isNewSession = !stored || stored.token !== token;
           const startedAt = isNewSession ? new Date().toISOString() : (stored?.startedAt ?? new Date().toISOString());
-          saveSession(restaurantId, tableId, token, expiresAt);
+          saveSession(restaurantId, tableId, token, expiresAt, seatId);
           setSessionStartedAt(startedAt);
 
           const newUrl = new URL(window.location.href);
@@ -140,7 +140,7 @@ export function useMenuSession({
           window.history.replaceState({}, "", newUrl.toString());
         } else {
           setTokenValid(false);
-          clearSession(restaurantId, tableId);
+          clearSession(restaurantId, tableId, seatId);
         }
       } catch {
         setTokenValid(false);
