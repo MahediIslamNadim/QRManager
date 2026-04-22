@@ -27,6 +27,7 @@ interface MenuItem {
   image_url?: string | null;
   stock_quantity?: number | null;
   prep_time_minutes?: number | null;
+  order_count?: number;
 }
 
 interface CartItem extends MenuItem {
@@ -296,13 +297,17 @@ const CustomerMenu = () => {
 
     const [restRes, menuRes] = await Promise.all([
       supabase.from("restaurants").select("*").eq("id", restaurantId!).maybeSingle(),
-      supabase.from("menu_items").select("*").eq("restaurant_id", restaurantId!).order("sort_order"),
+      supabase.from("menu_items").select("*, menu_item_metrics(order_count)").eq("restaurant_id", restaurantId!).order("sort_order"),
     ]);
 
     if (restRes.data) setRestaurant(restRes.data);
     if (menuRes.data) {
-      setMenuItems(menuRes.data as any);
-      setCategories(["সব", ...new Set(menuRes.data.map((i: any) => i.category))]);
+      const items = (menuRes.data as any[]).map(i => ({
+        ...i,
+        order_count: i.menu_item_metrics?.[0]?.order_count ?? 0,
+      }));
+      setMenuItems(items as any);
+      setCategories(["সব", ...new Set(items.map((i: any) => i.category))]);
     }
     setLoading(false);
   }, [restaurantId, isDemo]);
@@ -434,9 +439,26 @@ const CustomerMenu = () => {
   const totalPrice = cart.reduce((sum, c) => sum + c.price * c.quantity, 0);
 
   // ── Derived menu state ─────────────────────────────────────────────────────
+  // Top 3 available items by order_count get a 🔥 badge
+  const popularItemIds = useMemo(() => new Set(
+    [...menuItems]
+      .filter(i => i.available && (i.order_count ?? 0) > 0)
+      .sort((a, b) => (b.order_count ?? 0) - (a.order_count ?? 0))
+      .slice(0, 3)
+      .map(i => i.id)
+  ), [menuItems]);
+
   const filtered = menuItems
     .filter(i => activeCategory === "সব" || i.category === activeCategory)
-    .filter(i => !searchQuery || i.name.toLowerCase().includes(searchQuery.toLowerCase()) || i.description?.toLowerCase().includes(searchQuery.toLowerCase()));
+    .filter(i => !searchQuery || i.name.toLowerCase().includes(searchQuery.toLowerCase()) || i.description?.toLowerCase().includes(searchQuery.toLowerCase()))
+    .sort((a, b) => {
+      // Unavailable items always sink to the bottom
+      if (a.available !== b.available) return a.available ? -1 : 1;
+      // Sort by order_count descending, then by original sort_order
+      const diff = (b.order_count ?? 0) - (a.order_count ?? 0);
+      if (diff !== 0) return diff;
+      return (a.sort_order as any ?? 0) - (b.sort_order as any ?? 0);
+    });
 
   const totalMenuItems = menuItems.length;
   const inStockCount = menuItems.filter(i => i.available).length;
@@ -803,10 +825,11 @@ const CustomerMenu = () => {
           const imgUrl = getImageUrl(item.image_url || null);
           const catColor = getCategoryColor(item.category);
           const isOutOfStock = !item.available || (item.stock_quantity !== null && item.stock_quantity !== undefined && item.stock_quantity <= 0);
+          const isPopularItem = popularItemIds.has(item.id);
           return (
             <div key={item.id}
               className={`group bg-card rounded-2xl border overflow-hidden transition-all duration-500 animate-fade-up ${
-                isOutOfStock ? "border-destructive/20 opacity-75 cursor-not-allowed" : "border-border/60 hover:shadow-xl hover:shadow-primary/5 hover:-translate-y-1 cursor-pointer"
+                isOutOfStock ? "border-destructive/20 opacity-75 cursor-not-allowed" : isPopularItem ? "border-orange-400/40 hover:shadow-xl hover:shadow-orange-400/10 hover:-translate-y-1 cursor-pointer" : "border-border/60 hover:shadow-xl hover:shadow-primary/5 hover:-translate-y-1 cursor-pointer"
               }`}
               style={{ animationDelay: `${Math.min(index * 80, 400)}ms` }}>
               <div className="relative h-44 sm:h-52 w-full overflow-hidden bg-gradient-to-br from-accent via-secondary to-accent">
@@ -822,8 +845,15 @@ const CustomerMenu = () => {
                 <div className={`absolute top-3 right-3 px-3.5 py-1.5 rounded-xl text-sm font-bold shadow-lg backdrop-blur-sm ${isOutOfStock ? "bg-muted text-muted-foreground" : "gradient-primary text-primary-foreground shadow-primary/30"}`}>
                   ৳{item.price}
                 </div>
-                <div className={`absolute top-3 left-3 px-3 py-1 rounded-lg text-xs font-semibold border backdrop-blur-md ${catColor.bg} ${catColor.text} ${catColor.border}`}>
-                  {item.category}
+                <div className="absolute top-3 left-3 flex flex-col gap-1.5">
+                  <div className={`px-3 py-1 rounded-lg text-xs font-semibold border backdrop-blur-md ${catColor.bg} ${catColor.text} ${catColor.border}`}>
+                    {item.category}
+                  </div>
+                  {isPopularItem && (
+                    <div className="px-2.5 py-1 rounded-lg text-[11px] font-bold backdrop-blur-md bg-orange-500/90 text-white flex items-center gap-1 shadow-md">
+                      <Flame className="w-3 h-3" /> বেস্টসেলার
+                    </div>
+                  )}
                 </div>
                 <div className={`absolute bottom-3 left-3 px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 backdrop-blur-md ${isOutOfStock ? "bg-destructive/90 text-destructive-foreground" : "bg-success/90 text-success-foreground"}`}>
                   {isOutOfStock ? <XCircle className="w-3 h-3" /> : <CheckCircle className="w-3 h-3" />}
