@@ -53,9 +53,11 @@ export type Database = {
           id: string
           image_url: string | null
           name: string
+          prep_time_minutes: number | null
           price: number
           restaurant_id: string
           sort_order: number
+          stock_quantity: number | null
           updated_at: string
         }
         Insert: {
@@ -66,9 +68,11 @@ export type Database = {
           id?: string
           image_url?: string | null
           name: string
+          prep_time_minutes?: number | null
           price?: number
           restaurant_id: string
           sort_order?: number
+          stock_quantity?: number | null
           updated_at?: string
         }
         Update: {
@@ -79,9 +83,11 @@ export type Database = {
           id?: string
           image_url?: string | null
           name?: string
+          prep_time_minutes?: number | null
           price?: number
           restaurant_id?: string
           sort_order?: number
+          stock_quantity?: number | null
           updated_at?: string
         }
         Relationships: [
