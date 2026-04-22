@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { getOrCreateCustomerId } from "@/lib/customerId";
 
 export interface OrderItem {
   id: string;
@@ -139,27 +140,27 @@ export function useMenuOrders({
     }
   }, [isDemo, tableId, restaurantId, seatId]);
 
-  // Fetch completed order history for this session/seat
+  // Fetch completed order history — uses persistent customer_device_id so
+  // returning customers see their full history across all past visits
   const fetchOrderHistory = useCallback(async () => {
-    if (isDemo || !tableId || !restaurantId || !seatId) return;
+    if (isDemo || !restaurantId) return;
     try {
-      let query = supabase
+      const customerId = getOrCreateCustomerId();
+      const { data: historyData, error } = await supabase
         .from("orders")
         .select("id, total, status, created_at")
         .eq("restaurant_id", restaurantId)
-        .eq("table_id", tableId)
-        .eq("seat_id", seatId)
+        .eq("customer_device_id" as any, customerId)
         .in("status", ["delivered", "completed", "served", "cancelled"])
         .gt("total", 0)
         .order("created_at", { ascending: false })
-        .limit(20);
+        .limit(50);
 
-      if (sessionStartedAt) query = query.gte("created_at", sessionStartedAt);
-
-      const { data: historyData, error } = await query;
       if (error || !historyData) return;
 
       const ids = historyData.map(o => o.id);
+      if (ids.length === 0) return;
+
       const { data: itemsData } = await supabase
         .from("order_items")
         .select("id, name, price, quantity, menu_item_id, order_id")
@@ -174,7 +175,7 @@ export function useMenuOrders({
     } catch {
       // silently fail
     }
-  }, [isDemo, tableId, restaurantId, seatId, sessionStartedAt]);
+  }, [isDemo, restaurantId]);
 
   // Initial load
   useEffect(() => {
@@ -295,6 +296,7 @@ export function useMenuOrders({
         p_notes: specialNote.trim() || null,
         p_token: sessionToken,
         p_items: cart.map(c => ({ menu_item_id: c.id, quantity: c.quantity })),
+        p_customer_device_id: getOrCreateCustomerId(),
       } as any,
     );
     if (orderErr) throw orderErr;
