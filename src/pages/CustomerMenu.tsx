@@ -591,13 +591,25 @@ const CustomerMenu = () => {
                 ))}
               </div>
             </div>
-            <div className="flex items-center gap-3 p-3 rounded-xl bg-warning/10 border border-warning/20">
-              <Clock className="w-5 h-5 text-warning flex-shrink-0" />
-              <div>
-                <p className="text-sm font-semibold text-foreground">আনুমানিক ২০-৩০ মিনিট</p>
-                <p className="text-xs text-muted-foreground">আপনার খাবার তৈরি হচ্ছে</p>
-              </div>
-            </div>
+            {(() => {
+              const maxPrepTime = lastOrderItems.reduce((max, item) => {
+                if (item.prep_time_minutes && item.prep_time_minutes > max) return item.prep_time_minutes;
+                return max;
+              }, 0);
+              return (
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-warning/10 border border-warning/20">
+                  <Clock className="w-5 h-5 text-warning flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">
+                      {maxPrepTime > 0
+                        ? (maxPrepTime <= 5 ? `⚡ মাত্র ~${maxPrepTime} মিনিট` : `আনুমানিক ~${maxPrepTime} মিনিট`)
+                        : "আনুমানিক ২০-৩০ মিনিট"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">আপনার খাবার তৈরি হচ্ছে</p>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
           <div className="space-y-3">
             <Button variant="hero" size="lg" className="w-full h-12 rounded-2xl"
