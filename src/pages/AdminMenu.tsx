@@ -2,7 +2,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Edit, Trash2, Image as ImageIcon, Upload, X, CheckCircle, XCircle, Clock } from "lucide-react";
+import { Plus, Edit, Trash2, Image as ImageIcon, Upload, X, CheckCircle, XCircle, Clock, ShoppingBag, TrendingUp } from "lucide-react";
 import { useState, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -400,6 +400,16 @@ const AdminMenu = () => {
                         <span className="flex items-center gap-1 text-xs font-medium text-muted-foreground bg-secondary px-2 py-1 rounded-lg">
                           <Clock className="w-3 h-3" /> ~{item.prep_time_minutes} মিনিট
                         </span>
+                      )}
+                    </div>
+                    {/* Sales stats bar */}
+                    <div className={`flex items-center gap-2 mt-3 px-3 py-2 rounded-xl ${orderCount > 0 ? "bg-primary/5 border border-primary/10" : "bg-muted/40 border border-border/40"}`}>
+                      <ShoppingBag className={`w-3.5 h-3.5 flex-shrink-0 ${orderCount > 0 ? "text-primary" : "text-muted-foreground"}`} />
+                      <span className={`text-xs font-semibold ${orderCount > 0 ? "text-primary" : "text-muted-foreground"}`}>
+                        {orderCount > 0 ? `${orderCount} বার অর্ডার হয়েছে` : "এখনো অর্ডার হয়নি"}
+                      </span>
+                      {orderCount > 0 && (
+                        <TrendingUp className="w-3.5 h-3.5 text-primary ml-auto" />
                       )}
                     </div>
                     <div className="flex items-center justify-between mt-3">
