@@ -24,6 +24,7 @@ const navItems: Record<Role, { title: string; href: string; icon: any }[]> = {
     { title: "পেমেন্টসমূহ", href: "/super-admin/payments", icon: CreditCard },
     { title: "ব্যবহারকারী", href: "/super-admin/users", icon: Users },
     { title: "অ্যানালিটিক্স", href: "/super-admin/analytics", icon: BarChart3 },
+    { title: "সাপোর্ট টিকেট", href: "/super-admin/support", icon: Headphones },
     { title: "সেটিংস", href: "/super-admin/settings", icon: Settings },
   ],
   admin: [

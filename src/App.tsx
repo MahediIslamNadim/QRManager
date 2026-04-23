@@ -17,6 +17,7 @@ import SuperAdminUsers from "./pages/SuperAdminUsers";
 import SuperAdminAnalytics from "./pages/SuperAdminAnalytics";
 import SuperAdminSettings from "./pages/SuperAdminSettings";
 import SuperAdminPayments from "./pages/SuperAdminPayments";
+import SuperAdminSupport from "./pages/SuperAdminSupport";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminMenu from "./pages/AdminMenu";
 import AdminTables from "./pages/AdminTables";
@@ -158,6 +159,10 @@ const App = () => (
               <Route
                 path="/super-admin/settings"
                 element={<ProtectedRoute allowedRoles={["super_admin"]}><SuperAdminSettings /></ProtectedRoute>}
+              />
+              <Route
+                path="/super-admin/support"
+                element={<ProtectedRoute allowedRoles={["super_admin"]}><SuperAdminSupport /></ProtectedRoute>}
               />
               <Route
                 path="/admin"
