@@ -72,8 +72,8 @@ export const FEATURES = {
   },
   priority_support: {
     name: 'Priority Support 24/7',
-    tiers: ['medium_smart', 'high_smart'] as TierName[],
-    requiresActiveSub: false
+    tiers: ['high_smart'] as TierName[],
+    requiresActiveSub: true
   },
   advanced_inventory: {
     name: 'Advanced Inventory',
