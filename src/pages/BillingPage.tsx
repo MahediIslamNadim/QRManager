@@ -1,4 +1,3 @@
-// BillingPage.tsx - Billing history and subscription management
 import { useState } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import { Button } from '@/components/ui/button';
@@ -8,314 +7,259 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { 
-  CreditCard, Download, FileText, Calendar, 
-  CheckCircle2, XCircle, Clock, Receipt,
-  AlertTriangle, ExternalLink
+import {
+  CreditCard, FileText, CheckCircle2, XCircle,
+  Clock, Receipt, AlertTriangle, ExternalLink, RefreshCw,
 } from 'lucide-react';
-import { TIERS, formatPrice } from '@/constants/tiers';
-import { format } from 'date-fns';
+import { TIERS } from '@/constants/tiers';
 
 const BillingPage = () => {
   const { restaurantId } = useAuth();
   const queryClient = useQueryClient();
+  const [confirmCancel, setConfirmCancel] = useState(false);
 
-  // Fetch current subscription
+  // Fetch current subscription from restaurants table (only columns that exist)
   const { data: subscription, isLoading: subLoading } = useQuery({
     queryKey: ['subscription', restaurantId],
     queryFn: async () => {
       if (!restaurantId) return null;
       const { data, error } = await supabase
         .from('restaurants')
-        .select('tier, billing_cycle, subscription_status, subscription_start_date, subscription_end_date, next_billing_date')
+        .select('tier, subscription_status, trial_end_date, trial_ends_at')
         .eq('id', restaurantId)
         .single();
       if (error) throw error;
       return data;
     },
-    enabled: !!restaurantId
+    enabled: !!restaurantId,
   });
 
-  // Fetch billing history
-  const { data: invoices = [], isLoading: invoicesLoading } = useQuery({
-    queryKey: ['invoices', restaurantId],
+  // Fetch payment history from payment_requests table (the table that actually exists)
+  const { data: payments = [], isLoading: paymentsLoading } = useQuery({
+    queryKey: ['payment-requests', restaurantId],
     queryFn: async () => {
       if (!restaurantId) return [];
       const { data, error } = await supabase
-        .from('subscriptions')
+        .from('payment_requests')
         .select('*')
         .eq('restaurant_id', restaurantId)
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data || [];
     },
-    enabled: !!restaurantId
+    enabled: !!restaurantId,
   });
 
-  // Cancel subscription mutation
   const cancelMutation = useMutation({
     mutationFn: async () => {
       if (!restaurantId) throw new Error('No restaurant');
-      
       const { error } = await supabase
         .from('restaurants')
-        .update({
-          subscription_status: 'cancelled',
-          // Note: Access continues until end of billing period
-        })
+        .update({ subscription_status: 'cancelled' })
         .eq('id', restaurantId);
-
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['subscription', restaurantId] });
-      toast.success('Subscription cancelled. Access continues until end of billing period.');
+      toast.success('সাবস্ক্রিপশন বাতিল হয়েছে। বিলিং পিরিয়ড শেষ হওয়া পর্যন্ত অ্যাক্সেস থাকবে।');
+      setConfirmCancel(false);
     },
-    onError: (err: any) => {
-      toast.error(err.message);
-    }
+    onError: (err: any) => toast.error(err.message),
   });
 
-  const handleCancelSubscription = () => {
-    if (confirm('Are you sure you want to cancel your subscription? Your access will continue until the end of the current billing period.')) {
-      cancelMutation.mutate();
+  const STATUS_CONFIG: Record<string, { label: string; className: string; icon: any }> = {
+    active:    { label: 'সক্রিয়',      className: 'bg-success/15 text-success border border-success/30',             icon: CheckCircle2 },
+    trial:     { label: 'ট্রায়াল',      className: 'bg-blue-500/15 text-blue-500 border border-blue-500/30',         icon: Clock },
+    expired:   { label: 'মেয়াদ শেষ',   className: 'bg-destructive/15 text-destructive border border-destructive/30', icon: XCircle },
+    cancelled: { label: 'বাতিল',        className: 'bg-secondary text-muted-foreground border border-border',         icon: AlertTriangle },
+  };
+
+  const PAYMENT_STATUS: Record<string, { label: string; className: string }> = {
+    pending:  { label: 'অপেক্ষমান',    className: 'bg-warning/15 text-warning border border-warning/30' },
+    approved: { label: 'অনুমোদিত',     className: 'bg-success/15 text-success border border-success/30' },
+    rejected: { label: 'প্রত্যাখ্যাত', className: 'bg-destructive/15 text-destructive border border-destructive/30' },
+  };
+
+  const formatDate = (dateStr: string | null | undefined) => {
+    if (!dateStr) return '—';
+    try {
+      return new Date(dateStr).toLocaleDateString('bn-BD', { day: '2-digit', month: 'long', year: 'numeric' });
+    } catch {
+      return '—';
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    const config = {
-      active: { label: 'Active', variant: 'success' as const, icon: CheckCircle2 },
-      trial: { label: 'Trial', variant: 'default' as const, icon: Clock },
-      expired: { label: 'Expired', variant: 'destructive' as const, icon: XCircle },
-      cancelled: { label: 'Cancelled', variant: 'secondary' as const, icon: AlertTriangle },
-    };
-    return config[status as keyof typeof config] || config.trial;
-  };
+  const formatAmount = (amount: number) => `৳${Number(amount).toLocaleString('bn-BD')}`;
 
-  const downloadInvoice = (invoice: any) => {
-    // TODO: Generate PDF invoice
-    toast.info('Invoice download coming soon!');
-  };
+  const status = subscription?.subscription_status || 'trial';
+  const statusCfg = STATUS_CONFIG[status] || STATUS_CONFIG.trial;
+  const StatusIcon = statusCfg.icon;
+  const tierInfo = TIERS[subscription?.tier as keyof typeof TIERS];
+  const trialEnd = subscription?.trial_end_date || subscription?.trial_ends_at;
 
   if (subLoading) {
     return (
-      <DashboardLayout role="admin" title="Billing">
-        <div className="text-center py-12">Loading...</div>
+      <DashboardLayout role="admin" title="প্ল্যান ও বিলিং">
+        <div className="flex items-center justify-center py-16 text-muted-foreground gap-2">
+          <RefreshCw className="w-4 h-4 animate-spin" /> লোড হচ্ছে...
+        </div>
       </DashboardLayout>
     );
   }
 
-  const statusBadge = getStatusBadge(subscription?.subscription_status || 'trial');
-  const StatusIcon = statusBadge.icon;
-
   return (
-    <DashboardLayout role="admin" title="Billing & Subscription">
-      <div className="max-w-5xl mx-auto space-y-6">
-        
-        {/* Current Subscription Card */}
+    <DashboardLayout role="admin" title="প্ল্যান ও বিলিং">
+      <div className="max-w-4xl mx-auto space-y-6 animate-fade-up">
+
+        {/* Current Subscription */}
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Current Subscription</CardTitle>
-              <Badge variant={statusBadge.variant} className="flex items-center gap-1">
-                <StatusIcon className="w-3 h-3" />
-                {statusBadge.label}
-              </Badge>
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <CardTitle className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <CreditCard className="w-4 h-4 text-primary" />
+                </div>
+                বর্তমান সাবস্ক্রিপশন
+              </CardTitle>
+              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${statusCfg.className}`}>
+                <StatusIcon className="w-3.5 h-3.5" /> {statusCfg.label}
+              </span>
             </div>
           </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Plan Details */}
-            <div className="grid md:grid-cols-2 gap-6">
+          <CardContent className="space-y-5">
+            <div className="grid sm:grid-cols-2 gap-5">
               <div>
-                <p className="text-sm text-muted-foreground mb-1">Current Plan</p>
-                <p className="text-2xl font-bold">
-                  {TIERS[subscription?.tier as keyof typeof TIERS]?.name_bn || 'Trial'}
-                </p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {subscription?.billing_cycle === 'monthly' ? 'Billed monthly' : 'Billed annually'}
-                </p>
+                <p className="text-xs text-muted-foreground mb-1">বর্তমান প্ল্যান</p>
+                <p className="text-2xl font-bold">{tierInfo?.name_bn || subscription?.tier || 'ট্রায়াল'}</p>
+                {tierInfo?.description && (
+                  <p className="text-sm text-muted-foreground mt-1">{tierInfo.description}</p>
+                )}
               </div>
-
-              {subscription?.subscription_status === 'active' && (
+              {status === 'trial' && trialEnd && (
                 <div>
-                  <p className="text-sm text-muted-foreground mb-1">Amount</p>
-                  <p className="text-2xl font-bold">
-                    {formatPrice(
-                      subscription.billing_cycle === 'monthly'
-                        ? TIERS[subscription.tier as keyof typeof TIERS]?.price_monthly || 0
-                        : TIERS[subscription.tier as keyof typeof TIERS]?.price_yearly || 0
-                    )}
-                  </p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {subscription.billing_cycle === 'monthly' ? 'per month' : 'per year'}
-                  </p>
+                  <p className="text-xs text-muted-foreground mb-1">ট্রায়াল শেষ হবে</p>
+                  <p className="text-lg font-semibold">{formatDate(trialEnd)}</p>
                 </div>
               )}
             </div>
 
-            {/* Billing Dates */}
-            {subscription?.subscription_status === 'active' && (
-              <div className="border-t pt-4 space-y-3">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Subscription started:</span>
-                  <span className="font-medium">
-                    {format(new Date(subscription.subscription_start_date), 'MMM dd, yyyy')}
-                  </span>
+            {/* Trial warning */}
+            {status === 'trial' && (
+              <div className="flex items-start gap-3 p-4 rounded-xl bg-warning/10 border border-warning/20">
+                <AlertTriangle className="w-5 h-5 text-warning flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold text-warning">ট্রায়াল পিরিয়ড চলছে</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    সব ফিচার ব্যবহার করতে পেইড প্ল্যানে আপগ্রেড করুন।
+                  </p>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Next billing date:</span>
-                  <span className="font-medium">
-                    {format(new Date(subscription.next_billing_date), 'MMM dd, yyyy')}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Renewal amount:</span>
-                  <span className="font-semibold">
-                    {formatPrice(
-                      subscription.billing_cycle === 'monthly'
-                        ? TIERS[subscription.tier as keyof typeof TIERS]?.price_monthly || 0
-                        : TIERS[subscription.tier as keyof typeof TIERS]?.price_yearly || 0
-                    )}
-                  </span>
+              </div>
+            )}
+
+            {/* Cancelled warning */}
+            {status === 'cancelled' && (
+              <div className="flex items-start gap-3 p-4 rounded-xl bg-destructive/10 border border-destructive/20">
+                <XCircle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold text-destructive">সাবস্ক্রিপশন বাতিল</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    আপনার সাবস্ক্রিপশন বাতিল হয়েছে। যেকোনো সময় পুনরায় সক্রিয় করতে পারবেন।
+                  </p>
                 </div>
               </div>
             )}
 
             {/* Actions */}
-            <div className="flex gap-3 pt-4">
-              <Button variant="outline" onClick={() => window.location.href = '/upgrade'}>
-                Change Plan
+            <div className="flex gap-3 flex-wrap pt-2">
+              <Button variant="outline" onClick={() => window.location.href = '/upgrade'} className="gap-2">
+                <ExternalLink className="w-4 h-4" /> প্ল্যান পরিবর্তন করুন
               </Button>
-              
-              {subscription?.subscription_status === 'active' && (
-                <Button
-                  variant="destructive"
-                  onClick={handleCancelSubscription}
-                  disabled={cancelMutation.isPending}
-                >
-                  {cancelMutation.isPending ? 'Cancelling...' : 'Cancel Subscription'}
+              {status === 'active' && !confirmCancel && (
+                <Button variant="ghost" className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                  onClick={() => setConfirmCancel(true)}>
+                  সাবস্ক্রিপশন বাতিল করুন
                 </Button>
               )}
-            </div>
-
-            {subscription?.subscription_status === 'cancelled' && (
-              <div className="bg-warning/10 border border-warning/30 rounded-lg p-4">
-                <div className="flex items-start gap-2">
-                  <AlertTriangle className="w-5 h-5 text-warning flex-shrink-0 mt-0.5" />
-                  <div className="text-sm">
-                    <p className="font-semibold text-warning">Subscription Cancelled</p>
-                    <p className="text-muted-foreground mt-1">
-                      Your subscription has been cancelled. You'll retain access until{' '}
-                      <strong>{format(new Date(subscription.subscription_end_date), 'MMM dd, yyyy')}</strong>.
-                      You can reactivate anytime before this date.
-                    </p>
-                  </div>
+              {confirmCancel && (
+                <div className="flex items-center gap-2 p-3 rounded-xl bg-destructive/10 border border-destructive/20 w-full">
+                  <p className="text-sm flex-1">আপনি কি নিশ্চিত? বিলিং পিরিয়ড শেষ পর্যন্ত অ্যাক্সেস থাকবে।</p>
+                  <Button size="sm" variant="destructive" onClick={() => cancelMutation.mutate()} disabled={cancelMutation.isPending}>
+                    {cancelMutation.isPending ? 'বাতিল হচ্ছে...' : 'হ্যাঁ, বাতিল করুন'}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setConfirmCancel(false)}>না</Button>
                 </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Payment Method Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CreditCard className="w-5 h-5" />
-              Payment Method
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="bg-muted/50 rounded-lg p-4 text-center">
-              <p className="text-sm text-muted-foreground mb-2">
-                No payment method on file
-              </p>
-              <Button variant="outline" size="sm">
-                Add Payment Method
-              </Button>
+              )}
             </div>
           </CardContent>
         </Card>
 
-        {/* Billing History */}
+        {/* Payment History */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Receipt className="w-5 h-5" />
-              Billing History
+              <Receipt className="w-5 h-5 text-primary" /> পেমেন্ট ইতিহাস
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {invoicesLoading ? (
-              <p className="text-center text-muted-foreground py-8">Loading invoices...</p>
-            ) : invoices.length === 0 ? (
-              <div className="text-center py-12">
-                <FileText className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
-                <p className="text-muted-foreground">No billing history yet</p>
+            {paymentsLoading ? (
+              <div className="flex items-center justify-center py-10 text-muted-foreground gap-2 text-sm">
+                <RefreshCw className="w-4 h-4 animate-spin" /> লোড হচ্ছে...
+              </div>
+            ) : payments.length === 0 ? (
+              <div className="text-center py-12 space-y-2">
+                <FileText className="w-12 h-12 mx-auto text-muted-foreground/20" />
+                <p className="text-sm text-muted-foreground">এখনো কোনো পেমেন্ট নেই</p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {invoices.map((invoice: any) => (
-                  <div
-                    key={invoice.id}
-                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                        <Receipt className="w-5 h-5 text-primary" />
+              <div className="divide-y divide-border/40">
+                {payments.map((p: any) => {
+                  const pStatus = PAYMENT_STATUS[p.status] || PAYMENT_STATUS.pending;
+                  return (
+                    <div key={p.id} className="flex items-center justify-between py-4 gap-4 flex-wrap">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                          <Receipt className="w-4 h-4 text-primary" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold">
+                            {TIERS[p.plan as keyof typeof TIERS]?.name_bn || p.plan}
+                            {p.billing_cycle ? ` · ${p.billing_cycle === 'monthly' ? 'মাসিক' : 'বার্ষিক'}` : ''}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {p.payment_method?.toUpperCase()} · {p.transaction_id} · {formatDate(p.created_at)}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium">
-                          {TIERS[invoice.tier as keyof typeof TIERS]?.name_bn} - {' '}
-                          {invoice.billing_cycle === 'monthly' ? 'Monthly' : 'Annual'}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          {format(new Date(invoice.created_at), 'MMM dd, yyyy')}
-                        </p>
+                      <div className="flex items-center gap-3">
+                        <span className={`text-sm font-bold`}>{formatAmount(p.amount)}</span>
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${pStatus.className}`}>
+                          {pStatus.label}
+                        </span>
                       </div>
                     </div>
-
-                    <div className="flex items-center gap-4">
-                      <div className="text-right">
-                        <p className="font-semibold">{formatPrice(invoice.amount)}</p>
-                        <Badge variant={invoice.status === 'active' ? 'success' : 'secondary'} className="text-xs">
-                          {invoice.status}
-                        </Badge>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => downloadInvoice(invoice)}
-                      >
-                        <Download className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>
         </Card>
 
-        {/* Help Card */}
-        <Card className="bg-blue-50 border-blue-200">
-          <CardHeader>
-            <CardTitle className="text-sm text-blue-900">Need Help?</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm text-blue-800">
-            <p>
-              <strong>Questions about your bill?</strong> Contact our support team at{' '}
-              <a href="mailto:billing@qrmanager.com" className="underline">
-                billing@qrmanager.com
-              </a>
-            </p>
-            <p>
-              <strong>Want to upgrade?</strong>{' '}
-              <a href="/upgrade" className="underline inline-flex items-center gap-1">
-                View plans <ExternalLink className="w-3 h-3" />
-              </a>
-            </p>
+        {/* Help */}
+        <Card className="border-primary/10 bg-primary/3">
+          <CardContent className="p-5 flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+              <CreditCard className="w-5 h-5 text-primary" />
+            </div>
+            <div className="text-sm space-y-1">
+              <p className="font-semibold">সাহায্য দরকার?</p>
+              <p className="text-muted-foreground">
+                বিলিং সম্পর্কে প্রশ্ন থাকলে সাপোর্ট টিকেট খুলুন অথবা{' '}
+                <a href="mailto:support@nexcore.app" className="text-primary underline">support@nexcore.app</a>-এ যোগাযোগ করুন।
+              </p>
+            </div>
           </CardContent>
         </Card>
+
       </div>
     </DashboardLayout>
   );
