@@ -53,6 +53,31 @@ const AdminMenu = () => {
     enabled: !!restaurantId,
   });
 
+  // Fetch average ratings per menu item
+  const { data: ratingsMap = {} } = useQuery({
+    queryKey: ["menu-item-ratings", restaurantId],
+    queryFn: async () => {
+      if (!restaurantId || menuItemsRaw.length === 0) return {};
+      const ids = menuItemsRaw.map((i: any) => i.id);
+      const { data } = await supabase
+        .from("reviews")
+        .select("menu_item_id, rating")
+        .in("menu_item_id", ids);
+      if (!data) return {};
+      const map: Record<string, { avg: number; count: number }> = {};
+      data.forEach((r: any) => {
+        if (!map[r.menu_item_id]) map[r.menu_item_id] = { avg: 0, count: 0 };
+        map[r.menu_item_id].count += 1;
+        map[r.menu_item_id].avg += r.rating;
+      });
+      Object.keys(map).forEach(id => {
+        map[id].avg = Math.round((map[id].avg / map[id].count) * 10) / 10;
+      });
+      return map;
+    },
+    enabled: !!restaurantId && menuItemsRaw.length > 0,
+  });
+
   // Sort menu items — always push unavailable items to the bottom
   const menuItems = [...menuItemsRaw].sort((a: any, b: any) => {
     // Available items always come first (unless explicit sort chosen)
@@ -355,6 +380,7 @@ const AdminMenu = () => {
               const isAvailable = item.available;
               const orderCount = item.menu_item_metrics?.[0]?.order_count || 0;
               const isPopular = orderCount > 10;
+              const rating = (ratingsMap as any)[item.id];
               return (
                 <div key={item.id} className={`menu-item-card relative ${!isAvailable ? "opacity-80" : ""}`}>
                   <div className={`h-40 bg-gradient-to-br from-accent to-secondary flex items-center justify-center overflow-hidden relative ${!isAvailable ? "grayscale" : ""}`}>
@@ -402,15 +428,24 @@ const AdminMenu = () => {
                         </span>
                       )}
                     </div>
-                    {/* Sales stats bar */}
+                    {/* Sales + rating stats bar */}
                     <div className={`flex items-center gap-2 mt-3 px-3 py-2 rounded-xl ${orderCount > 0 ? "bg-primary/5 border border-primary/10" : "bg-muted/40 border border-border/40"}`}>
                       <ShoppingBag className={`w-3.5 h-3.5 flex-shrink-0 ${orderCount > 0 ? "text-primary" : "text-muted-foreground"}`} />
                       <span className={`text-xs font-semibold ${orderCount > 0 ? "text-primary" : "text-muted-foreground"}`}>
-                        {orderCount > 0 ? `${orderCount} বার অর্ডার হয়েছে` : "এখনো অর্ডার হয়নি"}
+                        {orderCount > 0 ? `${orderCount} বার` : "অর্ডার নেই"}
                       </span>
-                      {orderCount > 0 && (
-                        <TrendingUp className="w-3.5 h-3.5 text-primary ml-auto" />
-                      )}
+                      {orderCount > 0 && <TrendingUp className="w-3 h-3 text-primary" />}
+                      <div className="ml-auto flex items-center gap-1">
+                        {rating ? (
+                          <>
+                            <span className="text-yellow-500 text-sm leading-none">★</span>
+                            <span className="text-xs font-bold text-foreground">{rating.avg}</span>
+                            <span className="text-[10px] text-muted-foreground">({rating.count})</span>
+                          </>
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground">রেটিং নেই</span>
+                        )}
+                      </div>
                     </div>
                     <div className="flex items-center justify-between mt-3">
                       <span />
