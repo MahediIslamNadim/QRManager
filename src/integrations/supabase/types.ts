@@ -100,6 +100,53 @@ export type Database = {
           },
         ]
       }
+      support_tickets: {
+        Row: {
+          id: string
+          restaurant_id: string
+          subject: string
+          description: string
+          category: string
+          priority: string
+          status: string
+          admin_reply: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          restaurant_id: string
+          subject: string
+          description: string
+          category?: string
+          priority?: string
+          status?: string
+          admin_reply?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          restaurant_id?: string
+          subject?: string
+          description?: string
+          category?: string
+          priority?: string
+          status?: string
+          admin_reply?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_tickets_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           created_at: string
