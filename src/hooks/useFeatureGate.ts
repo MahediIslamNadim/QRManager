@@ -1,93 +1,125 @@
 // useFeatureGate.ts - Feature gate hook for tier-based feature access
+// Updated: April 25, 2026 — Added high_smart_enterprise support
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { TierName, SubscriptionStatus } from '@/constants/tiers';
 
-// Define all features and their tier requirements
 export const FEATURES = {
   // Basic features (all tiers)
   qr_ordering: {
     name: 'QR Ordering',
-    tiers: ['medium_smart', 'high_smart'] as TierName[],
-    requiresActiveSub: false // Available in trial
+    tiers: ['medium_smart', 'high_smart', 'high_smart_enterprise'] as TierName[],
+    requiresActiveSub: false
   },
   menu_management: {
     name: 'Menu Management',
-    tiers: ['medium_smart', 'high_smart'] as TierName[],
+    tiers: ['medium_smart', 'high_smart', 'high_smart_enterprise'] as TierName[],
     requiresActiveSub: false
   },
   table_management: {
     name: 'Table Management',
-    tiers: ['medium_smart', 'high_smart'] as TierName[],
+    tiers: ['medium_smart', 'high_smart', 'high_smart_enterprise'] as TierName[],
     requiresActiveSub: false
   },
-  
+
   // Medium Smart features
   basic_analytics: {
     name: 'Basic Analytics',
-    tiers: ['medium_smart', 'high_smart'] as TierName[],
-    requiresActiveSub: true // Requires paid subscription
+    tiers: ['medium_smart', 'high_smart', 'high_smart_enterprise'] as TierName[],
+    requiresActiveSub: true
   },
   whatsapp_notifications: {
     name: 'WhatsApp Notifications',
-    tiers: ['medium_smart', 'high_smart'] as TierName[],
+    tiers: ['medium_smart', 'high_smart', 'high_smart_enterprise'] as TierName[],
     requiresActiveSub: true
   },
   payment_integration: {
     name: 'Payment Integration',
-    tiers: ['medium_smart', 'high_smart'] as TierName[],
+    tiers: ['medium_smart', 'high_smart', 'high_smart_enterprise'] as TierName[],
     requiresActiveSub: true
   },
   basic_inventory: {
     name: 'Basic Inventory',
-    tiers: ['medium_smart', 'high_smart'] as TierName[],
+    tiers: ['medium_smart', 'high_smart', 'high_smart_enterprise'] as TierName[],
     requiresActiveSub: true
   },
-  
-  // High Smart only features
+
+  // High Smart + Enterprise features
   advanced_analytics: {
     name: 'Advanced Analytics',
-    tiers: ['high_smart'] as TierName[],
+    tiers: ['high_smart', 'high_smart_enterprise'] as TierName[],
     requiresActiveSub: true
   },
   ai_recommendations: {
     name: 'AI Recommendations',
-    tiers: ['high_smart'] as TierName[],
+    tiers: ['high_smart', 'high_smart_enterprise'] as TierName[],
     requiresActiveSub: true
   },
   custom_branding: {
     name: 'Custom Branding',
-    tiers: ['medium_smart', 'high_smart'] as TierName[],
+    tiers: ['medium_smart', 'high_smart', 'high_smart_enterprise'] as TierName[],
     requiresActiveSub: false
   },
   api_access: {
     name: 'API Access',
-    tiers: ['high_smart'] as TierName[],
+    tiers: ['high_smart', 'high_smart_enterprise'] as TierName[],
     requiresActiveSub: true
   },
   multi_location: {
     name: 'Multi-Location Support',
-    tiers: ['high_smart'] as TierName[],
+    tiers: ['high_smart', 'high_smart_enterprise'] as TierName[],
     requiresActiveSub: true
   },
   priority_support: {
     name: 'Priority Support 24/7',
-    tiers: ['high_smart'] as TierName[],
+    tiers: ['high_smart', 'high_smart_enterprise'] as TierName[],
     requiresActiveSub: true
   },
   advanced_inventory: {
     name: 'Advanced Inventory',
-    tiers: ['high_smart'] as TierName[],
+    tiers: ['high_smart', 'high_smart_enterprise'] as TierName[],
     requiresActiveSub: true
   },
   custom_reports: {
     name: 'Custom Reports',
-    tiers: ['high_smart'] as TierName[],
+    tiers: ['high_smart', 'high_smart_enterprise'] as TierName[],
     requiresActiveSub: true
   },
   predictive_analytics: {
     name: 'Predictive Analytics',
-    tiers: ['high_smart'] as TierName[],
+    tiers: ['high_smart', 'high_smart_enterprise'] as TierName[],
+    requiresActiveSub: true
+  },
+
+  // Enterprise-only features
+  unlimited_groups: {
+    name: 'Unlimited Restaurant Groups',
+    tiers: ['high_smart_enterprise'] as TierName[],
+    requiresActiveSub: true
+  },
+  unlimited_branches: {
+    name: 'Unlimited Branches',
+    tiers: ['high_smart_enterprise'] as TierName[],
+    requiresActiveSub: true
+  },
+  white_label: {
+    name: 'White Label',
+    tiers: ['high_smart_enterprise'] as TierName[],
+    requiresActiveSub: true
+  },
+  sla_support: {
+    name: 'SLA Support 24/7',
+    tiers: ['high_smart_enterprise'] as TierName[],
+    requiresActiveSub: true
+  },
+  custom_integrations: {
+    name: 'Custom Integrations',
+    tiers: ['high_smart_enterprise'] as TierName[],
+    requiresActiveSub: true
+  },
+  data_export: {
+    name: 'Full Data Export',
+    tiers: ['high_smart_enterprise'] as TierName[],
     requiresActiveSub: true
   },
 } as const;
@@ -137,12 +169,14 @@ export const useFeatureGate = (
         const subscriptionStatus = (restaurant?.subscription_status || 'trial') as SubscriptionStatus;
         const feature = FEATURES[featureName];
 
-        // Check tier requirement
-        const hasTier = feature.tiers.includes(tier);
-        
-        // Check subscription requirement
-        const hasActiveSub = subscriptionStatus === 'active' || !feature.requiresActiveSub;
+        // Enterprise always gets access to everything
+        if (tier === 'high_smart_enterprise' && subscriptionStatus === 'active') {
+          setResult({ hasAccess: true, tier, subscriptionStatus, requiresUpgrade: false });
+          return;
+        }
 
+        const hasTier = feature.tiers.includes(tier);
+        const hasActiveSub = subscriptionStatus === 'active' || !feature.requiresActiveSub;
         const hasAccess = hasTier && hasActiveSub;
 
         let upgradeMessage: string | undefined;
@@ -150,23 +184,20 @@ export const useFeatureGate = (
 
         if (!hasAccess) {
           if (!hasTier) {
-            // Need to upgrade tier
-            requiredTier = feature.tiers[feature.tiers.length - 1]; // Highest tier that has this feature
-            upgradeMessage = `${feature.name} requires ${requiredTier === 'high_smart' ? 'High Smart' : 'Medium Smart'} plan. Upgrade to unlock!`;
+            requiredTier = feature.tiers[feature.tiers.length - 1];
+            const tierLabel =
+              requiredTier === 'high_smart_enterprise'
+                ? 'High Smart Enterprise'
+                : requiredTier === 'high_smart'
+                ? 'High Smart'
+                : 'Medium Smart';
+            upgradeMessage = `${feature.name} requires ${tierLabel} plan. Upgrade to unlock!`;
           } else if (!hasActiveSub) {
-            // Need to activate subscription
-            upgradeMessage = `${feature.name} requires an active subscription. Please upgrade to continue using this feature.`;
+            upgradeMessage = `${feature.name} requires an active subscription. Please upgrade to continue.`;
           }
         }
 
-        setResult({
-          hasAccess,
-          tier,
-          subscriptionStatus,
-          requiresUpgrade: !hasAccess,
-          upgradeMessage,
-          requiredTier
-        });
+        setResult({ hasAccess, tier, subscriptionStatus, requiresUpgrade: !hasAccess, upgradeMessage, requiredTier });
       } catch (err) {
         console.error('Error checking feature access:', err);
       } finally {
@@ -210,6 +241,13 @@ export const useFeatureGates = (
         const subscriptionStatus = (restaurant?.subscription_status || 'trial') as SubscriptionStatus;
 
         const featureAccess: Record<FeatureName, boolean> = {} as any;
+
+        // Enterprise active → everything unlocked
+        if (tier === 'high_smart_enterprise' && subscriptionStatus === 'active') {
+          features.forEach(f => { featureAccess[f] = true; });
+          setResults(featureAccess);
+          return;
+        }
 
         features.forEach(featureName => {
           const feature = FEATURES[featureName];

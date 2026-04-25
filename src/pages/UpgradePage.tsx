@@ -1,4 +1,5 @@
 // UpgradePage.tsx - Tier upgrade and payment page
+// Updated: April 25, 2026 — Enterprise tier contact flow added
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import DashboardLayout from '@/components/DashboardLayout';
@@ -11,7 +12,7 @@ import { useTrialStatus } from '@/hooks/useTrialStatus';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Check, Zap, Crown, ArrowRight, Clock, Shield, CheckCircle2, Copy, CreditCard, Loader2 } from 'lucide-react';
+import { ArrowRight, Clock, Shield, CheckCircle2, Copy, CreditCard, Loader2, Zap } from 'lucide-react';
 import { TIERS, TierName, BillingCycle, formatPrice } from '@/constants/tiers';
 import TierSelection from '@/components/TierSelection';
 
@@ -29,7 +30,9 @@ const UpgradePage = () => {
   useEffect(() => {
     const tierParam = searchParams.get('tier');
     if (tierParam === 'high_smart') setSelectedTier('high_smart');
+    if (tierParam === 'high_smart_enterprise') setSelectedTier('high_smart_enterprise');
   }, [searchParams]);
+
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<"bkash" | "nagad">("bkash");
   const [transactionId, setTransactionId] = useState("");
@@ -37,7 +40,6 @@ const UpgradePage = () => {
   const [paySuccess, setPaySuccess] = useState(false);
   const [sslLoading, setSslLoading] = useState(false);
 
-  // Get current subscription info
   const { data: restaurant } = useQuery({
     queryKey: ['restaurant-subscription', restaurantId],
     queryFn: async () => {
@@ -53,14 +55,7 @@ const UpgradePage = () => {
     enabled: !!restaurantId
   });
 
-  // Get trial status
-  const {
-    isExpired,
-    daysRemaining,
-    subscriptionStatus,
-    tier: currentTier
-  } = useTrialStatus(restaurantId);
-
+  const { daysRemaining, subscriptionStatus, tier: currentTier } = useTrialStatus(restaurantId);
   const { user } = useAuth();
 
   const handleSSLPay = async () => {
@@ -111,6 +106,12 @@ const UpgradePage = () => {
   });
 
   const handleTierSelect = (tier: TierName, billingCycle: BillingCycle) => {
+    // Enterprise = contact sales via WhatsApp, no payment form
+    if (tier === 'high_smart_enterprise') {
+      const msg = encodeURIComponent('আমি QRManager Enterprise প্যাকেজে আগ্রহী। বিস্তারিত জানতে চাই।');
+      window.open('https://wa.me/8801786130439?text=' + msg, '_blank');
+      return;
+    }
     setSelectedTier(tier);
     setSelectedBillingCycle(billingCycle);
     setShowPaymentForm(true);
@@ -120,11 +121,12 @@ const UpgradePage = () => {
   return (
     <DashboardLayout role={(role === 'group_owner' ? 'group_owner' : role === 'super_admin' ? 'super_admin' : 'admin') as any} title="আপগ্রেড করুন">
       <div className="max-w-6xl mx-auto space-y-8">
+
         {/* Current Status Banner */}
         {restaurant && (
           <Card className={`border-2 ${
-            subscriptionStatus === 'trial' 
-              ? 'border-warning bg-warning/5' 
+            subscriptionStatus === 'trial'
+              ? 'border-warning bg-warning/5'
               : subscriptionStatus === 'active'
               ? 'border-success bg-success/5'
               : 'border-destructive bg-destructive/5'
@@ -145,25 +147,23 @@ const UpgradePage = () => {
                       <Clock className="w-6 h-6 text-destructive" />
                     )}
                   </div>
-                  
                   <div>
                     <h3 className="font-bold text-lg">
                       {subscriptionStatus === 'trial' && 'Free Trial'}
-                      {subscriptionStatus === 'active' && TIERS[currentTier as TierName]?.name}
+                      {subscriptionStatus === 'active' && (TIERS[currentTier as TierName]?.name_bn ?? currentTier)}
                       {subscriptionStatus === 'expired' && 'Trial Expired'}
                     </h3>
                     <p className="text-sm text-muted-foreground">
-                      {subscriptionStatus === 'trial' && `${daysRemaining} days remaining`}
-                      {subscriptionStatus === 'active' && `${restaurant.billing_cycle === 'monthly' ? 'Monthly' : 'Yearly'} subscription`}
-                      {subscriptionStatus === 'expired' && 'Please upgrade to continue'}
+                      {subscriptionStatus === 'trial' && `${daysRemaining} দিন বাকি`}
+                      {subscriptionStatus === 'active' && `${restaurant.billing_cycle === 'monthly' ? 'মাসিক' : 'বার্ষিক'} সাবস্ক্রিপশন`}
+                      {subscriptionStatus === 'expired' && 'অনুগ্রহ করে আপগ্রেড করুন'}
                     </p>
                   </div>
                 </div>
-
                 {subscriptionStatus !== 'active' && (
                   <Button variant="hero" size="lg">
                     <Zap className="w-4 h-4 mr-2" />
-                    Upgrade Now
+                    এখনই আপগ্রেড করুন
                   </Button>
                 )}
               </div>
@@ -171,7 +171,7 @@ const UpgradePage = () => {
           </Card>
         )}
 
-        {/* Payment Form */}
+        {/* Payment Form or Tier Selection */}
         {showPaymentForm ? (
           <Card>
             <CardHeader>
@@ -182,7 +182,7 @@ const UpgradePage = () => {
               <div className="bg-muted rounded-lg p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <h3 className="font-bold text-xl">{TIERS[selectedTier].name}</h3>
+                    <h3 className="font-bold text-xl">{TIERS[selectedTier].name_bn}</h3>
                     <p className="text-sm text-muted-foreground">
                       {selectedBillingCycle === 'monthly' ? 'মাসিক বিলিং' : 'বার্ষিক বিলিং (২০% ছাড়)'}
                     </p>
@@ -208,7 +208,6 @@ const UpgradePage = () => {
               </div>
 
               {paySuccess ? (
-                /* Success State */
                 <div className="text-center py-8 space-y-4">
                   <div className="w-16 h-16 bg-success/10 rounded-full flex items-center justify-center mx-auto">
                     <CheckCircle2 className="w-8 h-8 text-success" />
@@ -216,7 +215,6 @@ const UpgradePage = () => {
                   <h3 className="text-xl font-bold">পেমেন্ট রিকোয়েস্ট জমা হয়েছে!</h3>
                   <p className="text-muted-foreground max-w-sm mx-auto">
                     আপনার পেমেন্ট যাচাই করা হচ্ছে। সাধারণত ১–২ কার্যদিবসের মধ্যে সাবস্ক্রিপশন সক্রিয় হবে।
-                    কোনো সমস্যা হলে support@qrmanager.app-এ যোগাযোগ করুন।
                   </p>
                   <Button variant="outline" onClick={() => { setShowPaymentForm(false); setPaySuccess(false); }}>
                     ← প্ল্যানে ফিরে যান
@@ -224,12 +222,11 @@ const UpgradePage = () => {
                 </div>
               ) : (
                 <>
-                  {/* Payment Method Selector */}
+                  {/* Payment Method */}
                   <div className="space-y-3">
                     <h4 className="font-semibold">পেমেন্ট মাধ্যম বেছে নিন</h4>
                     <div className="grid grid-cols-1 gap-3">
-                      {/* SSLCommerz — coming soon */}
-                      <div className="p-4 border-2 border-border rounded-lg opacity-50 cursor-not-allowed relative">
+                      <div className="p-4 border-2 border-border rounded-lg opacity-50 cursor-not-allowed">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 bg-primary/10 rounded flex items-center justify-center">
                             <CreditCard className="w-5 h-5 text-primary" />
@@ -239,7 +236,7 @@ const UpgradePage = () => {
                               SSLCommerz
                               <span className="text-[10px] bg-muted text-muted-foreground px-2 py-0.5 rounded-full">শীঘ্রই আসছে</span>
                             </div>
-                            <div className="text-xs text-muted-foreground">কার্ড, মোবাইল ব্যাংকিং, ইন্টারনেট ব্যাংকিং</div>
+                            <div className="text-xs text-muted-foreground">কার্ড, মোবাইল ব্যাংকিং</div>
                           </div>
                         </div>
                       </div>
@@ -280,7 +277,6 @@ const UpgradePage = () => {
                     </div>
                   </div>
 
-                  {/* Manual bKash/Nagad flow */}
                   <div className={`rounded-lg p-5 space-y-3 ${
                     paymentMethod === 'bkash' ? 'bg-pink-50 border border-pink-200' : 'bg-orange-50 border border-orange-200'
                   }`}>
@@ -299,7 +295,6 @@ const UpgradePage = () => {
                           toast.success('নম্বর কপি হয়েছে');
                         }}
                         className="p-2 rounded hover:bg-black/10 transition-colors"
-                        title="কপি করুন"
                       >
                         <Copy className="w-4 h-4" />
                       </button>
@@ -313,7 +308,6 @@ const UpgradePage = () => {
                     </ol>
                   </div>
 
-                  {/* Transaction ID + Phone */}
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="txn-id">Transaction ID *</Label>
@@ -335,7 +329,6 @@ const UpgradePage = () => {
                     </div>
                   </div>
 
-                  {/* Action Buttons */}
                   <div className="flex gap-3">
                     <Button variant="outline" className="flex-1" onClick={() => setShowPaymentForm(false)}>
                       ← পিছনে যান
@@ -355,7 +348,6 @@ const UpgradePage = () => {
             </CardContent>
           </Card>
         ) : (
-          /* Tier Selection */
           <TierSelection
             onSelect={handleTierSelect}
             selectedTier={selectedTier}
@@ -365,37 +357,23 @@ const UpgradePage = () => {
 
         {/* FAQ */}
         <Card>
-          <CardHeader>
-            <CardTitle>Frequently Asked Questions</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle>প্রায়ই জিজ্ঞাসিত প্রশ্ন</CardTitle></CardHeader>
           <CardContent className="space-y-4 text-sm">
             <div>
-              <h4 className="font-semibold mb-1">Can I change my plan later?</h4>
-              <p className="text-muted-foreground">
-                Yes! You can upgrade or downgrade at any time. When upgrading, you'll be charged the prorated difference.
-                When downgrading, the change takes effect at your next billing date.
-              </p>
+              <h4 className="font-semibold mb-1">পরে প্ল্যান পরিবর্তন করা যাবে?</h4>
+              <p className="text-muted-foreground">হ্যাঁ! যেকোনো সময় আপগ্রেড করতে পারবেন।</p>
             </div>
             <div>
-              <h4 className="font-semibold mb-1">What happens when my trial ends?</h4>
-              <p className="text-muted-foreground">
-                When your trial ends, you'll need to choose a paid plan to continue using QR Manager. All your data
-                will be preserved, and you can resume immediately after payment.
-              </p>
+              <h4 className="font-semibold mb-1">Trial শেষ হলে কী হবে?</h4>
+              <p className="text-muted-foreground">সব ডেটা সংরক্ষিত থাকবে। পেইড প্ল্যানে আপগ্রেড করলেই আবার access পাবেন।</p>
             </div>
             <div>
-              <h4 className="font-semibold mb-1">Do you offer refunds?</h4>
-              <p className="text-muted-foreground">
-                Yes! We offer a 30-day money-back guarantee on annual plans. If you're not satisfied, contact support
-                within 30 days for a full refund.
-              </p>
+              <h4 className="font-semibold mb-1">Refund পাওয়া যাবে?</h4>
+              <p className="text-muted-foreground">বার্ষিক প্ল্যানে ৩০ দিনের মধ্যে সমস্যা হলে সম্পূর্ণ refund দেওয়া হবে।</p>
             </div>
             <div>
-              <h4 className="font-semibold mb-1">How do I cancel?</h4>
-              <p className="text-muted-foreground">
-                You can cancel anytime from your account settings. Your access will continue until the end of your
-                current billing period.
-              </p>
+              <h4 className="font-semibold mb-1">Enterprise প্যাকেজ কীভাবে নেবো?</h4>
+              <p className="text-muted-foreground">উপরের "যোগাযোগ করুন" বাটনে ক্লিক করুন — WhatsApp-এ আলোচনা করে কাস্টম প্ল্যান ঠিক করা হবে।</p>
             </div>
           </CardContent>
         </Card>

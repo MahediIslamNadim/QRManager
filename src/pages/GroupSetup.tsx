@@ -50,13 +50,29 @@ export default function GroupSetup() {
     role === 'group_owner' ||
     role === 'super_admin' ||
     restaurantPlan === 'high_smart' ||
-    restaurantPlan === 'enterprise';
+    restaurantPlan === 'high_smart_enterprise';
+
+  const isEnterprise = restaurantPlan === 'high_smart_enterprise';
+
   const { data: existingGroups = [], isLoading: groupsLoading } = useUserGroups();
 
   const handleCreateGroup = async () => {
     if (!groupForm.name.trim()) { toast.error('গ্রুপের নাম দেওয়া আবশ্যক'); return; }
     setSaving(true);
     try {
+      // high_smart: max 1 group (enterprise & super_admin: unlimited)
+      if (restaurantPlan === 'high_smart' && role !== 'super_admin') {
+        const { count } = await supabase
+          .from('restaurant_groups')
+          .select('id', { count: 'exact', head: true })
+          .eq('owner_id', user?.id);
+        if ((count ?? 0) >= 1) {
+          toast.error('হাই স্মার্ট প্যাকেজে শুধুমাত্র ১টি রেস্টুরেন্ট গ্রুপ তৈরি করা যায়। একাধিক গ্রুপের জন্য Enterprise প্যাকেজে যোগাযোগ করুন।');
+          setSaving(false);
+          return;
+        }
+      }
+
       const { data, error } = await supabase
         .from('restaurant_groups')
         .insert({ name: groupForm.name.trim(), description: groupForm.description || null, owner_id: user?.id })
@@ -78,6 +94,19 @@ export default function GroupSetup() {
     if (!branchForm.name.trim() || !createdGroupId) { toast.error('শাখার নাম দেওয়া আবশ্যক'); return; }
     setSaving(true);
     try {
+      // high_smart: max 5 branches per group (enterprise & super_admin: unlimited)
+      if (restaurantPlan === 'high_smart' && role !== 'super_admin') {
+        const { count } = await supabase
+          .from('restaurants')
+          .select('id', { count: 'exact', head: true })
+          .eq('group_id', createdGroupId);
+        if ((count ?? 0) >= 5) {
+          toast.error('হাই স্মার্ট প্যাকেজে সর্বোচ্চ ৫টি শাখা যোগ করা যায়। আনলিমিটেড শাখার জন্য Enterprise প্যাকেজে যোগাযোগ করুন।');
+          setSaving(false);
+          return;
+        }
+      }
+
       const { error } = await supabase
         .from('restaurants')
         .insert({
@@ -109,7 +138,7 @@ export default function GroupSetup() {
           <Building2 className="w-12 h-12 mx-auto text-muted-foreground/30" />
           <h2 className="text-xl font-bold">High Smart প্যাকেজ প্রয়োজন</h2>
           <p className="text-sm text-muted-foreground">
-            মাল্টি-লোকেশন ফিচার শুধুমাত্র High Smart প্যাকেজে পাওয়া যায়।
+            মাল্টি-লোকেশন ফিচার শুধুমাত্র High Smart বা Enterprise প্যাকেজে পাওয়া যায়।
             আপগ্রেড করুন এবং একাধিক শাখা পরিচালনা করুন।
           </p>
           <Button onClick={() => navigate('/upgrade')} className="gap-2">
@@ -144,6 +173,13 @@ export default function GroupSetup() {
             </div>
           ))}
         </div>
+
+        {/* Enterprise badge */}
+        {isEnterprise && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-600 font-medium">
+            🏢 Enterprise — আনলিমিটেড গ্রুপ ও শাখা তৈরি করুন
+          </div>
+        )}
 
         {/* Existing groups (if any) */}
         {step === 1 && existingGroups.length > 0 && (

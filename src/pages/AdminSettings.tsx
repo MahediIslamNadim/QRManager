@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { User, Store, Save, Loader2, CreditCard, Check, Crown, Copy, AlertCircle, Smartphone, MessageSquare, Bell, Palette, Upload, X, Eye, Lock } from "lucide-react";
+import { User, Store, Save, Loader2, CreditCard, Check, Crown, Copy, AlertCircle, Smartphone, MessageSquare, Bell, Palette, Upload, X, Eye, Building2 } from "lucide-react";
 import { useFeatureGate } from '@/hooks/useFeatureGate';
 import { useAuth } from "@/hooks/useAuth";
 
@@ -17,9 +17,7 @@ const BrandingGate = ({ restaurantId, children }: { restaurantId: string | undef
   if (hasAccess) return <>{children}</>;
   return (
     <div className="relative rounded-2xl overflow-hidden">
-      {/* Blurred preview of the branding UI */}
       <div className="pointer-events-none select-none blur-sm opacity-40 space-y-4 p-1">
-        {/* Fake logo card */}
         <div className="border rounded-2xl p-5 bg-card">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-5 h-5 rounded bg-purple-400/60" />
@@ -33,7 +31,6 @@ const BrandingGate = ({ restaurantId, children }: { restaurantId: string | undef
             </div>
           </div>
         </div>
-        {/* Fake color card */}
         <div className="border rounded-2xl p-5 bg-card">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-5 h-5 rounded bg-purple-400/60" />
@@ -46,24 +43,17 @@ const BrandingGate = ({ restaurantId, children }: { restaurantId: string | undef
           </div>
         </div>
       </div>
-
-      {/* Lock overlay */}
       <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/70 backdrop-blur-[2px] rounded-2xl px-6 py-10">
         <div className="w-full max-w-sm text-center space-y-5">
-          {/* Icon */}
           <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center mx-auto shadow-2xl shadow-purple-500/40">
             <Crown className="w-10 h-10 text-white" />
           </div>
-
-          {/* Title */}
           <div>
             <p className="font-display font-bold text-xl text-foreground">কাস্টম ব্র্যান্ডিং</p>
             <p className="text-sm text-muted-foreground mt-1">
               এই ফিচারটি শুধুমাত্র <span className="font-semibold text-purple-500">High Smart Package</span>-এ পাওয়া যায়
             </p>
           </div>
-
-          {/* Features list */}
           <div className="text-left space-y-2 bg-purple-500/5 border border-purple-500/20 rounded-2xl px-4 py-3">
             {[
               "🖼️ রেস্টুরেন্টের লোগো আপলোড করুন",
@@ -74,8 +64,6 @@ const BrandingGate = ({ restaurantId, children }: { restaurantId: string | undef
               <p key={f} className="text-sm text-foreground flex items-start gap-2">{f}</p>
             ))}
           </div>
-
-          {/* CTA */}
           <a
             href="/upgrade?tier=high_smart"
             className="flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl text-white font-bold text-base shadow-xl shadow-purple-500/30 hover:opacity-90 active:scale-[.98] transition-all"
@@ -92,6 +80,7 @@ const BrandingGate = ({ restaurantId, children }: { restaurantId: string | undef
     </div>
   );
 };
+
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { TIERS, formatPrice, type TierName, type BillingCycle } from "@/constants/tiers";
@@ -107,6 +96,7 @@ const plans = [
     name: TIERS.medium_smart.name_bn,
     monthlyPrice: TIERS.medium_smart.price_monthly,
     yearlyPrice: TIERS.medium_smart.price_yearly,
+    isEnterprise: false,
     popular: true,
     maxTables: TIERS.medium_smart.maxTables,
     maxStaff: TIERS.medium_smart.maxStaff,
@@ -132,6 +122,7 @@ const plans = [
     name: TIERS.high_smart.name_bn,
     monthlyPrice: TIERS.high_smart.price_monthly,
     yearlyPrice: TIERS.high_smart.price_yearly,
+    isEnterprise: false,
     popular: false,
     maxTables: -1,
     maxStaff: -1,
@@ -139,14 +130,32 @@ const plans = [
       'মিডিয়াম স্মার্টের সব ফিচার',
       'আনলিমিটেড টেবিল',
       'আনলিমিটেড স্টাফ',
-      'মাল্টি-লোকেশন সাপোর্ট',
+      'মাল্টি-লোকেশন সাপোর্ট (৫টি শাখা)',
       'AI রেকমেন্ডেশন (Gemini)',
       'প্রেডিক্টিভ অ্যানালিটিক্স',
       'কাস্টম ব্র্যান্ডিং',
       'অ্যাডভান্সড অ্যানালিটিক্স',
       'কাস্টম রিপোর্ট',
       'প্রায়োরিটি সাপোর্ট ২৪/৭',
-      'ডেডিকেটেড ম্যানেজার',
+    ],
+  },
+  {
+    id: 'high_smart_enterprise' as TierName,
+    name: TIERS.high_smart_enterprise.name_bn,
+    monthlyPrice: 0,
+    yearlyPrice: 0,
+    isEnterprise: true,
+    popular: false,
+    maxTables: -1,
+    maxStaff: -1,
+    features: [
+      'হাই স্মার্টের সব ফিচার',
+      'আনলিমিটেড রেস্টুরেন্ট গ্রুপ',
+      'আনলিমিটেড শাখা',
+      'White Label বিকল্প',
+      'SLA সাপোর্ট ২৪/৭',
+      'কাস্টম POS/ERP ইন্টিগ্রেশন',
+      'পূর্ণ API অ্যাক্সেস',
     ],
   },
 ];
@@ -165,7 +174,6 @@ const AdminSettings = () => {
   const [currentPlan, setCurrentPlan] = useState<string>("medium_smart");
   const [restSaving, setRestSaving] = useState(false);
 
-  // ── Branding state ──
   const [brandLogo, setBrandLogo] = useState<string | null>(null);
   const [brandLogoFile, setBrandLogoFile] = useState<File | null>(null);
   const [brandPrimary, setBrandPrimary] = useState("#f97316");
@@ -193,7 +201,6 @@ const AdminSettings = () => {
 
   useEffect(() => {
     if (!user) return;
-
     const loadSettings = async () => {
       const { data: profile, error: profileError } = await supabase
         .from("profiles").select("*").eq("id", user.id).maybeSingle();
@@ -204,7 +211,6 @@ const AdminSettings = () => {
         setProfileEmail(profile.email || "");
         setProfilePhone(profile.phone || "");
       }
-
       if (restaurantId) {
         const { data: restaurant, error: restaurantError } = await supabase
           .from("restaurants").select("*").eq("id", restaurantId).maybeSingle();
@@ -227,7 +233,6 @@ const AdminSettings = () => {
         }
       }
     };
-
     loadSettings();
   }, [user, restaurantId]);
 
@@ -284,10 +289,7 @@ const AdminSettings = () => {
 
   const saveEmailNotify = async () => {
     if (!restaurantId) return;
-    if (notifyEmail && !notificationEmail.trim()) {
-      toast.error("ইমেইল ঠিকানা দিন");
-      return;
-    }
+    if (notifyEmail && !notificationEmail.trim()) { toast.error("ইমেইল ঠিকানা দিন"); return; }
     setEmailSaving(true);
     try {
       const { error } = await (supabase.from("restaurants") as any)
@@ -314,13 +316,9 @@ const AdminSettings = () => {
     if (!restaurantId) return;
     const ext = file.name.split('.').pop();
     const path = `${restaurantId}/logo.${ext}`;
-    const { error } = await supabase.storage
-      .from('restaurant-logos')
-      .upload(path, file, { upsert: true });
+    const { error } = await supabase.storage.from('restaurant-logos').upload(path, file, { upsert: true });
     if (error) { toast.error('লোগো আপলোড হয়নি: ' + error.message); return null; }
-    const { data: { publicUrl } } = supabase.storage
-      .from('restaurant-logos')
-      .getPublicUrl(path);
+    const { data: { publicUrl } } = supabase.storage.from('restaurant-logos').getPublicUrl(path);
     return publicUrl;
   };
 
@@ -335,13 +333,7 @@ const AdminSettings = () => {
       }
       const { error } = await supabase
         .from('restaurants')
-        .update({
-          logo_url: logoUrl,
-          brand_primary: brandPrimary,
-          brand_secondary: brandSecondary,
-          brand_font: brandFont,
-          updated_at: new Date().toISOString(),
-        })
+        .update({ logo_url: logoUrl, brand_primary: brandPrimary, brand_secondary: brandSecondary, brand_font: brandFont, updated_at: new Date().toISOString() })
         .eq('id', restaurantId);
       if (error) throw error;
       toast.success('ব্র্যান্ডিং সেভ হয়েছে ✅');
@@ -381,7 +373,6 @@ const AdminSettings = () => {
       setPayStep(1);
     } catch (err: any) {
       toast.error(err.message);
-      setPaySubmitting(false);
     } finally {
       setPaySubmitting(false);
     }
@@ -417,7 +408,7 @@ const AdminSettings = () => {
             </TabsTrigger>
           </TabsList>
 
-          {/* ── Profile Tab ── */}
+          {/* Profile Tab */}
           <TabsContent value="profile">
             <Card>
               <CardHeader><CardTitle className="font-display text-lg">অ্যাকাউন্ট প্রোফাইল</CardTitle></CardHeader>
@@ -437,7 +428,7 @@ const AdminSettings = () => {
             </Card>
           </TabsContent>
 
-          {/* ── Restaurant Tab ── */}
+          {/* Restaurant Tab */}
           <TabsContent value="restaurant">
             <Card>
               <CardHeader><CardTitle className="font-display text-lg">রেস্টুরেন্ট তথ্য</CardTitle></CardHeader>
@@ -453,10 +444,9 @@ const AdminSettings = () => {
             </Card>
           </TabsContent>
 
-          {/* ── Plan Tab ── */}
+          {/* Plan Tab */}
           <TabsContent value="plan">
             <div className="space-y-6">
-              {/* Billing toggle */}
               <div className="flex items-center justify-center gap-3">
                 <button onClick={() => setBillingCycle("monthly")}
                   className={`px-5 py-2 rounded-xl text-sm font-semibold transition-all ${billingCycle === "monthly" ? "bg-primary text-primary-foreground shadow-md" : "bg-secondary text-muted-foreground"}`}>
@@ -468,46 +458,77 @@ const AdminSettings = () => {
                 </button>
               </div>
 
-              {/* Plan cards */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
                 {plans.map((plan) => {
                   const price = billingCycle === "monthly" ? plan.monthlyPrice : plan.yearlyPrice;
                   const isCurrentPlan = currentPlan === plan.id;
                   return (
-                    <Card key={plan.id} className={`relative overflow-hidden transition-all duration-300 hover:shadow-lg ${plan.popular ? "border-primary/50 shadow-primary/10 shadow-lg" : ""} ${isCurrentPlan ? "ring-2 ring-primary" : ""}`}>
+                    <Card key={plan.id} className={`relative overflow-hidden transition-all duration-300 hover:shadow-lg ${
+                      plan.popular ? "border-primary/50 shadow-primary/10 shadow-lg" :
+                      plan.isEnterprise ? "border-amber-400/50" : ""
+                    } ${isCurrentPlan ? "ring-2 ring-primary" : ""}`}>
                       {plan.popular && <div className="absolute top-0 left-0 right-0 h-1 bg-primary" />}
+                      {plan.isEnterprise && <div className="absolute top-0 left-0 right-0 h-1 bg-amber-500" />}
                       {plan.popular && (
                         <div className="absolute top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold whitespace-nowrap">
                           জনপ্রিয়
+                        </div>
+                      )}
+                      {plan.isEnterprise && (
+                        <div className="absolute top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-amber-500 text-white text-[10px] font-bold whitespace-nowrap">
+                          🏢 চেইন
                         </div>
                       )}
                       {isCurrentPlan && (
                         <div className="absolute top-3 right-3 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-bold">বর্তমান</div>
                       )}
                       <CardContent className="p-5 sm:p-6 text-center">
-                        <h3 className="font-display font-bold text-lg text-foreground mb-1 mt-4">{plan.name}</h3>
+                        <div className="flex items-center justify-center gap-2 mt-4 mb-1">
+                          {plan.id === 'medium_smart' && <Crown className="w-5 h-5 text-blue-500" />}
+                          {plan.id === 'high_smart' && <Crown className="w-5 h-5 text-purple-500" />}
+                          {plan.id === 'high_smart_enterprise' && <Building2 className="w-5 h-5 text-amber-500" />}
+                          <h3 className="font-display font-bold text-lg text-foreground">{plan.name}</h3>
+                        </div>
                         <div className="mb-4">
-                          <span className="text-3xl font-display font-bold text-foreground">৳{price}</span>
-                          <span className="text-sm text-muted-foreground">/{billingCycle === "monthly" ? "মাস" : "বছর"}</span>
+                          {plan.isEnterprise ? (
+                            <span className="text-3xl font-display font-bold text-amber-600">কাস্টম</span>
+                          ) : (
+                            <>
+                              <span className="text-3xl font-display font-bold text-foreground">৳{price}</span>
+                              <span className="text-sm text-muted-foreground">/{billingCycle === "monthly" ? "মাস" : "বছর"}</span>
+                            </>
+                          )}
                         </div>
                         <ul className="text-sm text-muted-foreground space-y-2 mb-6 text-left">
                           {plan.features.map((f, i) => (
                             <li key={i} className="flex items-center gap-2">
-                              <Check className="w-4 h-4 text-success flex-shrink-0" />{f}
+                              <Check className={`w-4 h-4 flex-shrink-0 ${plan.isEnterprise ? 'text-amber-500' : 'text-success'}`} />{f}
                             </li>
                           ))}
                         </ul>
-                        <Button variant={plan.popular ? "hero" : "outline"} className="w-full"
-                          disabled={isCurrentPlan} onClick={() => openPayment(plan.id)}>
-                          {isCurrentPlan ? "✅ অ্যাক্টিভ" : "আপগ্রেড করুন"}
-                        </Button>
+                        {plan.isEnterprise ? (
+                          <Button
+                            variant="outline"
+                            className="w-full border-amber-400/50 text-amber-600 hover:bg-amber-50"
+                            onClick={() => {
+                              const msg = encodeURIComponent('Enterprise প্যাকেজ সম্পর্কে জানতে চাই');
+                              window.open('https://wa.me/8801786130439?text=' + msg, '_blank');
+                            }}
+                          >
+                            যোগাযোগ করুন →
+                          </Button>
+                        ) : (
+                          <Button variant={plan.popular ? "hero" : "outline"} className="w-full"
+                            disabled={isCurrentPlan} onClick={() => openPayment(plan.id)}>
+                            {isCurrentPlan ? "✅ অ্যাক্টিভ" : "আপগ্রেড করুন"}
+                          </Button>
+                        )}
                       </CardContent>
                     </Card>
                   );
                 })}
               </div>
 
-              {/* bKash info banner */}
               <div className="flex items-start gap-3 p-4 rounded-2xl bg-pink-500/10 border border-pink-500/20">
                 <Smartphone className="w-5 h-5 text-pink-500 flex-shrink-0 mt-0.5" />
                 <div>
@@ -518,204 +539,163 @@ const AdminSettings = () => {
             </div>
           </TabsContent>
 
-          {/* ── Custom Branding Tab ── */}
+          {/* Branding Tab */}
           <TabsContent value="branding" className="space-y-4 mt-4">
             <BrandingGate restaurantId={restaurantId}><>
-              {/* Logo Upload */}
               <Card>
                 <CardHeader>
                   <CardTitle className="font-display text-lg flex items-center gap-2">
                     <Upload className="w-5 h-5 text-primary" /> রেস্টুরেন্ট লোগো
                   </CardTitle>
                 </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center gap-4">
-                  {/* Preview */}
-                  <div className="w-24 h-24 rounded-2xl border-2 border-dashed border-border flex items-center justify-center bg-secondary/30 overflow-hidden flex-shrink-0">
-                    {brandLogo || brandLogoFile ? (
-                      <img
-                        src={brandLogoFile ? URL.createObjectURL(brandLogoFile) : brandLogo!}
-                        alt="Logo" className="w-full h-full object-contain p-1"
-                      />
-                    ) : (
-                      <div className="text-center">
-                        <Upload className="w-6 h-6 text-muted-foreground/40 mx-auto mb-1" />
-                        <p className="text-[10px] text-muted-foreground">লোগো নেই</p>
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-1 space-y-2">
-                    <Label htmlFor="logo-upload" className="cursor-pointer">
-                      <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border bg-secondary/40 hover:bg-secondary transition-colors text-sm font-medium">
-                        <Upload className="w-4 h-4" /> লোগো আপলোড করুন
-                      </div>
-                    </Label>
-                    <input id="logo-upload" type="file" accept="image/*" className="hidden"
-                      onChange={e => { const f = e.target.files?.[0]; if (f) setBrandLogoFile(f); }} />
-                    {(brandLogo || brandLogoFile) && (
-                      <button onClick={() => { setBrandLogo(null); setBrandLogoFile(null); }}
-                        className="flex items-center gap-1.5 text-xs text-destructive hover:text-destructive/80">
-                        <X className="w-3.5 h-3.5" /> লোগো মুছুন
-                      </button>
-                    )}
-                    <p className="text-xs text-muted-foreground">PNG, JPG, SVG — সর্বোচ্চ ২MB</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Color Pickers */}
-            <Card>
-              <CardHeader><CardTitle className="font-display text-lg flex items-center gap-2"><Palette className="w-5 h-5 text-primary" /> ব্র্যান্ড রং</CardTitle></CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>প্রাইমারি রং</Label>
-                    <div className="flex items-center gap-3">
-                      <input type="color" value={brandPrimary}
-                        onChange={e => setBrandPrimary(e.target.value)}
-                        className="w-12 h-10 rounded-lg border border-border cursor-pointer p-0.5 bg-background" />
-                      <Input value={brandPrimary} onChange={e => setBrandPrimary(e.target.value)}
-                        placeholder="#f97316" className="font-mono text-sm" />
-                    </div>
-                    <p className="text-xs text-muted-foreground">বাটন, হাইলাইট রং</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>সেকেন্ডারি রং</Label>
-                    <div className="flex items-center gap-3">
-                      <input type="color" value={brandSecondary}
-                        onChange={e => setBrandSecondary(e.target.value)}
-                        className="w-12 h-10 rounded-lg border border-border cursor-pointer p-0.5 bg-background" />
-                      <Input value={brandSecondary} onChange={e => setBrandSecondary(e.target.value)}
-                        placeholder="#fb923c" className="font-mono text-sm" />
-                    </div>
-                    <p className="text-xs text-muted-foreground">গ্রেডিয়েন্ট, accent রং</p>
-                  </div>
-                </div>
-
-                {/* Quick color presets */}
-                <div>
-                  <p className="text-xs text-muted-foreground mb-2 font-medium">দ্রুত রং বেছে নিন:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {[
-                      { label: 'অরেঞ্জ', p: '#f97316', s: '#fb923c' },
-                      { label: 'গ্রিন',  p: '#22c55e', s: '#4ade80' },
-                      { label: 'ব্লু',   p: '#3b82f6', s: '#60a5fa' },
-                      { label: 'পার্পল', p: '#a855f7', s: '#c084fc' },
-                      { label: 'রেড',    p: '#ef4444', s: '#f87171' },
-                      { label: 'টিল',    p: '#14b8a6', s: '#2dd4bf' },
-                    ].map(preset => (
-                      <button key={preset.label}
-                        onClick={() => { setBrandPrimary(preset.p); setBrandSecondary(preset.s); }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border hover:border-primary/50 bg-secondary/30 hover:bg-secondary transition-all text-xs font-medium">
-                        <span className="w-4 h-4 rounded-full border border-border/50 flex-shrink-0" style={{ background: preset.p }} />
-                        {preset.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Font Family */}
-            <Card>
-              <CardHeader><CardTitle className="font-display text-lg">ফন্ট স্টাইল</CardTitle></CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-3">
-                  {[
-                    { id: 'default', label: 'ডিফল্ট',    sample: 'আমাদের মেনু', style: {} },
-                    { id: 'serif',   label: 'ক্লাসিক',   sample: 'আমাদের মেনু', style: { fontFamily: 'Georgia, serif' } },
-                    { id: 'mono',    label: 'মডার্ন',    sample: 'আমাদের মেনু', style: { fontFamily: 'monospace' } },
-                    { id: 'rounded', label: 'রাউন্ডেড', sample: 'আমাদের মেনু', style: { fontFamily: 'system-ui, sans-serif', fontWeight: 700 } },
-                  ].map(font => (
-                    <button key={font.id}
-                      onClick={() => setBrandFont(font.id)}
-                      className={`p-4 rounded-xl border-2 transition-all text-left ${
-                        brandFont === font.id
-                          ? 'border-primary bg-primary/5'
-                          : 'border-border bg-secondary/30 hover:border-primary/30'
-                      }`}>
-                      <p className="text-xs text-muted-foreground mb-1">{font.label}</p>
-                      <p className="text-base font-semibold" style={font.style}>{font.sample}</p>
-                    </button>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Live Preview */}
-            <Card className="overflow-hidden">
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle className="font-display text-lg flex items-center gap-2">
-                  <Eye className="w-5 h-5 text-primary" /> লাইভ প্রিভিউ
-                </CardTitle>
-                <button onClick={() => setShowBrandPreview(v => !v)}
-                  className="text-xs text-primary font-medium">
-                  {showBrandPreview ? 'লুকান' : 'দেখান'}
-                </button>
-              </CardHeader>
-              {showBrandPreview && (
-                <CardContent className="p-0">
-                  <div className="bg-background border-t border-border">
-                    {/* Mock menu header */}
-                    <div className="p-4 flex items-center gap-3"
-                      style={{ background: `linear-gradient(135deg, ${brandPrimary}15, ${brandSecondary}10)` }}>
-                      <div className="w-12 h-12 rounded-2xl flex items-center justify-center overflow-hidden border-2"
-                        style={{ borderColor: brandPrimary, background: `${brandPrimary}20` }}>
-                        {brandLogo || brandLogoFile ? (
-                          <img src={brandLogoFile ? URL.createObjectURL(brandLogoFile) : brandLogo!}
-                            alt="logo" className="w-full h-full object-contain p-0.5" />
-                        ) : (
-                          <span style={{ color: brandPrimary, fontSize: 20 }}>🍽️</span>
-                        )}
-                      </div>
-                      <div>
-                        <p className="font-bold text-foreground"
-                          style={{
-                            fontFamily: brandFont === 'serif' ? 'Georgia, serif' :
-                              brandFont === 'mono' ? 'monospace' : 'inherit'
-                          }}>
-                          {restName || 'আপনার রেস্টুরেন্ট'}
-                        </p>
-                        <p className="text-xs" style={{ color: brandPrimary }}>● লাইভ মেনু</p>
-                      </div>
-                    </div>
-                    {/* Mock menu item */}
-                    <div className="p-4 space-y-3">
-                      <div className="rounded-xl border p-3 flex items-center justify-between"
-                        style={{ borderColor: `${brandPrimary}30` }}>
-                        <div>
-                          <p className="font-semibold text-sm text-foreground"
-                            style={{ fontFamily: brandFont === 'serif' ? 'Georgia, serif' : 'inherit' }}>
-                            চিকেন বিরিয়ানি
-                          </p>
-                          <p className="text-xs text-muted-foreground">সুগন্ধি বাসমতি চাল</p>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-24 h-24 rounded-2xl border-2 border-dashed border-border flex items-center justify-center bg-secondary/30 overflow-hidden flex-shrink-0">
+                      {brandLogo || brandLogoFile ? (
+                        <img src={brandLogoFile ? URL.createObjectURL(brandLogoFile) : brandLogo!} alt="Logo" className="w-full h-full object-contain p-1" />
+                      ) : (
+                        <div className="text-center">
+                          <Upload className="w-6 h-6 text-muted-foreground/40 mx-auto mb-1" />
+                          <p className="text-[10px] text-muted-foreground">লোগো নেই</p>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-sm" style={{ color: brandPrimary }}>৳৩৫০</span>
-                          <button className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
-                            style={{ background: `linear-gradient(135deg, ${brandPrimary}, ${brandSecondary})` }}>
-                            + যোগ
-                          </button>
+                      )}
+                    </div>
+                    <div className="flex-1 space-y-2">
+                      <Label htmlFor="logo-upload" className="cursor-pointer">
+                        <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border bg-secondary/40 hover:bg-secondary transition-colors text-sm font-medium">
+                          <Upload className="w-4 h-4" /> লোগো আপলোড করুন
                         </div>
-                      </div>
+                      </Label>
+                      <input id="logo-upload" type="file" accept="image/*" className="hidden"
+                        onChange={e => { const f = e.target.files?.[0]; if (f) setBrandLogoFile(f); }} />
+                      {(brandLogo || brandLogoFile) && (
+                        <button onClick={() => { setBrandLogo(null); setBrandLogoFile(null); }}
+                          className="flex items-center gap-1.5 text-xs text-destructive hover:text-destructive/80">
+                          <X className="w-3.5 h-3.5" /> লোগো মুছুন
+                        </button>
+                      )}
+                      <p className="text-xs text-muted-foreground">PNG, JPG, SVG — সর্বোচ্চ ২MB</p>
                     </div>
                   </div>
                 </CardContent>
-              )}
-            </Card>
+              </Card>
 
-            <Button variant="hero" onClick={saveBranding} disabled={brandSaving} className="w-full">
-              {brandSaving ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Save className="w-4 h-4 mr-1" />}
-              {brandSaving ? 'সেভ হচ্ছে...' : 'ব্র্যান্ডিং সেভ করুন'}
-            </Button>
+              <Card>
+                <CardHeader><CardTitle className="font-display text-lg flex items-center gap-2"><Palette className="w-5 h-5 text-primary" /> ব্র্যান্ড রং</CardTitle></CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>প্রাইমারি রং</Label>
+                      <div className="flex items-center gap-3">
+                        <input type="color" value={brandPrimary} onChange={e => setBrandPrimary(e.target.value)} className="w-12 h-10 rounded-lg border border-border cursor-pointer p-0.5 bg-background" />
+                        <Input value={brandPrimary} onChange={e => setBrandPrimary(e.target.value)} placeholder="#f97316" className="font-mono text-sm" />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>সেকেন্ডারি রং</Label>
+                      <div className="flex items-center gap-3">
+                        <input type="color" value={brandSecondary} onChange={e => setBrandSecondary(e.target.value)} className="w-12 h-10 rounded-lg border border-border cursor-pointer p-0.5 bg-background" />
+                        <Input value={brandSecondary} onChange={e => setBrandSecondary(e.target.value)} placeholder="#fb923c" className="font-mono text-sm" />
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-2 font-medium">দ্রুত রং বেছে নিন:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        { label: 'অরেঞ্জ', p: '#f97316', s: '#fb923c' },
+                        { label: 'গ্রিন',  p: '#22c55e', s: '#4ade80' },
+                        { label: 'ব্লু',   p: '#3b82f6', s: '#60a5fa' },
+                        { label: 'পার্পল', p: '#a855f7', s: '#c084fc' },
+                        { label: 'রেড',    p: '#ef4444', s: '#f87171' },
+                        { label: 'টিল',    p: '#14b8a6', s: '#2dd4bf' },
+                      ].map(preset => (
+                        <button key={preset.label} onClick={() => { setBrandPrimary(preset.p); setBrandSecondary(preset.s); }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border hover:border-primary/50 bg-secondary/30 hover:bg-secondary transition-all text-xs font-medium">
+                          <span className="w-4 h-4 rounded-full border border-border/50 flex-shrink-0" style={{ background: preset.p }} />
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
 
+              <Card>
+                <CardHeader><CardTitle className="font-display text-lg">ফন্ট স্টাইল</CardTitle></CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { id: 'default', label: 'ডিফল্ট',    sample: 'আমাদের মেনু', style: {} },
+                      { id: 'serif',   label: 'ক্লাসিক',   sample: 'আমাদের মেনু', style: { fontFamily: 'Georgia, serif' } },
+                      { id: 'mono',    label: 'মডার্ন',    sample: 'আমাদের মেনু', style: { fontFamily: 'monospace' } },
+                      { id: 'rounded', label: 'রাউন্ডেড', sample: 'আমাদের মেনু', style: { fontFamily: 'system-ui, sans-serif', fontWeight: 700 } },
+                    ].map(font => (
+                      <button key={font.id} onClick={() => setBrandFont(font.id)}
+                        className={`p-4 rounded-xl border-2 transition-all text-left ${brandFont === font.id ? 'border-primary bg-primary/5' : 'border-border bg-secondary/30 hover:border-primary/30'}`}>
+                        <p className="text-xs text-muted-foreground mb-1">{font.label}</p>
+                        <p className="text-base font-semibold" style={font.style}>{font.sample}</p>
+                      </button>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="overflow-hidden">
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle className="font-display text-lg flex items-center gap-2">
+                    <Eye className="w-5 h-5 text-primary" /> লাইভ প্রিভিউ
+                  </CardTitle>
+                  <button onClick={() => setShowBrandPreview(v => !v)} className="text-xs text-primary font-medium">
+                    {showBrandPreview ? 'লুকান' : 'দেখান'}
+                  </button>
+                </CardHeader>
+                {showBrandPreview && (
+                  <CardContent className="p-0">
+                    <div className="bg-background border-t border-border">
+                      <div className="p-4 flex items-center gap-3" style={{ background: `linear-gradient(135deg, ${brandPrimary}15, ${brandSecondary}10)` }}>
+                        <div className="w-12 h-12 rounded-2xl flex items-center justify-center overflow-hidden border-2" style={{ borderColor: brandPrimary, background: `${brandPrimary}20` }}>
+                          {brandLogo || brandLogoFile ? (
+                            <img src={brandLogoFile ? URL.createObjectURL(brandLogoFile) : brandLogo!} alt="logo" className="w-full h-full object-contain p-0.5" />
+                          ) : (
+                            <span style={{ color: brandPrimary, fontSize: 20 }}>🍽️</span>
+                          )}
+                        </div>
+                        <div>
+                          <p className="font-bold text-foreground" style={{ fontFamily: brandFont === 'serif' ? 'Georgia, serif' : brandFont === 'mono' ? 'monospace' : 'inherit' }}>
+                            {restName || 'আপনার রেস্টুরেন্ট'}
+                          </p>
+                          <p className="text-xs" style={{ color: brandPrimary }}>● লাইভ মেনু</p>
+                        </div>
+                      </div>
+                      <div className="p-4 space-y-3">
+                        <div className="rounded-xl border p-3 flex items-center justify-between" style={{ borderColor: `${brandPrimary}30` }}>
+                          <div>
+                            <p className="font-semibold text-sm text-foreground" style={{ fontFamily: brandFont === 'serif' ? 'Georgia, serif' : 'inherit' }}>চিকেন বিরিয়ানি</p>
+                            <p className="text-xs text-muted-foreground">সুগন্ধি বাসমতি চাল</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-sm" style={{ color: brandPrimary }}>৳৩৫০</span>
+                            <button className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: `linear-gradient(135deg, ${brandPrimary}, ${brandSecondary})` }}>
+                              + যোগ
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                )}
+              </Card>
+
+              <Button variant="hero" onClick={saveBranding} disabled={brandSaving} className="w-full">
+                {brandSaving ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Save className="w-4 h-4 mr-1" />}
+                {brandSaving ? 'সেভ হচ্ছে...' : 'ব্র্যান্ডিং সেভ করুন'}
+              </Button>
             </></BrandingGate>
           </TabsContent>
 
-          {/* ── WhatsApp Notifications Tab ── */}
+          {/* Notifications Tab */}
           <TabsContent value="notifications" className="space-y-4 mt-4">
-            {/* How it works */}
             <Card className="border-success/30 bg-success/5">
               <CardContent className="p-4 space-y-2">
                 <div className="flex items-center gap-2 font-semibold text-success">
@@ -726,54 +706,36 @@ const AdminSettings = () => {
                   <li>আপনার WhatsApp-এ <strong className="text-foreground">+34 644 66 77 17</strong> নম্বরটি <strong className="text-foreground">CallMeBot</strong> নামে save করুন</li>
                   <li>সেই নম্বরে WhatsApp message করুন: <code className="bg-secondary px-1 rounded text-xs">I allow callmebot to send me messages</code></li>
                   <li>কিছুক্ষণ পর আপনি একটি <strong className="text-foreground">API Key</strong> পাবেন (যেমন: 1234567)</li>
-                  <li>নিচে সেই API Key দিন → Save করুন (রেস্টুরেন্টের ফোন নম্বরে notification যাবে)</li>
+                  <li>নিচে সেই API Key দিন → Save করুন</li>
                 </ol>
-                <p className="text-xs text-muted-foreground pt-1">✅ সম্পূর্ণ বিনামূল্যে। নতুন অর্ডার আসলেই আপনার WhatsApp-এ message যাবে।</p>
               </CardContent>
             </Card>
 
-            {/* Settings form */}
             <Card>
               <CardHeader><CardTitle className="font-display text-lg flex items-center gap-2"><Bell className="w-5 h-5 text-primary" /> নোটিফিকেশন সেটিংস</CardTitle></CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label>CallMeBot API Key</Label>
-                  <Input
-                    value={wapiKey}
-                    onChange={e => setWapiKey(e.target.value)}
-                    placeholder="আপনার CallMeBot API Key (যেমন: 1234567)"
-                    type="password"
-                  />
+                  <Input value={wapiKey} onChange={e => setWapiKey(e.target.value)} placeholder="আপনার CallMeBot API Key (যেমন: 1234567)" type="password" />
                 </div>
-
-                {/* Toggle: new order */}
                 <div className="flex items-center justify-between p-3 rounded-xl border border-border bg-secondary/30">
                   <div>
                     <p className="text-sm font-medium text-foreground">নতুন অর্ডারে notification পাঠাও</p>
                     <p className="text-xs text-muted-foreground">প্রতিটি নতুন order আসলে WhatsApp message যাবে</p>
                   </div>
-                  <button
-                    onClick={() => setNotifyNewOrder(v => !v)}
-                    className={`relative w-11 h-6 rounded-full transition-colors ${notifyNewOrder ? "bg-success" : "bg-muted"}`}
-                  >
+                  <button onClick={() => setNotifyNewOrder(v => !v)} className={`relative w-11 h-6 rounded-full transition-colors ${notifyNewOrder ? "bg-success" : "bg-muted"}`}>
                     <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${notifyNewOrder ? "translate-x-5" : "translate-x-0"}`} />
                   </button>
                 </div>
-
-                {/* Toggle: daily report */}
                 <div className="flex items-center justify-between p-3 rounded-xl border border-border bg-secondary/30">
                   <div>
                     <p className="text-sm font-medium text-foreground">দৈনিক সেলস রিপোর্ট পাঠাও</p>
                     <p className="text-xs text-muted-foreground">প্রতিদিন রাত ৯টায় দিনের summary WhatsApp-এ পাবেন</p>
                   </div>
-                  <button
-                    onClick={() => setNotifyDailyReport(v => !v)}
-                    className={`relative w-11 h-6 rounded-full transition-colors ${notifyDailyReport ? "bg-success" : "bg-muted"}`}
-                  >
+                  <button onClick={() => setNotifyDailyReport(v => !v)} className={`relative w-11 h-6 rounded-full transition-colors ${notifyDailyReport ? "bg-success" : "bg-muted"}`}>
                     <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${notifyDailyReport ? "translate-x-5" : "translate-x-0"}`} />
                   </button>
                 </div>
-
                 <Button variant="hero" onClick={saveWhatsApp} disabled={wapiSaving} className="w-full">
                   {wapiSaving ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Save className="w-4 h-4 mr-1" />}
                   {wapiSaving ? "সেভ হচ্ছে..." : "সেটিংস সেভ করুন"}
@@ -781,36 +743,19 @@ const AdminSettings = () => {
               </CardContent>
             </Card>
 
-            {/* ── Email Notifications ── */}
             <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Bell className="w-4 h-4 text-primary" /> ইমেইল নোটিফিকেশন
-                </CardTitle>
-              </CardHeader>
+              <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><Bell className="w-4 h-4 text-primary" /> ইমেইল নোটিফিকেশন</CardTitle></CardHeader>
               <CardContent className="space-y-4">
-                <div className="bg-primary/5 border border-primary/20 rounded-xl p-3 text-xs text-muted-foreground space-y-1">
-                  <p>নতুন অর্ডার আসলে নির্দিষ্ট ইমেইলে notification পাঠানো হবে।</p>
-                  <p className="text-warning/80">⚠️ এটি কাজ করতে Supabase-এ <code className="bg-secondary px-1 rounded">RESEND_API_KEY</code> সেট করতে হবে এবং <code className="bg-secondary px-1 rounded">notify-email</code> function deploy করতে হবে।</p>
-                </div>
                 <div className="space-y-2">
                   <Label>নোটিফিকেশন ইমেইল</Label>
-                  <Input
-                    type="email"
-                    placeholder="owner@restaurant.com"
-                    value={notificationEmail}
-                    onChange={e => setNotificationEmail(e.target.value)}
-                  />
+                  <Input type="email" placeholder="owner@restaurant.com" value={notificationEmail} onChange={e => setNotificationEmail(e.target.value)} />
                 </div>
                 <div className="flex items-center justify-between p-3 rounded-xl bg-secondary/30">
                   <div>
                     <p className="text-sm font-medium">নতুন অর্ডারে ইমেইল পাঠান</p>
                     <p className="text-xs text-muted-foreground">প্রতিটি নতুন order আসলে ইমেইল যাবে</p>
                   </div>
-                  <button
-                    onClick={() => setNotifyEmail(v => !v)}
-                    className={`relative w-11 h-6 rounded-full transition-colors ${notifyEmail ? "bg-success" : "bg-muted"}`}
-                  >
+                  <button onClick={() => setNotifyEmail(v => !v)} className={`relative w-11 h-6 rounded-full transition-colors ${notifyEmail ? "bg-success" : "bg-muted"}`}>
                     <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${notifyEmail ? "translate-x-5" : "translate-x-0"}`} />
                   </button>
                 </div>
@@ -820,22 +765,11 @@ const AdminSettings = () => {
                 </Button>
               </CardContent>
             </Card>
-
-            {/* Deploy reminder */}
-            <Card className="border-warning/30 bg-warning/5">
-              <CardContent className="p-4">
-                <p className="text-sm font-semibold text-warning mb-1.5">⚠️ Edge Function Deploy করতে হবে</p>
-                <p className="text-xs text-muted-foreground mb-2">Supabase Dashboard থেকে Edge Function deploy করুন এবং Database Webhook সেট করুন:</p>
-                <code className="text-xs bg-secondary block p-2 rounded-lg text-foreground whitespace-pre-wrap">
-                  {`# Terminal থেকে:\nsupabase functions deploy notify-whatsapp\nsupabase functions deploy notify-email\nsupabase functions deploy daily-report\n\n# Supabase Dashboard → Database → Webhooks:\n# Table: orders, Event: INSERT\n# URL 1: .../functions/v1/notify-whatsapp\n# URL 2: .../functions/v1/notify-email\n\n# Supabase → Edge Functions → Secrets:\n# RESEND_API_KEY = your_resend_api_key`}
-                </code>
-              </CardContent>
-            </Card>
           </TabsContent>
         </Tabs>
       </div>
 
-      {/* ── Payment Dialog ── */}
+      {/* Payment Dialog */}
       <Dialog open={payDialog} onOpenChange={v => { setPayDialog(v); if (!v) setPayStep(1); }}>
         <DialogContent className="max-w-sm mx-4 sm:mx-auto">
           <DialogHeader>
@@ -846,9 +780,7 @@ const AdminSettings = () => {
               bKash পেমেন্ট
             </DialogTitle>
           </DialogHeader>
-
           <div className="space-y-4 pt-1">
-            {/* Plan summary */}
             <div className="bg-secondary/50 rounded-xl p-4 text-center">
               <p className="text-xs text-muted-foreground mb-1">নির্বাচিত প্ল্যান</p>
               <p className="font-display font-bold text-lg text-foreground capitalize">
@@ -858,81 +790,50 @@ const AdminSettings = () => {
             </div>
 
             {payStep === 1 ? (
-              <>
-                {/* Step 1: Show bKash number */}
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 px-1">
-                    <div className="w-5 h-5 rounded-full bg-pink-500 text-white text-xs flex items-center justify-center font-bold">১</div>
-                    <p className="text-sm font-semibold text-foreground">এই নম্বরে Send Money করুন</p>
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 px-1">
+                  <div className="w-5 h-5 rounded-full bg-pink-500 text-white text-xs flex items-center justify-center font-bold">১</div>
+                  <p className="text-sm font-semibold text-foreground">এই নম্বরে Send Money করুন</p>
+                </div>
+                <div className="flex items-center justify-between p-4 rounded-xl bg-pink-500/10 border-2 border-pink-500/30">
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-0.5">bKash নম্বর</p>
+                    <p className="text-2xl font-bold text-pink-500 font-mono">{BKASH_NUMBER}</p>
                   </div>
-
-                  <div className="flex items-center justify-between p-4 rounded-xl bg-pink-500/10 border-2 border-pink-500/30">
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-0.5">bKash নম্বর</p>
-                      <p className="text-2xl font-bold text-pink-500 font-mono">{BKASH_NUMBER}</p>
-                    </div>
-                    <button onClick={copyBkashNumber}
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-pink-500 text-white text-xs font-semibold hover:bg-pink-600 transition-colors">
-                      <Copy className="w-3.5 h-3.5" /> কপি
-                    </button>
-                  </div>
-
-                  {/* Instructions */}
-                  <div className="space-y-2 p-3 rounded-xl bg-secondary/30 border border-border/30">
-                    <p className="text-xs font-semibold text-foreground">পেমেন্ট করার নিয়ম:</p>
-                    <ol className="space-y-1.5 text-xs text-muted-foreground">
-                      <li className="flex items-start gap-2"><span className="text-pink-500 font-bold flex-shrink-0">১.</span> bKash app খুলুন</li>
-                      <li className="flex items-start gap-2"><span className="text-pink-500 font-bold flex-shrink-0">২.</span> "Send Money" সিলেক্ট করুন</li>
-                      <li className="flex items-start gap-2"><span className="text-pink-500 font-bold flex-shrink-0">৩.</span> উপরের নম্বরে <span className="font-semibold text-foreground mx-1">৳{selectedAmount}</span> পাঠান</li>
-                      <li className="flex items-start gap-2"><span className="text-pink-500 font-bold flex-shrink-0">৪.</span> Transaction ID টি সংরক্ষণ করুন</li>
-                    </ol>
-                  </div>
-
-                  <div className="flex items-start gap-2 p-3 rounded-xl bg-warning/10 border border-warning/20">
-                    <AlertCircle className="w-4 h-4 text-warning flex-shrink-0 mt-0.5" />
-                    <p className="text-xs text-muted-foreground">পেমেন্ট করার পর "পরবর্তী ধাপ" বাটনে ক্লিক করুন এবং Transaction ID দিন।</p>
-                  </div>
-
-                  <Button variant="hero" className="w-full h-11" onClick={() => setPayStep(2)}>
-                    পেমেন্ট করেছি — পরবর্তী ধাপ →
+                  <button onClick={copyBkashNumber} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-pink-500 text-white text-xs font-semibold hover:bg-pink-600 transition-colors">
+                    <Copy className="w-3.5 h-3.5" /> কপি
+                  </button>
+                </div>
+                <div className="flex items-start gap-2 p-3 rounded-xl bg-warning/10 border border-warning/20">
+                  <AlertCircle className="w-4 h-4 text-warning flex-shrink-0 mt-0.5" />
+                  <p className="text-xs text-muted-foreground">পেমেন্ট করার পর "পরবর্তী ধাপ" বাটনে ক্লিক করুন এবং Transaction ID দিন।</p>
+                </div>
+                <Button variant="hero" className="w-full h-11" onClick={() => setPayStep(2)}>
+                  পেমেন্ট করেছি — পরবর্তী ধাপ →
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 px-1">
+                  <div className="w-5 h-5 rounded-full bg-pink-500 text-white text-xs flex items-center justify-center font-bold">২</div>
+                  <p className="text-sm font-semibold text-foreground">Transaction ID দিন</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Transaction ID *</Label>
+                  <Input value={transactionId} onChange={e => setTransactionId(e.target.value)} placeholder="যেমন: 8A6D2F1K9X" className="h-10 font-mono text-sm" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">আপনার bKash নম্বর (ঐচ্ছিক)</Label>
+                  <Input value={payPhone} onChange={e => setPayPhone(e.target.value)} placeholder="01XXXXXXXXX" className="h-10 text-sm" />
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" className="h-10 px-4" onClick={() => setPayStep(1)}>← পেছনে</Button>
+                  <Button variant="hero" className="flex-1 h-10" onClick={submitPayment} disabled={paySubmitting || !transactionId.trim()}>
+                    {paySubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <CreditCard className="w-4 h-4 mr-1" />}
+                    {paySubmitting ? "পাঠানো হচ্ছে..." : "রিকোয়েস্ট পাঠান"}
                   </Button>
                 </div>
-              </>
-            ) : (
-              <>
-                {/* Step 2: Enter TXN ID */}
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 px-1">
-                    <div className="w-5 h-5 rounded-full bg-pink-500 text-white text-xs flex items-center justify-center font-bold">২</div>
-                    <p className="text-sm font-semibold text-foreground">Transaction ID দিন</p>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground">Transaction ID *</Label>
-                    <Input value={transactionId} onChange={e => setTransactionId(e.target.value)}
-                      placeholder="যেমন: 8A6D2F1K9X" className="h-10 font-mono text-sm" />
-                    <p className="text-xs text-muted-foreground">bKash SMS এ Transaction ID পাবেন</p>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground">আপনার bKash নম্বর (ঐচ্ছিক)</Label>
-                    <Input value={payPhone} onChange={e => setPayPhone(e.target.value)}
-                      placeholder="01XXXXXXXXX" className="h-10 text-sm" />
-                  </div>
-
-                  <div className="flex gap-2">
-                    <Button variant="outline" className="h-10 px-4" onClick={() => setPayStep(1)}>
-                      ← পেছনে
-                    </Button>
-                    <Button variant="hero" className="flex-1 h-10"
-                      onClick={submitPayment}
-                      disabled={paySubmitting || !transactionId.trim()}>
-                      {paySubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <CreditCard className="w-4 h-4 mr-1" />}
-                      {paySubmitting ? "পাঠানো হচ্ছে..." : "রিকোয়েস্ট পাঠান"}
-                    </Button>
-                  </div>
-                </div>
-              </>
+              </div>
             )}
           </div>
         </DialogContent>
