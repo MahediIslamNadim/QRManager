@@ -44,6 +44,8 @@ import AdminReports from "./pages/AdminReports";
 import AdminFeedback from "./pages/AdminFeedback";
 import AdminSupport from "./pages/AdminSupport";
 import PaymentResultPage from "./pages/PaymentResultPage";
+import GroupDashboard from "./pages/GroupDashboard";
+import GroupSetup from "./pages/GroupSetup";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
   constructor(props: { children: ReactNode }) {
@@ -221,6 +223,15 @@ const App = () => (
                 element={<ProtectedRoute allowedRoles={["admin", "super_admin"]}><BillingPage /></ProtectedRoute>}
               />
               <Route path="/payment/result" element={<PaymentResultPage />} />
+
+              <Route
+                path="/group/setup"
+                element={<ProtectedRoute allowedRoles={["group_owner", "admin", "super_admin"]}><GroupSetup /></ProtectedRoute>}
+              />
+              <Route
+                path="/group/:groupId"
+                element={<ProtectedRoute allowedRoles={["group_owner", "admin", "super_admin"]}><GroupDashboard /></ProtectedRoute>}
+              />
 
               <Route
                 path="/waiter"

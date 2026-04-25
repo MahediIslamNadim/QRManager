@@ -14,6 +14,125 @@ export type Database = {
   }
   public: {
     Tables: {
+      branch_menu_overrides: {
+        Row: {
+          created_at: string
+          custom_price: number | null
+          id: string
+          is_available: boolean
+          restaurant_id: string
+          shared_menu_item_id: string
+        }
+        Insert: {
+          created_at?: string
+          custom_price?: number | null
+          id?: string
+          is_available?: boolean
+          restaurant_id: string
+          shared_menu_item_id: string
+        }
+        Update: {
+          created_at?: string
+          custom_price?: number | null
+          id?: string
+          is_available?: boolean
+          restaurant_id?: string
+          shared_menu_item_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "branch_menu_overrides_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "branch_menu_overrides_shared_menu_item_id_fkey"
+            columns: ["shared_menu_item_id"]
+            isOneToOne: false
+            referencedRelation: "group_shared_menus"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      group_shared_menus: {
+        Row: {
+          category: string
+          created_at: string
+          description: string | null
+          group_id: string
+          id: string
+          image_url: string | null
+          is_active: boolean
+          name: string
+          price: number
+          updated_at: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          group_id: string
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          name: string
+          price?: number
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          group_id?: string
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          name?: string
+          price?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_shared_menus_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      restaurant_groups: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          logo_url: string | null
+          name: string
+          owner_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          logo_url?: string | null
+          name: string
+          owner_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          logo_url?: string | null
+          name?: string
+          owner_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       admin_invites: {
         Row: {
           accepted_at: string | null
@@ -435,8 +554,11 @@ export type Database = {
           brand_primary: string | null
           brand_secondary: string | null
           billing_cycle: string | null
+          branch_code: string | null
           created_at: string
+          group_id: string | null
           id: string
+          is_branch: boolean
           logo_url: string | null
           name: string
           next_billing_date: string | null
@@ -463,8 +585,11 @@ export type Database = {
           brand_primary?: string | null
           brand_secondary?: string | null
           billing_cycle?: string | null
+          branch_code?: string | null
           created_at?: string
+          group_id?: string | null
           id?: string
+          is_branch?: boolean
           logo_url?: string | null
           name: string
           next_billing_date?: string | null
@@ -491,8 +616,11 @@ export type Database = {
           brand_primary?: string | null
           brand_secondary?: string | null
           billing_cycle?: string | null
+          branch_code?: string | null
           created_at?: string
+          group_id?: string | null
           id?: string
+          is_branch?: boolean
           logo_url?: string | null
           name?: string
           next_billing_date?: string | null
@@ -513,7 +641,15 @@ export type Database = {
           updated_at?: string
           whatsapp_api_key?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "restaurants_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_groups"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       service_requests: {
         Row: {
@@ -744,6 +880,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_group_analytics: { Args: { p_group_id: string }; Returns: Json }
       get_user_restaurant_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {
@@ -752,10 +889,11 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_group_owner: { Args: { p_group_id: string }; Returns: boolean }
       validate_table_token: { Args: { _token: string }; Returns: boolean }
     }
     Enums: {
-      app_role: "super_admin" | "admin" | "waiter"
+      app_role: "super_admin" | "admin" | "waiter" | "group_owner"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -883,7 +1021,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["super_admin", "admin", "waiter"],
+      app_role: ["super_admin", "admin", "waiter", "group_owner"],
     },
   },
 } as const
