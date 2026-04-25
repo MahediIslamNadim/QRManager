@@ -216,11 +216,11 @@ const App = () => (
               />
               <Route
                 path="/upgrade"
-                element={<ProtectedRoute allowedRoles={["admin", "super_admin"]}><UpgradePage /></ProtectedRoute>}
+                element={<ProtectedRoute allowedRoles={["admin", "super_admin", "group_owner"]}><UpgradePage /></ProtectedRoute>}
               />
               <Route
                 path="/billing"
-                element={<ProtectedRoute allowedRoles={["admin", "super_admin"]}><BillingPage /></ProtectedRoute>}
+                element={<ProtectedRoute allowedRoles={["admin", "super_admin", "group_owner"]}><BillingPage /></ProtectedRoute>}
               />
               <Route path="/payment/result" element={<PaymentResultPage />} />
 

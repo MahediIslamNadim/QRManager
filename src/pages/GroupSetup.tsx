@@ -34,7 +34,7 @@ const STEP_LABELS: Record<Step, string> = {
 };
 
 export default function GroupSetup() {
-  const { user, restaurantPlan } = useAuth();
+  const { user, role, restaurantPlan } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [step, setStep] = useState<Step>(1);
@@ -46,7 +46,11 @@ export default function GroupSetup() {
     name: '', address: '', branch_code: 'BR-01', phone: '',
   });
 
-  const canUseMultiLocation = restaurantPlan === 'high_smart' || restaurantPlan === 'enterprise';
+  const canUseMultiLocation =
+    role === 'group_owner' ||
+    role === 'super_admin' ||
+    restaurantPlan === 'high_smart' ||
+    restaurantPlan === 'enterprise';
   const { data: existingGroups = [], isLoading: groupsLoading } = useUserGroups();
 
   const handleCreateGroup = async () => {
