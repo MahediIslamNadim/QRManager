@@ -554,10 +554,13 @@ export default function GroupDashboard() {
                       )}
 
                       <Button
-                        size="sm" variant="outline" className="w-full gap-1.5 text-xs"
-                        onClick={() => navigate(`/admin`)}
+                        size="sm"
+                        variant={branchFilter === branch.id ? "default" : "outline"}
+                        className="w-full gap-1.5 text-xs"
+                        onClick={() => setBranchFilter(branchFilter === branch.id ? null : branch.id)}
                       >
-                        ড্যাশবোর্ড দেখুন <ArrowRight className="w-3.5 h-3.5" />
+                        {branchFilter === branch.id ? "ফিল্টার সরান" : "এই শাখা ফিল্টার করুন"}
+                        <ArrowRight className="w-3.5 h-3.5" />
                       </Button>
                     </CardContent>
                   </Card>

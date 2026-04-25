@@ -47,6 +47,7 @@ const navItems: Record<Role, { title: string; href: string; icon: any }[]> = {
   ],
   group_owner: [
     { title: "গ্রুপ সেটআপ", href: "/group/setup", icon: Building2 },
+    { title: "সেটিংস", href: "/admin/settings", icon: Settings },
   ],
   waiter: [
     { title: "অ্যাক্টিভ অর্ডার", href: "/waiter", icon: ShoppingCart },

@@ -11,7 +11,7 @@ import {
 import { APP_NAME, COMPANY_NAME, FREE_TRIAL_DAYS } from "@/constants/app";
 
 type Mode = "login" | "signup" | "forgot" | "forgot_sent";
-type RedirectRole = "super_admin" | "admin" | "waiter" | "kitchen";
+type RedirectRole = "super_admin" | "group_owner" | "admin" | "waiter" | "kitchen";
 
 /**
  * Wait for session to be fully propagated in Supabase client
@@ -37,6 +37,7 @@ const pickRedirectRole = (
   const roles = new Set((roleRows || []).map((row) => row.role));
 
   if (roles.has("super_admin")) return "super_admin";
+  if (roles.has("group_owner")) return "group_owner";
   if (roles.has("admin")) return "admin";
   if (roles.has("waiter")) return "waiter";
   if (roles.has("kitchen")) return "kitchen";
@@ -45,6 +46,7 @@ const pickRedirectRole = (
 
 const getRedirectPath = (resolvedRole: RedirectRole, inviteId: string | null) => {
   if (resolvedRole === "super_admin") return "/super-admin";
+  if (resolvedRole === "group_owner") return "/group/setup";
   if (resolvedRole === "waiter") return "/waiter";
   if (resolvedRole === "kitchen") return "/admin/kitchen";
   if (inviteId) return `/admin-setup?invite=${inviteId}`;
