@@ -14,7 +14,7 @@ import {
 import { TIERS } from '@/constants/tiers';
 
 const BillingPage = () => {
-  const { restaurantId } = useAuth();
+  const { restaurantId, role } = useAuth();
   const queryClient = useQueryClient();
   const [confirmCancel, setConfirmCancel] = useState(false);
 
@@ -99,7 +99,7 @@ const BillingPage = () => {
 
   if (subLoading) {
     return (
-      <DashboardLayout role="admin" title="প্ল্যান ও বিলিং">
+      <DashboardLayout role={(role === 'group_owner' ? 'group_owner' : role === 'super_admin' ? 'super_admin' : 'admin') as any} title="প্ল্যান ও বিলিং">
         <div className="flex items-center justify-center py-16 text-muted-foreground gap-2">
           <RefreshCw className="w-4 h-4 animate-spin" /> লোড হচ্ছে...
         </div>

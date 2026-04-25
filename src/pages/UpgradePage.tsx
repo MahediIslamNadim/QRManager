@@ -19,7 +19,7 @@ const BKASH_NUMBER = import.meta.env.VITE_BKASH_NUMBER ?? "01786130439";
 const NAGAD_NUMBER = import.meta.env.VITE_NAGAD_NUMBER ?? "01786130439";
 
 const UpgradePage = () => {
-  const { restaurantId } = useAuth();
+  const { restaurantId, role } = useAuth();
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
 
@@ -118,7 +118,7 @@ const UpgradePage = () => {
   };
 
   return (
-    <DashboardLayout role="admin" title="Upgrade Your Plan">
+    <DashboardLayout role={(role === 'group_owner' ? 'group_owner' : role === 'super_admin' ? 'super_admin' : 'admin') as any} title="আপগ্রেড করুন">
       <div className="max-w-6xl mx-auto space-y-8">
         {/* Current Status Banner */}
         {restaurant && (
