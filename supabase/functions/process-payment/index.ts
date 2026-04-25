@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 /**
  * process-payment — super_admin approves/rejects/edits manual bKash/Nagad payments.
  * Actions: approve | reject | update | reopen | delete
+ * Updated: April 26, 2026 — Added high_smart_enterprise support + group_owner role assignment
  */
 
 const corsHeaders = {
@@ -22,14 +23,30 @@ interface RequestBody {
   status?: string;
 }
 
-const VALID_PLANS = ["basic", "premium", "enterprise", "medium_smart", "high_smart"] as const;
+// ✅ enterprise added
+const VALID_PLANS = [
+  "basic", "premium", "enterprise",
+  "medium_smart", "high_smart", "high_smart_enterprise",
+] as const;
+
 const VALID_ACTIONS: Action[] = ["approve", "reject", "update", "reopen", "delete"];
+
+// Plans that require group_owner role
+const MULTI_LOCATION_PLANS = ["high_smart", "high_smart_enterprise"];
 
 function getExpiryDate(billingCycle?: string): string {
   const d = new Date();
   if (billingCycle === "yearly") d.setFullYear(d.getFullYear() + 1);
   else d.setMonth(d.getMonth() + 1);
   return d.toISOString();
+}
+
+// ✅ Returns correct tier string including enterprise
+function resolveTier(plan: string): string {
+  if (plan === "high_smart_enterprise") return "high_smart_enterprise";
+  if (plan === "high_smart") return "high_smart";
+  if (plan === "medium_smart") return "medium_smart";
+  return "medium_smart"; // fallback
 }
 
 async function hasOtherApprovedPayment(
@@ -71,6 +88,32 @@ async function notifyRestaurantAdmins(
       })),
     );
   }
+}
+
+// ✅ Assign group_owner role for multi-location plans
+async function assignGroupOwnerRole(
+  admin: ReturnType<typeof createClient>,
+  restaurantId: string,
+  plan: string,
+) {
+  if (!MULTI_LOCATION_PLANS.includes(plan)) return;
+
+  // Find the owner of this restaurant
+  const { data: restaurant } = await admin
+    .from("restaurants")
+    .select("owner_id")
+    .eq("id", restaurantId)
+    .single();
+
+  if (!restaurant?.owner_id) return;
+
+  // Assign group_owner role
+  await admin.from("user_roles").upsert(
+    { user_id: restaurant.owner_id, role: "group_owner" },
+    { onConflict: "user_id,role" },
+  );
+
+  console.log(`[process-payment] Assigned group_owner role to user=${restaurant.owner_id} for plan=${plan}`);
 }
 
 Deno.serve(async (req) => {
@@ -116,7 +159,7 @@ Deno.serve(async (req) => {
 
     const { data: payment, error: fetchErr } = await admin
       .from("payment_requests")
-      .select("id, restaurant_id, plan, billing_cycle, status")
+      .select("id, restaurant_id, plan, billing_cycle, status, user_id")
       .eq("id", payment_id)
       .single();
     if (fetchErr || !payment) return json({ error: "Payment request not found" }, 404);
@@ -127,10 +170,11 @@ Deno.serve(async (req) => {
     if (action === "approve") {
       const plan = body.plan ?? payment.plan;
       if (!VALID_PLANS.includes(plan as typeof VALID_PLANS[number])) {
-        return json({ error: "Invalid plan" }, 400);
+        return json({ error: `Invalid plan: ${plan}` }, 400);
       }
+
       const expiryDate = getExpiryDate(body.billing_cycle ?? payment.billing_cycle);
-      const tier = ["medium_smart", "high_smart"].includes(plan) ? plan : "medium_smart";
+      const tier = resolveTier(plan); // ✅ correctly resolves enterprise
 
       const { error: payErr } = await admin
         .from("payment_requests")
@@ -144,7 +188,7 @@ Deno.serve(async (req) => {
           status: "active_paid",
           subscription_status: "active",
           plan,
-          tier,
+          tier, // ✅ now correctly 'high_smart_enterprise'
           trial_ends_at: expiryDate,
           trial_end_date: expiryDate,
           updated_at: now,
@@ -152,15 +196,22 @@ Deno.serve(async (req) => {
         .eq("id", payment.restaurant_id);
       if (restErr) return json({ error: "Internal server error" }, 500);
 
+      // ✅ Assign group_owner role for high_smart and enterprise
+      await assignGroupOwnerRole(admin, payment.restaurant_id, plan);
+
+      const planLabel =
+        tier === "high_smart_enterprise" ? "হাই স্মার্ট এন্টারপ্রাইজ" :
+        tier === "high_smart" ? "হাই স্মার্ট" : "মিডিয়াম স্মার্ট";
+
       await notifyRestaurantAdmins(
         admin, payment.restaurant_id,
         "পেমেন্ট অনুমোদিত হয়েছে",
-        `আপনার ${tier} প্ল্যান সক্রিয় হয়েছে।`,
+        `আপনার ${planLabel} প্ল্যান সক্রিয় হয়েছে। এখন সব ফিচার ব্যবহার করতে পারবেন।`,
         "success",
       );
 
-      console.log(`[process-payment] APPROVE payment=${payment_id} plan=${plan}`);
-      return json({ success: true, action: "approve" });
+      console.log(`[process-payment] APPROVE payment=${payment_id} plan=${plan} tier=${tier}`);
+      return json({ success: true, action: "approve", tier });
     }
 
     // ── REJECT ──────────────────────────────────────────────────────────────
@@ -199,21 +250,39 @@ Deno.serve(async (req) => {
         return json({ error: "Invalid status value" }, 400);
       }
       if (!VALID_PLANS.includes(newPlan as typeof VALID_PLANS[number])) {
-        return json({ error: "Invalid plan" }, 400);
+        return json({ error: `Invalid plan: ${newPlan}` }, 400);
       }
 
       const { error: payErr } = await admin
         .from("payment_requests")
-        .update({ plan: newPlan, amount: body.amount, status: newStatus, admin_notes: body.admin_notes ?? null, updated_at: now })
+        .update({
+          plan: newPlan,
+          amount: body.amount,
+          status: newStatus,
+          admin_notes: body.admin_notes ?? null,
+          updated_at: now,
+        })
         .eq("id", payment_id);
       if (payErr) return json({ error: "Internal server error" }, 500);
 
       if (newStatus === "approved") {
         const expiryDate = getExpiryDate(payment.billing_cycle);
-        const tier = ["medium_smart", "high_smart"].includes(newPlan) ? newPlan : "medium_smart";
+        const tier = resolveTier(newPlan); // ✅
         await admin.from("restaurants")
-          .update({ status: "active_paid", subscription_status: "active", plan: newPlan, tier, trial_ends_at: expiryDate, trial_end_date: expiryDate, updated_at: now })
+          .update({
+            status: "active_paid",
+            subscription_status: "active",
+            plan: newPlan,
+            tier,
+            trial_ends_at: expiryDate,
+            trial_end_date: expiryDate,
+            updated_at: now,
+          })
           .eq("id", payment.restaurant_id);
+
+        // ✅ Assign group_owner role
+        await assignGroupOwnerRole(admin, payment.restaurant_id, newPlan);
+
       } else if (payment.status === "approved" && newStatus !== "approved") {
         const otherApproved = await hasOtherApprovedPayment(admin, payment.restaurant_id, payment_id);
         if (!otherApproved) {
