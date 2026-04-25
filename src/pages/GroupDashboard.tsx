@@ -190,7 +190,7 @@ export default function GroupDashboard() {
 
   if (groupLoading) {
     return (
-      <DashboardLayout role="admin" title="গ্রুপ ড্যাশবোর্ড">
+      <DashboardLayout role="group_owner" title="গ্রুপ ড্যাশবোর্ড">
         <div className="flex items-center justify-center py-20 text-muted-foreground gap-2">
           <RefreshCw className="w-4 h-4 animate-spin" /> লোড হচ্ছে...
         </div>
@@ -200,7 +200,7 @@ export default function GroupDashboard() {
 
   if (!group) {
     return (
-      <DashboardLayout role="admin" title="গ্রুপ ড্যাশবোর্ড">
+      <DashboardLayout role="group_owner" title="গ্রুপ ড্যাশবোর্ড">
         <div className="py-20 text-center space-y-3">
           <AlertTriangle className="w-12 h-12 mx-auto text-muted-foreground/30" />
           <p className="text-sm text-muted-foreground">গ্রুপ পাওয়া যায়নি</p>
@@ -213,7 +213,7 @@ export default function GroupDashboard() {
   }
 
   return (
-    <DashboardLayout role="admin" title={group.name}>
+    <DashboardLayout role="group_owner" title={group.name}>
       <div className="space-y-6 animate-fade-up max-w-6xl">
 
         {/* Header */}

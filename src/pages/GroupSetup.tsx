@@ -34,7 +34,7 @@ const STEP_LABELS: Record<Step, string> = {
 };
 
 export default function GroupSetup() {
-  const { user } = useAuth();
+  const { user, restaurantPlan } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [step, setStep] = useState<Step>(1);
@@ -46,6 +46,7 @@ export default function GroupSetup() {
     name: '', address: '', branch_code: 'BR-01', phone: '',
   });
 
+  const canUseMultiLocation = restaurantPlan === 'high_smart' || restaurantPlan === 'enterprise';
   const { data: existingGroups = [], isLoading: groupsLoading } = useUserGroups();
 
   const handleCreateGroup = async () => {
@@ -97,8 +98,26 @@ export default function GroupSetup() {
 
   const skipBranch = () => setStep(3);
 
+  if (!canUseMultiLocation) {
+    return (
+      <DashboardLayout role="group_owner" title="মাল্টি-লোকেশন">
+        <div className="max-w-xl mx-auto py-12 text-center space-y-4">
+          <Building2 className="w-12 h-12 mx-auto text-muted-foreground/30" />
+          <h2 className="text-xl font-bold">High Smart প্যাকেজ প্রয়োজন</h2>
+          <p className="text-sm text-muted-foreground">
+            মাল্টি-লোকেশন ফিচার শুধুমাত্র High Smart প্যাকেজে পাওয়া যায়।
+            আপগ্রেড করুন এবং একাধিক শাখা পরিচালনা করুন।
+          </p>
+          <Button onClick={() => navigate('/upgrade')} className="gap-2">
+            আপগ্রেড করুন <ChevronRight className="w-4 h-4" />
+          </Button>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
-    <DashboardLayout role="admin" title="রেস্টুরেন্ট গ্রুপ সেটআপ">
+    <DashboardLayout role="group_owner" title="রেস্টুরেন্ট গ্রুপ সেটআপ">
       <div className="max-w-xl mx-auto space-y-6 animate-fade-up">
 
         {/* Step indicator */}
