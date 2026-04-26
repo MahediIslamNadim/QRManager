@@ -1,6 +1,6 @@
 // EnterpriseSetup.tsx
 // Enterprise account setup page — admin account তৈরি করার জন্য
-// Created: April 26, 2026
+// Updated: April 26, 2026 — sanitization hardened (email, password, name validation)
 
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -12,11 +12,34 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   Building2, UserPlus, CheckCircle2, Eye, EyeOff,
   Trash2, RefreshCw, ArrowRight, Shield, Users,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+
+// ─── Sanitization ────────────────────────────────────────────────────────────
+
+const EMAIL_REGEX = /^[^\s@]{1,64}@[^\s@]{1,253}\.[^\s@]{2,}$/;
+
+const sanitizeEmail = (raw: string) => raw.trim().toLowerCase().slice(0, 320);
+const isValidEmail = (email: string) => EMAIL_REGEX.test(email);
+
+const sanitizeName = (raw: string) =>
+  raw.trim().replace(/\s+/g, ' ').slice(0, 100);
+
+const validatePassword = (pw: string): string | null => {
+  if (pw.length < 6) return 'পাসওয়ার্ড কমপক্ষে ৬ অক্ষর হতে হবে';
+  if (pw.length > 128) return 'পাসওয়ার্ড সর্বোচ্চ ১২৮ অক্ষর হতে পারে';
+  return null; // ok
+};
+
+// ─── Types ───────────────────────────────────────────────────────────────────
 
 interface AdminAccount {
   id: string;
@@ -24,6 +47,8 @@ interface AdminAccount {
   email: string | null;
   created_at: string;
 }
+
+// ─── Component ───────────────────────────────────────────────────────────────
 
 export default function EnterpriseSetup() {
   const { user, restaurantId, restaurantPlan, role } = useAuth();
@@ -37,12 +62,13 @@ export default function EnterpriseSetup() {
   const [creating, setCreating] = useState(false);
   const [completing, setCompleting] = useState(false);
 
-  // Fetch existing admins for this restaurant
+  // Confirm delete dialog state (replaces window.confirm)
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+
   const { data: admins = [], isLoading: adminsLoading } = useQuery<AdminAccount[]>({
     queryKey: ['enterprise-admins', restaurantId],
     queryFn: async () => {
       if (!restaurantId) return [];
-      // Get user_ids with admin role for this restaurant
       const { data: roles } = await supabase
         .from('user_roles')
         .select('user_id')
@@ -51,7 +77,6 @@ export default function EnterpriseSetup() {
 
       if (!roles || roles.length === 0) return [];
 
-      // Exclude the group_owner themselves
       const adminIds = roles.map(r => r.user_id).filter(id => id !== user?.id);
       if (adminIds.length === 0) return [];
 
@@ -66,12 +91,20 @@ export default function EnterpriseSetup() {
   });
 
   const handleCreateAdmin = async () => {
-    if (!name.trim() || !email.trim() || !password.trim()) {
-      toast.error('সব তথ্য পূরণ করুন');
+    const cleanName = sanitizeName(name);
+    const cleanEmail = sanitizeEmail(email);
+    const pwError = validatePassword(password);
+
+    if (!cleanName) {
+      toast.error('নাম লিখুন (কমপক্ষে ১ অক্ষর)');
       return;
     }
-    if (password.length < 6) {
-      toast.error('পাসওয়ার্ড কমপক্ষে ৬ অক্ষর হতে হবে');
+    if (!isValidEmail(cleanEmail)) {
+      toast.error('সঠিক ইমেইল ঠিকানা দিন');
+      return;
+    }
+    if (pwError) {
+      toast.error(pwError);
       return;
     }
 
@@ -80,9 +113,9 @@ export default function EnterpriseSetup() {
       const { data, error } = await supabase.functions.invoke('create-staff', {
         body: {
           action: 'add',
-          email: email.trim().toLowerCase(),
-          password: password,
-          full_name: name.trim(),
+          email: cleanEmail,
+          password,           // password sent as-is (not stored client-side after call)
+          full_name: cleanName,
           role: 'admin',
           restaurant_id: restaurantId,
         },
@@ -91,7 +124,7 @@ export default function EnterpriseSetup() {
       if (error) throw new Error(error.message);
       if (data?.error) throw new Error(data.error);
 
-      toast.success(`${name} এর অ্যাকাউন্ট তৈরি হয়েছে!`);
+      toast.success(`${cleanName} এর অ্যাকাউন্ট তৈরি হয়েছে!`);
       setName(''); setEmail(''); setPassword('');
       queryClient.invalidateQueries({ queryKey: ['enterprise-admins', restaurantId] });
     } catch (e: any) {
@@ -107,7 +140,6 @@ export default function EnterpriseSetup() {
       return;
     }
     if (!restaurantId) {
-      // group_owner-এর নিজস্ব restaurant না থাকলে সরাসরি enterprise dashboard-এ যাও
       toast.success('Setup সম্পন্ন! Enterprise Dashboard-এ যাচ্ছেন...');
       setTimeout(() => navigate('/enterprise/dashboard'), 800);
       return;
@@ -128,21 +160,28 @@ export default function EnterpriseSetup() {
     }
   };
 
-  const handleDeleteAdmin = async (adminId: string, adminName: string) => {
-    if (!window.confirm(`${adminName} এর অ্যাকাউন্ট মুছে ফেলবেন?`)) return;
+  // Called when user confirms delete in the AlertDialog
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
     try {
       const { error } = await supabase.functions.invoke('manage-user', {
-        body: { action: 'delete', user_id: adminId },
+        body: { action: 'delete', user_id: deleteTarget.id },
       });
       if (error) throw new Error(error.message);
       toast.success('অ্যাকাউন্ট মুছে ফেলা হয়েছে');
       queryClient.invalidateQueries({ queryKey: ['enterprise-admins', restaurantId] });
     } catch (e: any) {
       toast.error(e.message);
+    } finally {
+      setDeleteTarget(null);
     }
   };
 
-  const hasAccess = restaurantPlan === 'high_smart_enterprise' || role === 'group_owner' || role === 'super_admin';
+  const hasAccess =
+    restaurantPlan === 'high_smart_enterprise' ||
+    role === 'group_owner' ||
+    role === 'super_admin';
+
   if (!hasAccess) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -150,7 +189,9 @@ export default function EnterpriseSetup() {
           <CardContent className="p-8 space-y-4">
             <Building2 className="w-12 h-12 mx-auto text-muted-foreground/30" />
             <p className="font-semibold">Enterprise অ্যাক্সেস নেই</p>
-            <p className="text-sm text-muted-foreground">এই page-টি শুধুমাত্র Enterprise অ্যাকাউন্টের জন্য।</p>
+            <p className="text-sm text-muted-foreground">
+              এই page-টি শুধুমাত্র Enterprise অ্যাকাউন্টের জন্য।
+            </p>
             <Button onClick={() => navigate('/admin')} className="w-full">Dashboard-এ যান</Button>
           </CardContent>
         </Card>
@@ -158,8 +199,34 @@ export default function EnterpriseSetup() {
     );
   }
 
+  const cleanEmail = sanitizeEmail(email);
+  const emailOk = isValidEmail(cleanEmail);
+  const formOk = sanitizeName(name).length > 0 && emailOk && password.length >= 6;
+
   return (
     <div className="min-h-screen bg-background">
+      {/* Confirm-delete AlertDialog (replaces window.confirm) */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={open => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Admin মুছে ফেলবেন?</AlertDialogTitle>
+            <AlertDialogDescription>
+              <span className="font-semibold">{deleteTarget?.name}</span> এর অ্যাকাউন্ট স্থায়ীভাবে মুছে যাবে।
+              এই কাজ পূর্বাবস্থায় ফেরানো যাবে না।
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>বাতিল</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              মুছে ফেলুন
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Header */}
       <div className="border-b border-border bg-card">
         <div className="max-w-2xl mx-auto px-4 py-5 flex items-center gap-3">
@@ -168,7 +235,9 @@ export default function EnterpriseSetup() {
           </div>
           <div>
             <h1 className="font-bold text-lg">🏢 Enterprise Setup</h1>
-            <p className="text-xs text-muted-foreground">Admin অ্যাকাউন্ট তৈরি করুন এবং setup সম্পন্ন করুন</p>
+            <p className="text-xs text-muted-foreground">
+              Admin অ্যাকাউন্ট তৈরি করুন এবং setup সম্পন্ন করুন
+            </p>
           </div>
           <Badge className="ml-auto bg-amber-500/10 text-amber-600 border-amber-400/30 border">
             Enterprise
@@ -210,6 +279,8 @@ export default function EnterpriseSetup() {
                   placeholder="যেমন: মোঃ রহিম"
                   value={name}
                   onChange={e => setName(e.target.value)}
+                  maxLength={100}
+                  autoComplete="name"
                 />
               </div>
               <div className="space-y-1.5">
@@ -219,7 +290,12 @@ export default function EnterpriseSetup() {
                   placeholder="admin@restaurant.com"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
+                  maxLength={320}
+                  autoComplete="email"
                 />
+                {email.length > 0 && !emailOk && (
+                  <p className="text-xs text-destructive">সঠিক ইমেইল ঠিকানা লিখুন</p>
+                )}
               </div>
             </div>
 
@@ -232,6 +308,8 @@ export default function EnterpriseSetup() {
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   className="pr-10"
+                  maxLength={128}
+                  autoComplete="new-password"
                   onKeyDown={e => e.key === 'Enter' && handleCreateAdmin()}
                 />
                 <button
@@ -242,11 +320,14 @@ export default function EnterpriseSetup() {
                   {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
+              {password.length > 0 && password.length < 6 && (
+                <p className="text-xs text-destructive">কমপক্ষে ৬ অক্ষর দিন</p>
+              )}
             </div>
 
             <Button
               onClick={handleCreateAdmin}
-              disabled={creating || !name.trim() || !email.trim() || !password.trim()}
+              disabled={creating || !formOk}
               className="w-full gap-2"
             >
               {creating
@@ -296,8 +377,14 @@ export default function EnterpriseSetup() {
                       <CheckCircle2 className="w-3 h-3 mr-1" /> Admin
                     </Badge>
                     <button
-                      onClick={() => handleDeleteAdmin(admin.id, admin.full_name || admin.email || 'Admin')}
+                      onClick={() =>
+                        setDeleteTarget({
+                          id: admin.id,
+                          name: admin.full_name || admin.email || 'Admin',
+                        })
+                      }
                       className="p-1.5 text-muted-foreground hover:text-destructive transition-colors"
+                      title="অ্যাকাউন্ট মুছুন"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>

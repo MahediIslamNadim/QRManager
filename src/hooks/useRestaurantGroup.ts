@@ -2,6 +2,27 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import type { RestaurantGroup } from './useGroupOwner';
 
+// ─── Sanitization helpers ────────────────────────────────────────────────────
+
+/** Trim + normalize whitespace, max length clip */
+const sanitizeText = (val: string | null | undefined, maxLen = 255): string | null => {
+  if (!val) return null;
+  const trimmed = val.trim().replace(/\s+/g, ' ');
+  return trimmed.length > 0 ? trimmed.slice(0, maxLen) : null;
+};
+
+const ALLOWED_BRANCH_STATUSES = ['active', 'inactive'] as const;
+type BranchStatus = (typeof ALLOWED_BRANCH_STATUSES)[number];
+
+const assertBranchStatus = (s: string): BranchStatus => {
+  if (!ALLOWED_BRANCH_STATUSES.includes(s as BranchStatus)) {
+    throw new Error(`Invalid branch status: ${s}`);
+  }
+  return s as BranchStatus;
+};
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
 export interface BranchInfo {
   id: string;
   name: string;
@@ -49,6 +70,19 @@ export interface BranchPayload {
   status: string;
 }
 
+/** Sanitize & validate branch payload before DB write */
+const sanitizeBranchPayload = (branch: BranchPayload): BranchPayload => {
+  const name = branch.name.trim().replace(/\s+/g, ' ').slice(0, 200);
+  if (!name || name.length < 2) throw new Error('Branch name must be at least 2 characters');
+  return {
+    name,
+    address: sanitizeText(branch.address, 500),
+    branch_code: sanitizeText(branch.branch_code, 20),
+    phone: sanitizeText(branch.phone, 20),
+    status: assertBranchStatus(branch.status),
+  };
+};
+
 export function useBranchManagement(groupId: string | null) {
   const queryClient = useQueryClient();
 
@@ -62,14 +96,15 @@ export function useBranchManagement(groupId: string | null) {
   const createBranch = useMutation({
     mutationFn: async (branch: BranchPayload & { owner_id: string | null }) => {
       if (!groupId) throw new Error('Group ID is required');
+      const clean = sanitizeBranchPayload(branch);
       const { data, error } = await supabase
         .from('restaurants')
         .insert({
-          name: branch.name,
-          address: branch.address,
-          branch_code: branch.branch_code,
-          phone: branch.phone,
-          status: branch.status,
+          name: clean.name,
+          address: clean.address,
+          branch_code: clean.branch_code,
+          phone: clean.phone,
+          status: clean.status,
           group_id: groupId,
           is_branch: true,
           owner_id: branch.owner_id,
@@ -84,9 +119,10 @@ export function useBranchManagement(groupId: string | null) {
 
   const updateBranch = useMutation({
     mutationFn: async ({ id, ...branch }: BranchPayload & { id: string }) => {
+      const clean = sanitizeBranchPayload(branch);
       const { error } = await supabase
         .from('restaurants')
-        .update(branch)
+        .update(clean)
         .eq('id', id)
         .eq('group_id', groupId);
       if (error) throw error;
@@ -96,9 +132,10 @@ export function useBranchManagement(groupId: string | null) {
 
   const setBranchStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      const safeStatus = assertBranchStatus(status); // blocks arbitrary strings
       const { error } = await supabase
         .from('restaurants')
-        .update({ status })
+        .update({ status: safeStatus })
         .eq('id', id)
         .eq('group_id', groupId);
       if (error) throw error;
@@ -184,7 +221,7 @@ export function useGroupOrders(groupId: string | null, branchIds: string[]) {
       }));
     },
     enabled: !!groupId && branchIds.length > 0,
-    refetchInterval: 15_000, // poll every 15s — subscription removed (no group_id filter on orders table)
+    refetchInterval: 15_000,
   });
 }
 
@@ -200,6 +237,25 @@ export interface SharedMenuItem {
   created_at: string;
   updated_at: string;
 }
+
+/** Sanitize shared menu item before DB write */
+const sanitizeMenuItem = (
+  item: Omit<SharedMenuItem, 'id' | 'created_at' | 'updated_at'>,
+): Omit<SharedMenuItem, 'id' | 'created_at' | 'updated_at'> => {
+  const name = item.name.trim().slice(0, 200);
+  if (!name) throw new Error('Item name is required');
+  const price = Number(item.price);
+  if (!Number.isFinite(price) || price < 0) throw new Error('Invalid price');
+  return {
+    group_id: item.group_id,
+    name,
+    category: (item.category || 'সাধারণ').trim().slice(0, 100),
+    description: sanitizeText(item.description, 1000),
+    price: Math.round(price * 100) / 100, // 2 decimal places
+    image_url: sanitizeText(item.image_url, 2048),
+    is_active: Boolean(item.is_active),
+  };
+};
 
 export function useSharedMenu(groupId: string | null) {
   const queryClient = useQueryClient();
@@ -222,7 +278,12 @@ export function useSharedMenu(groupId: string | null) {
 
   const createItem = useMutation({
     mutationFn: async (item: Omit<SharedMenuItem, 'id' | 'created_at' | 'updated_at'>) => {
-      const { data, error } = await supabase.from('group_shared_menus').insert(item).select().single();
+      const clean = sanitizeMenuItem(item);
+      const { data, error } = await supabase
+        .from('group_shared_menus')
+        .insert(clean)
+        .select()
+        .single();
       if (error) throw error;
       return data as SharedMenuItem;
     },
@@ -234,7 +295,24 @@ export function useSharedMenu(groupId: string | null) {
 
   const updateItem = useMutation({
     mutationFn: async ({ id, ...patch }: Partial<SharedMenuItem> & { id: string }) => {
-      const { error } = await supabase.from('group_shared_menus').update(patch).eq('id', id);
+      // Only sanitize provided fields
+      const cleanPatch: Partial<SharedMenuItem> = {};
+      if (patch.name !== undefined) {
+        const n = patch.name.trim().slice(0, 200);
+        if (!n) throw new Error('Item name is required');
+        cleanPatch.name = n;
+      }
+      if (patch.category !== undefined) cleanPatch.category = patch.category.trim().slice(0, 100) || 'সাধারণ';
+      if (patch.description !== undefined) cleanPatch.description = sanitizeText(patch.description, 1000);
+      if (patch.price !== undefined) {
+        const p = Number(patch.price);
+        if (!Number.isFinite(p) || p < 0) throw new Error('Invalid price');
+        cleanPatch.price = Math.round(p * 100) / 100;
+      }
+      if (patch.image_url !== undefined) cleanPatch.image_url = sanitizeText(patch.image_url, 2048);
+      if (patch.is_active !== undefined) cleanPatch.is_active = Boolean(patch.is_active);
+
+      const { error } = await supabase.from('group_shared_menus').update(cleanPatch).eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -283,12 +361,18 @@ export function useBranchMenuOverrides(restaurantId: string | null) {
   });
 
   const upsertOverride = useMutation({
-    mutationFn: async (
-      override: Omit<BranchOverride, 'id'>,
-    ) => {
+    mutationFn: async (override: Omit<BranchOverride, 'id'>) => {
+      const custom_price =
+        override.custom_price !== null ? Math.round(Number(override.custom_price) * 100) / 100 : null;
+      if (custom_price !== null && (!Number.isFinite(custom_price) || custom_price < 0)) {
+        throw new Error('Invalid custom price');
+      }
       const { error } = await supabase
         .from('branch_menu_overrides')
-        .upsert(override, { onConflict: 'restaurant_id,shared_menu_item_id' });
+        .upsert(
+          { ...override, custom_price },
+          { onConflict: 'restaurant_id,shared_menu_item_id' },
+        );
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['branch-overrides', restaurantId] }),

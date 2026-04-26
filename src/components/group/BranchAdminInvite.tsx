@@ -1,5 +1,6 @@
 // BranchAdminInvite.tsx — Invite a branch admin from head office
 // Created: April 25, 2026
+// Updated: April 26, 2026 — hardened email validation & sanitization
 import { useState } from 'react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
@@ -10,12 +11,20 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { UserPlus, Mail, Clock, CheckCircle2, RefreshCw, Info } from 'lucide-react';
 import { useInviteBranchAdmin, useBranchInvitations } from '@/hooks/useBranchInvite';
+import { toast } from 'sonner';
 
 interface Props {
   restaurantId: string;
   restaurantName: string;
   groupId: string;
 }
+
+// RFC-5322 simplified — catches most invalid formats on the frontend
+const EMAIL_REGEX = /^[^\s@]{1,64}@[^\s@]{1,253}\.[^\s@]{2,}$/;
+
+const sanitizeEmail = (raw: string): string => raw.trim().toLowerCase().slice(0, 320);
+
+const isValidEmail = (email: string): boolean => EMAIL_REGEX.test(email);
 
 export default function BranchAdminInvite({ restaurantId, restaurantName, groupId }: Props) {
   const [open, setOpen] = useState(false);
@@ -28,16 +37,21 @@ export default function BranchAdminInvite({ restaurantId, restaurantName, groupI
   const branchInvitations = allInvitations.filter(inv => inv.restaurant_id === restaurantId);
 
   const handleInvite = async () => {
-    if (!email.trim() || !email.includes('@')) {
+    const cleanEmail = sanitizeEmail(email);
+    if (!isValidEmail(cleanEmail)) {
+      toast.error('সঠিক ইমেইল ঠিকানা দিন');
       return;
     }
-    await inviteMutation.mutateAsync({ restaurantId, groupId, email: email.trim() });
+    await inviteMutation.mutateAsync({ restaurantId, groupId, email: cleanEmail });
     setEmail('');
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') handleInvite();
   };
+
+  const cleanEmail = sanitizeEmail(email);
+  const emailOk = isValidEmail(cleanEmail);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -83,10 +97,12 @@ export default function BranchAdminInvite({ restaurantId, restaurantName, groupI
                 onKeyDown={handleKeyDown}
                 className="text-sm"
                 disabled={inviteMutation.isPending}
+                maxLength={320}
+                autoComplete="email"
               />
               <Button
                 onClick={handleInvite}
-                disabled={inviteMutation.isPending || !email.includes('@')}
+                disabled={inviteMutation.isPending || !emailOk}
                 size="sm"
                 className="gap-1.5 shrink-0"
               >
@@ -96,6 +112,10 @@ export default function BranchAdminInvite({ restaurantId, restaurantName, groupI
                 {inviteMutation.isPending ? '...' : 'পাঠান'}
               </Button>
             </div>
+            {/* Real-time hint */}
+            {email.length > 0 && !emailOk && (
+              <p className="text-xs text-destructive">সঠিক ইমেইল ঠিকানা লিখুন</p>
+            )}
           </div>
 
           {/* Existing invitations for this branch */}
