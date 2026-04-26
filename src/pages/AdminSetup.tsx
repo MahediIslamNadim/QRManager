@@ -62,14 +62,14 @@ const AdminSetup = () => {
       return;
     }
 
-    // For branch invite flow — if user already has role "admin" and is linked to a restaurant,
-    // just redirect to /admin (they're already set up)
-    if (role === "admin") {
+    // FIX: Branch invite এ আসলে role=admin হলেও redirect করো না।
+    // Branch invite page-ই দেখাতে হবে যাতে user confirm করতে পারে।
+    if (role === "admin" && !isBranchInvite) {
       supabase.rpc("get_user_restaurant_id", { _user_id: user.id })
         .then(async ({ data, error }) => {
           if (error) { console.warn("RPC error:", error); setChecking(false); return; }
           if (data) {
-            // Already set up — accept invite and redirect
+            // Already fully set up — accept old-style invite if present, then redirect
             if (inviteId) {
               await supabase
                 .from("admin_invites" as any)
@@ -90,38 +90,35 @@ const AdminSetup = () => {
     }
   }, [user, role, loading, navigate, inviteId, isBranchInvite]);
 
-  // Branch invite flow: user is already linked to the restaurant via edge function.
-  // We just need to confirm and redirect them to their admin dashboard.
+  // Branch invite flow: edge function already assigned role + restaurant.
+  // User just needs to confirm — we finalise here and mark invitation accepted.
   const handleBranchSetupComplete = async () => {
     if (!user || !branchRestaurantId) return;
     setSubmitting(true);
     try {
-      // Ensure the role is properly set in user_roles (edge function may have done this,
-      // but we double-check here for reliability)
+      // Double-check role assignment (edge fn should have done this already)
       await supabase.from("user_roles" as any).upsert(
         { user_id: user.id, role: "admin" },
         { onConflict: "user_id,role" }
       );
 
-      // Ensure profile is linked to this restaurant
+      // Double-check restaurant link in profiles
       await supabase.from("profiles" as any).upsert(
         { id: user.id, restaurant_id: branchRestaurantId },
         { onConflict: "id" }
       );
 
-      // Update branch invitation status
-      if (branchInfo) {
-        try {
-          await (supabase.from("branch_invitations") as any)
-            .update({ status: "accepted", accepted_at: new Date().toISOString() })
-            .eq("restaurant_id", branchRestaurantId)
-            .eq("invited_email", user.email);
-        } catch {
-          // Ignore
-        }
+      // Mark branch invitation as accepted now that user has confirmed
+      try {
+        await (supabase.from("branch_invitations") as any)
+          .update({ status: "accepted", accepted_at: new Date().toISOString() })
+          .eq("restaurant_id", branchRestaurantId)
+          .eq("invited_email", user.email);
+      } catch {
+        // Ignore if table not yet present
       }
 
-      // Refetch auth context so the new role takes effect
+      // Refetch auth context so new role takes effect immediately
       await refetchUserData(user.id);
 
       toast.success("সেটআপ সম্পন্ন! আপনার Branch Dashboard-এ যাচ্ছেন...");
@@ -140,7 +137,7 @@ const AdminSetup = () => {
     setSubmitting(true);
 
     try {
-      const { data: setupData, error: setupError } = await supabase.rpc(
+      const { error: setupError } = await supabase.rpc(
         "complete_admin_signup" as any,
         {
           p_restaurant_name: restaurantName.trim(),
@@ -154,7 +151,7 @@ const AdminSetup = () => {
         throw new Error("সেটআপ ব্যর্থ: " + setupError.message);
       }
 
-      // Mark invite accepted if this setup came from an invite link
+      // Mark old-style invite accepted if present
       if (inviteId) {
         await supabase
           .from("admin_invites" as any)

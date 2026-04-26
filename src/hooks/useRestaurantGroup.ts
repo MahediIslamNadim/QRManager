@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import type { RestaurantGroup } from './useGroupOwner';
@@ -9,6 +8,7 @@ export interface BranchInfo {
   branch_code: string | null;
   status: string;
   address: string | null;
+  phone: string | null;
   subscription_status: string | null;
   group_id: string | null;
   is_branch: boolean;
@@ -27,7 +27,7 @@ export function useRestaurantGroup(groupId: string | null) {
         supabase.from('restaurant_groups').select('*').eq('id', groupId).single(),
         supabase
           .from('restaurants')
-          .select('id, name, branch_code, status, address, subscription_status, group_id, is_branch')
+          .select('id, name, branch_code, status, address, phone, subscription_status, group_id, is_branch')
           .eq('group_id', groupId)
           .order('name'),
       ]);
@@ -39,6 +39,74 @@ export function useRestaurantGroup(groupId: string | null) {
     },
     enabled: !!groupId,
   });
+}
+
+export interface BranchPayload {
+  name: string;
+  address: string | null;
+  branch_code: string | null;
+  phone: string | null;
+  status: string;
+}
+
+export function useBranchManagement(groupId: string | null) {
+  const queryClient = useQueryClient();
+
+  const invalidateGroup = () => {
+    queryClient.invalidateQueries({ queryKey: ['restaurant-group', groupId] });
+    queryClient.invalidateQueries({ queryKey: ['group-analytics', groupId] });
+    queryClient.invalidateQueries({ queryKey: ['group-orders', groupId] });
+    queryClient.invalidateQueries({ queryKey: ['menu-items'] });
+  };
+
+  const createBranch = useMutation({
+    mutationFn: async (branch: BranchPayload & { owner_id: string | null }) => {
+      if (!groupId) throw new Error('Group ID is required');
+      const { data, error } = await supabase
+        .from('restaurants')
+        .insert({
+          name: branch.name,
+          address: branch.address,
+          branch_code: branch.branch_code,
+          phone: branch.phone,
+          status: branch.status,
+          group_id: groupId,
+          is_branch: true,
+          owner_id: branch.owner_id,
+        })
+        .select('id')
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: invalidateGroup,
+  });
+
+  const updateBranch = useMutation({
+    mutationFn: async ({ id, ...branch }: BranchPayload & { id: string }) => {
+      const { error } = await supabase
+        .from('restaurants')
+        .update(branch)
+        .eq('id', id)
+        .eq('group_id', groupId);
+      if (error) throw error;
+    },
+    onSuccess: invalidateGroup,
+  });
+
+  const setBranchStatus = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      const { error } = await supabase
+        .from('restaurants')
+        .update({ status })
+        .eq('id', id)
+        .eq('group_id', groupId);
+      if (error) throw error;
+    },
+    onSuccess: invalidateGroup,
+  });
+
+  return { createBranch, updateBranch, setBranchStatus };
 }
 
 export interface BranchAnalytics {
@@ -92,9 +160,7 @@ export interface LiveOrder {
 }
 
 export function useGroupOrders(groupId: string | null, branchIds: string[]) {
-  const queryClient = useQueryClient();
-
-  const query = useQuery<LiveOrder[]>({
+  return useQuery<LiveOrder[]>({
     queryKey: ['group-orders', groupId],
     queryFn: async () => {
       if (!groupId || branchIds.length === 0) return [];
@@ -118,28 +184,8 @@ export function useGroupOrders(groupId: string | null, branchIds: string[]) {
       }));
     },
     enabled: !!groupId && branchIds.length > 0,
-    refetchInterval: 15_000,
+    refetchInterval: 15_000, // poll every 15s — subscription removed (no group_id filter on orders table)
   });
-
-  useEffect(() => {
-    if (!groupId || branchIds.length === 0) return;
-
-    const channel = supabase
-      .channel(`group-orders-${groupId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'orders' },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ['group-orders', groupId] });
-          queryClient.invalidateQueries({ queryKey: ['group-analytics', groupId] });
-        },
-      )
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [groupId, branchIds.length, queryClient]);
-
-  return query;
 }
 
 export interface SharedMenuItem {
@@ -180,7 +226,10 @@ export function useSharedMenu(groupId: string | null) {
       if (error) throw error;
       return data as SharedMenuItem;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['shared-menu', groupId] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['shared-menu', groupId] });
+      queryClient.invalidateQueries({ queryKey: ['menu-items'] });
+    },
   });
 
   const updateItem = useMutation({
@@ -188,7 +237,10 @@ export function useSharedMenu(groupId: string | null) {
       const { error } = await supabase.from('group_shared_menus').update(patch).eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['shared-menu', groupId] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['shared-menu', groupId] });
+      queryClient.invalidateQueries({ queryKey: ['menu-items'] });
+    },
   });
 
   const deleteItem = useMutation({
@@ -196,7 +248,10 @@ export function useSharedMenu(groupId: string | null) {
       const { error } = await supabase.from('group_shared_menus').delete().eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['shared-menu', groupId] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['shared-menu', groupId] });
+      queryClient.invalidateQueries({ queryKey: ['menu-items'] });
+    },
   });
 
   return { ...query, createItem, updateItem, deleteItem };

@@ -26,7 +26,10 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
     return <Navigate to="/login" replace />;
   }
 
-  if (role === "admin" && !restaurantId) {
+  const searchParams = new URLSearchParams(window.location.search);
+  const isBranchInvite = !!searchParams.get("branch_restaurant_id");
+
+  if (role === "admin" && !restaurantId && !isBranchInvite) {
     return <Navigate to="/admin-setup" replace />;
   }
 
@@ -40,10 +43,11 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
     const enterpriseAllowed = [
       "/enterprise/setup",
       "/enterprise/dashboard",
+      "/group",   // /group/setup, /group/:groupId — সব group routes
       "/admin/settings",
       "/upgrade",
       "/billing",
-      "/admin", // allow to manage their own restaurant
+      "/admin",   // allow to manage their own restaurant
       "/admin/menu",
       "/admin/tables",
       "/admin/orders",
@@ -57,7 +61,6 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
     ];
     const isAllowed = enterpriseAllowed.some(p => location.pathname.startsWith(p));
     if (!isAllowed) {
-      // Redirect to enterprise dashboard if setup complete, else setup
       return <Navigate to="/enterprise/dashboard" replace />;
     }
   }

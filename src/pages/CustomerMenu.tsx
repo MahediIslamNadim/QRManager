@@ -107,12 +107,14 @@ const CustomerMenu = () => {
   });
 
   // ── Sanitize user text input ──────────────────────────────────────────────
+  const stripControlCharacters = (value: string): string =>
+    Array.from(value).filter((char) => {
+      const code = char.charCodeAt(0);
+      return code === 9 || code === 10 || code === 13 || (code >= 32 && code !== 127);
+    }).join("");
+
   const sanitize = (text: string, maxLen = 500): string =>
-    text
-      .trim()
-      .replace(/<[^>]*>/g, "")
-      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "")
-      .slice(0, maxLen);
+    stripControlCharacters(text.trim().replace(/<[^>]*>/g, "")).slice(0, maxLen);
 
   // ── Item ratings from reviews table (with realtime) ───────────────────────
   const [itemRatings, setItemRatings] = useState<Record<string, { avg: number; count: number }>>({});

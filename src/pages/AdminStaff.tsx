@@ -118,7 +118,7 @@ export default function AdminStaff() {
         supabase.from("user_roles").select("user_id, role").in("user_id", userIds),
       ]);
 
-      let rpcEmailMap: Record<string, string> = {};
+      const rpcEmailMap: Record<string, string> = {};
       try {
         const { data: rpcRows } = await (supabase as any).rpc("get_restaurant_staff", { _restaurant_id: restaurantId });
         if (rpcRows) rpcRows.forEach((row: any) => { if (row.email) rpcEmailMap[row.user_id] = row.email; });
@@ -196,11 +196,22 @@ export default function AdminStaff() {
   const updateRole = async (userId: string, newRole: StaffRole) => {
     setUpdatingRole(userId);
     try {
+      if (!restaurantId) throw new Error("No restaurant");
+
       const { error } = await supabase
         .from("user_roles")
-        .update({ role: newRole })
-        .eq("user_id", userId);
+        .update({ role: newRole, restaurant_id: restaurantId } as any)
+        .eq("user_id", userId)
+        .in("role", ["admin", "waiter", "kitchen"]);
       if (error) throw error;
+
+      const { error: linkError } = await supabase
+        .from("staff_restaurants")
+        .update({ role: newRole } as any)
+        .eq("user_id", userId)
+        .eq("restaurant_id", restaurantId);
+      if (linkError) throw linkError;
+
       queryClient.invalidateQueries({ queryKey: ["staff", restaurantId] });
       toast.success("রোল আপডেট হয়েছে।");
     } catch (err: any) {

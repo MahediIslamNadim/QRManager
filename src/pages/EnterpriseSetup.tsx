@@ -26,7 +26,7 @@ interface AdminAccount {
 }
 
 export default function EnterpriseSetup() {
-  const { user, restaurantId, restaurantPlan } = useAuth();
+  const { user, restaurantId, restaurantPlan, role } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -106,9 +106,14 @@ export default function EnterpriseSetup() {
       toast.error('কমপক্ষে ১টি Admin অ্যাকাউন্ট তৈরি করুন');
       return;
     }
+    if (!restaurantId) {
+      // group_owner-এর নিজস্ব restaurant না থাকলে সরাসরি enterprise dashboard-এ যাও
+      toast.success('Setup সম্পন্ন! Enterprise Dashboard-এ যাচ্ছেন...');
+      setTimeout(() => navigate('/enterprise/dashboard'), 800);
+      return;
+    }
     setCompleting(true);
     try {
-      // Mark setup as complete in restaurant
       await supabase
         .from('restaurants')
         .update({ status: 'active_paid' } as any)
@@ -137,8 +142,8 @@ export default function EnterpriseSetup() {
     }
   };
 
-  const isEnterprise = restaurantPlan === 'high_smart_enterprise';
-  if (!isEnterprise) {
+  const hasAccess = restaurantPlan === 'high_smart_enterprise' || role === 'group_owner' || role === 'super_admin';
+  if (!hasAccess) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="max-w-sm w-full text-center">

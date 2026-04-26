@@ -106,34 +106,85 @@ Deno.serve(async (req) => {
       : null;
 
     // ✅ group_owner-এর restaurant_id তার owned restaurant থেকে নেওয়া হবে
-    const { data: callerRest } = await callerClient
-      .from("restaurants")
-      .select("id")
-      .eq("owner_id", caller.id)
-      .limit(1)
-      .single();
-
     const isSuperAdmin = callerRoles?.some(r => r.role === "super_admin");
-    const isGroupOwner = callerRoles?.some(r => r.role === "group_owner");
+    const requestedRestaurantId = typeof restaurant_id === "string" ? restaurant_id : undefined;
     let restId: string | undefined;
 
-    if ((isSuperAdmin || isGroupOwner) && restaurant_id) {
-      // super_admin বা group_owner: provided restaurant_id use করতে পারবে
-      const { data: targetRest } = await callerClient
+    const loadRestaurant = async (targetId: string) => {
+      const { data, error } = await callerClient
         .from("restaurants")
-        .select("id")
-        .eq("id", restaurant_id)
-        .single();
+        .select("id, owner_id, group_id")
+        .eq("id", targetId)
+        .maybeSingle();
+      if (error) throw error;
+      return data as { id: string; owner_id: string | null; group_id: string | null } | null;
+    };
+
+    if (requestedRestaurantId) {
+      // super_admin বা group_owner: provided restaurant_id use করতে পারবে
+      const targetRest = await loadRestaurant(requestedRestaurantId);
       if (!targetRest) {
         return new Response(JSON.stringify({ error: "Restaurant not found" }), {
           status: 404,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      restId = restaurant_id as string;
+      const { data: callerStaffLink, error: callerStaffLinkError } = await callerClient
+        .from("staff_restaurants")
+        .select("role")
+        .eq("user_id", caller.id)
+        .eq("restaurant_id", requestedRestaurantId)
+        .maybeSingle();
+
+      if (callerStaffLinkError) throw callerStaffLinkError;
+
+      let isTargetGroupOwner = false;
+      if (targetRest.group_id) {
+        const { data: ownedGroup, error: groupError } = await callerClient
+          .from("restaurant_groups")
+          .select("id")
+          .eq("id", targetRest.group_id)
+          .eq("owner_id", caller.id)
+          .maybeSingle();
+        if (groupError) throw groupError;
+        isTargetGroupOwner = Boolean(ownedGroup);
+      }
+
+      const isTargetOwner = targetRest.owner_id === caller.id;
+      const isTargetStaffAdmin = callerStaffLink?.role === "admin";
+
+      if (!isSuperAdmin && !isTargetOwner && !isTargetGroupOwner && !isTargetStaffAdmin) {
+        return new Response(JSON.stringify({ error: "Permission denied for this restaurant" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      restId = targetRest.id;
     } else {
       // Regular admin: নিজের restaurant ব্যবহার করে
+      const { data: callerRest, error: callerRestError } = await callerClient
+        .from("restaurants")
+        .select("id")
+        .eq("owner_id", caller.id)
+        .limit(1)
+        .maybeSingle();
+
+      if (callerRestError) throw callerRestError;
       restId = callerRest?.id;
+
+      if (!restId) {
+        const { data: adminLink, error: adminLinkError } = await callerClient
+          .from("staff_restaurants")
+          .select("restaurant_id")
+          .eq("user_id", caller.id)
+          .eq("role", "admin")
+          .limit(1)
+          .maybeSingle();
+
+        if (adminLinkError) throw adminLinkError;
+        restId = adminLink?.restaurant_id;
+      }
     }
 
     if (!restId) {

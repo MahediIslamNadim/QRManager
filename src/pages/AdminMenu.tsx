@@ -22,6 +22,8 @@ const getImageUrl = (path: string | null) => {
   return `${SUPABASE_URL}/storage/v1/object/public/menu-images/${path}`;
 };
 
+const isSharedMenuItem = (item: any) => Boolean(item?.shared_menu_item_id);
+
 const AdminMenu = () => {
   const { restaurantId, restaurantPlan } = useAuth();
   const limits = getPlanLimits(restaurantPlan);
@@ -113,11 +115,13 @@ const AdminMenu = () => {
     return fileName;
   };
 
-  const isAtMenuLimit = menuItems.length >= limits.maxMenuItems;
+  const localMenuItemsCount = menuItemsRaw.filter((item: any) => !isSharedMenuItem(item)).length;
+  const isAtMenuLimit = localMenuItemsCount >= limits.maxMenuItems;
 
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!restaurantId) throw new Error("No restaurant");
+      if (isSharedMenuItem(editingItem)) throw new Error("Shared menu items are controlled by head office.");
       if (!editingItem && isAtMenuLimit) throw new Error(`আপনার ${limits.label} প্ল্যানে সর্বোচ্চ ${formatLimit(limits.maxMenuItems)} টি আইটেম যোগ করা যায়। আপগ্রেড করুন।`);
       if (!form.name.trim() || form.name.trim().length < 2) throw new Error("আইটেমের নাম কমপক্ষে ২ অক্ষর হতে হবে");
       if (Number(form.price) <= 0) throw new Error("মূল্য অবশ্যই শূন্যের বেশি হতে হবে");
@@ -161,7 +165,12 @@ const AdminMenu = () => {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("menu_items").delete().eq("id", id).eq("restaurant_id", restaurantId);
+      const { error } = await supabase
+        .from("menu_items")
+        .delete()
+        .eq("id", id)
+        .eq("restaurant_id", restaurantId)
+        .is("shared_menu_item_id", null);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -173,7 +182,12 @@ const AdminMenu = () => {
 
   const toggleAvailability = useMutation({
     mutationFn: async ({ id, available }: { id: string; available: boolean }) => {
-      const { error } = await supabase.from("menu_items").update({ available }).eq("id", id).eq("restaurant_id", restaurantId);
+      const { error } = await supabase
+        .from("menu_items")
+        .update({ available })
+        .eq("id", id)
+        .eq("restaurant_id", restaurantId)
+        .is("shared_menu_item_id", null);
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["menu-items"] }),
@@ -189,6 +203,10 @@ const AdminMenu = () => {
   };
 
   const openEdit = (item: any) => {
+    if (isSharedMenuItem(item)) {
+      toast.error("Shared menu items are controlled by head office.");
+      return;
+    }
     const hasStock = item.stock_quantity !== null && item.stock_quantity !== undefined;
     setForm({ name: item.name, price: String(item.price), category: item.category, description: item.description || "", available: item.available, hasStock, stockQty: hasStock ? String(item.stock_quantity) : "", prepTime: item.prep_time_minutes ? String(item.prep_time_minutes) : "" });
     setEditingItem(item);
@@ -235,7 +253,7 @@ const AdminMenu = () => {
               <option value="default">সাজানো ক্রম</option>
             </select>
             <span className="text-xs text-muted-foreground bg-secondary px-3 py-1.5 rounded-full">
-              {menuItems.length}/{formatLimit(limits.maxMenuItems)} আইটেম
+              {localMenuItemsCount}/{formatLimit(limits.maxMenuItems)} local
             </span>
             <Button variant="hero" onClick={() => { resetForm(); setShowForm(true); }} disabled={isAtMenuLimit}>
               <Plus className="w-4 h-4" /> আইটেম যোগ করুন
@@ -381,6 +399,7 @@ const AdminMenu = () => {
               const orderCount = item.menu_item_metrics?.[0]?.order_count || 0;
               const isPopular = orderCount > 10;
               const rating = (ratingsMap as any)[item.id];
+              const isShared = isSharedMenuItem(item);
               return (
                 <div key={item.id} className={`menu-item-card relative ${!isAvailable ? "opacity-80" : ""}`}>
                   <div className={`h-40 bg-gradient-to-br from-accent to-secondary flex items-center justify-center overflow-hidden relative ${!isAvailable ? "grayscale" : ""}`}>
@@ -418,7 +437,14 @@ const AdminMenu = () => {
                     )}
                   </div>
                   <div className="p-5">
-                    <h3 className="font-display font-semibold text-foreground text-lg">{item.name}</h3>
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="font-display font-semibold text-foreground text-lg">{item.name}</h3>
+                      {isShared && (
+                        <span className="shrink-0 rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                          Shared
+                        </span>
+                      )}
+                    </div>
                     <p className="text-sm text-muted-foreground mt-1">{item.description}</p>
                     <div className="flex items-center gap-3 mt-2 flex-wrap">
                       <span className="text-xl font-bold text-primary">৳{item.price}</span>
@@ -455,13 +481,14 @@ const AdminMenu = () => {
                             checked={isAvailable}
                             onCheckedChange={v => toggleAvailability.mutate({ id: item.id, available: v })}
                             className={isAvailable ? "data-[state=checked]:bg-success" : ""}
+                            disabled={isShared}
                           />
                           <span className={`text-xs font-semibold ${isAvailable ? "text-success" : "text-destructive"}`}>
                             {isAvailable ? "চালু" : "বন্ধ"}
                           </span>
                         </div>
-                        <Button variant="ghost" size="icon" onClick={() => openEdit(item)}><Edit className="w-4 h-4" /></Button>
-                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => deleteMutation.mutate(item.id)}>
+                        <Button variant="ghost" size="icon" onClick={() => openEdit(item)} disabled={isShared}><Edit className="w-4 h-4" /></Button>
+                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => deleteMutation.mutate(item.id)} disabled={isShared}>
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>

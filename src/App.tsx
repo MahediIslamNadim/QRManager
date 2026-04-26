@@ -154,8 +154,8 @@ const App = () => (
               <Route path="/enterprise/dashboard" element={<ProtectedRoute allowedRoles={["group_owner", "super_admin"]}><EnterpriseDashboard /></ProtectedRoute>} />
 
               {/* ── Group (Multi-Location) ── */}
-              <Route path="/group/setup" element={<ProtectedRoute allowedRoles={["group_owner", "super_admin"]}><GroupSetup /></ProtectedRoute>} />
-              <Route path="/group/:groupId" element={<ProtectedRoute allowedRoles={["group_owner", "super_admin"]}><GroupDashboard /></ProtectedRoute>} />
+              <Route path="/group/setup" element={<ProtectedRoute allowedRoles={["admin", "group_owner", "super_admin"]}><GroupSetup /></ProtectedRoute>} />
+              <Route path="/group/:groupId" element={<ProtectedRoute allowedRoles={["admin", "group_owner", "super_admin"]}><GroupDashboard /></ProtectedRoute>} />
 
               {/* ── Admin ── */}
               <Route path="/admin" element={<ProtectedRoute allowedRoles={["admin", "super_admin", "group_owner"]}><AdminDashboard /></ProtectedRoute>} />

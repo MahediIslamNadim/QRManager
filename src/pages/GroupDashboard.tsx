@@ -11,21 +11,24 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import {
-  BarChart, Bar, AreaChart, Area, XAxis, YAxis,
-  CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+  BarChart, Bar, XAxis, YAxis,
+  CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
 import {
-  Building2, TrendingUp, ShoppingCart, Users, RefreshCw,
-  Plus, Edit2, Trash2, Eye, EyeOff, ChevronRight, Star,
+  Building2, TrendingUp, ShoppingCart, RefreshCw,
+  Plus, Edit2, Trash2, Star, Power, PowerOff,
   AlertTriangle, CheckCircle2, Clock, ArrowRight,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useAuth } from '@/hooks/useAuth';
 import {
   useRestaurantGroup,
   useGroupAnalytics,
   useGroupOrders,
   useSharedMenu,
+  useBranchManagement,
   type BranchInfo,
+  type BranchPayload,
   type LiveOrder,
   type SharedMenuItem,
 } from '@/hooks/useRestaurantGroup';
@@ -43,6 +46,14 @@ const ORDER_STATUS: Record<string, { label: string; color: string }> = {
   ready:      { label: 'প্রস্তুত',     color: 'bg-primary/15 text-primary border-primary/30' },
   delivered:  { label: 'ডেলিভারি',    color: 'bg-success/15 text-success border-success/30' },
   cancelled:  { label: 'বাতিল',        color: 'bg-destructive/15 text-destructive border-destructive/30' },
+};
+
+const EMPTY_BRANCH: BranchPayload = {
+  name: '',
+  address: null,
+  branch_code: '',
+  phone: null,
+  status: 'active',
 };
 
 const EMPTY_ITEM: Omit<SharedMenuItem, 'id' | 'created_at' | 'updated_at'> = {
@@ -108,11 +119,15 @@ function OrderCard({ order, branchFilter }: { order: LiveOrder; branchFilter: st
 export default function GroupDashboard() {
   const { groupId } = useParams<{ groupId: string }>();
   const navigate = useNavigate();
+  const { role, restaurantPlan } = useAuth();
 
   const [branchFilter, setBranchFilter] = useState<string | null>(null);
   const [menuDialog, setMenuDialog] = useState<'create' | 'edit' | null>(null);
   const [editingItem, setEditingItem] = useState<SharedMenuItem | null>(null);
   const [itemForm, setItemForm] = useState<Omit<SharedMenuItem, 'id' | 'created_at' | 'updated_at'>>(EMPTY_ITEM);
+  const [branchDialog, setBranchDialog] = useState<'create' | 'edit' | null>(null);
+  const [editingBranch, setEditingBranch] = useState<BranchInfo | null>(null);
+  const [branchForm, setBranchForm] = useState<BranchPayload>(EMPTY_BRANCH);
 
   const { data: group, isLoading: groupLoading } = useRestaurantGroup(groupId ?? null);
   const { data: analytics, isLoading: analyticsLoading } = useGroupAnalytics(groupId ?? null);
@@ -125,6 +140,14 @@ export default function GroupDashboard() {
     updateItem,
     deleteItem,
   } = useSharedMenu(groupId ?? null);
+  const { createBranch, updateBranch, setBranchStatus } = useBranchManagement(groupId ?? null);
+
+  const activeBranches = group?.branches.filter((branch) => branch.status === 'active') ?? [];
+  const canAddBranch =
+    role === 'super_admin' ||
+    role === 'group_owner' ||
+    restaurantPlan === 'high_smart_enterprise' ||
+    activeBranches.length < 5;
 
   const filteredOrders = useMemo(
     () => branchFilter ? liveOrders.filter(o => o.restaurant_id === branchFilter) : liveOrders,
@@ -176,6 +199,76 @@ export default function GroupDashboard() {
     }
   };
 
+  const openBranchCreate = () => {
+    if (!canAddBranch) {
+      toast.error('Branch limit reached for this plan.');
+      return;
+    }
+    const nextNumber = String((group?.branches.length ?? 0) + 1).padStart(2, '0');
+    setEditingBranch(null);
+    setBranchForm({ ...EMPTY_BRANCH, branch_code: `BR-${nextNumber}` });
+    setBranchDialog('create');
+  };
+
+  const openBranchEdit = (branch: BranchInfo) => {
+    setEditingBranch(branch);
+    setBranchForm({
+      name: branch.name,
+      address: branch.address,
+      branch_code: branch.branch_code,
+      phone: branch.phone,
+      status: branch.status || 'active',
+    });
+    setBranchDialog('edit');
+  };
+
+  const handleBranchSave = async () => {
+    const payload: BranchPayload = {
+      name: branchForm.name.trim(),
+      address: branchForm.address?.trim() || null,
+      branch_code: branchForm.branch_code?.trim() || null,
+      phone: branchForm.phone?.trim() || null,
+      status: branchForm.status || 'active',
+    };
+
+    if (!payload.name || payload.name.length < 2) {
+      toast.error('Branch name is required.');
+      return;
+    }
+
+    try {
+      if (branchDialog === 'create') {
+        await createBranch.mutateAsync({ ...payload, owner_id: null });
+        toast.success('Branch added.');
+      } else if (branchDialog === 'edit' && editingBranch) {
+        await updateBranch.mutateAsync({ id: editingBranch.id, ...payload });
+        toast.success('Branch updated.');
+      }
+      setBranchDialog(null);
+      setEditingBranch(null);
+    } catch (e: unknown) {
+      toast.error((e as Error).message);
+    }
+  };
+
+  const handleBranchStatusToggle = async (branch: BranchInfo) => {
+    const nextStatus = branch.status === 'active' ? 'inactive' : 'active';
+    if (
+      nextStatus === 'inactive' &&
+      !window.confirm('Deactivate this branch? Old orders and reports will stay preserved.')
+    ) {
+      return;
+    }
+
+    try {
+      await setBranchStatus.mutateAsync({ id: branch.id, status: nextStatus });
+      if (branchFilter === branch.id && nextStatus !== 'active') setBranchFilter(null);
+      toast.success(nextStatus === 'active' ? 'Branch reactivated.' : 'Branch deactivated.');
+    } catch (e: unknown) {
+      toast.error((e as Error).message);
+    }
+  };
+
   if (groupLoading) {
     return (
       <DashboardLayout role="group_owner" title="গ্রুপ ড্যাশবোর্ড">
@@ -208,11 +301,9 @@ export default function GroupDashboard() {
 
         {/* ── Branch selector ───────────────────────── */}
         <BranchSelector
-          groupName={group.name}
-          branches={group.branches}
+          group={group}
           selectedBranchId={branchFilter}
           onSelect={setBranchFilter}
-          groupId={groupId ?? ''}
         />
 
         {/* ── KPI row ───────────────────────────────── */}
@@ -392,7 +483,7 @@ export default function GroupDashboard() {
           <TabsContent value="branches" className="space-y-4 pt-4">
             <div className="flex items-center justify-between">
               <p className="text-sm text-muted-foreground">{fmtNum(group.branches.length)} টি শাখা</p>
-              <Button size="sm" variant="outline" onClick={() => navigate('/group/setup')} className="gap-1.5">
+              <Button size="sm" variant="outline" onClick={openBranchCreate} disabled={!canAddBranch} className="gap-1.5">
                 <Plus className="w-4 h-4" /> শাখা যোগ করুন
               </Button>
             </div>
@@ -413,6 +504,7 @@ export default function GroupDashboard() {
                             )}
                           </div>
                           <p className="text-xs text-muted-foreground mt-0.5">{branch.address ?? 'ঠিকানা নেই'}</p>
+                          {branch.phone && <p className="text-xs text-muted-foreground mt-0.5">{branch.phone}</p>}
                         </div>
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border ${
                           isActive
@@ -422,6 +514,20 @@ export default function GroupDashboard() {
                           {isActive ? <CheckCircle2 className="w-2.5 h-2.5" /> : <Clock className="w-2.5 h-2.5" />}
                           {isActive ? 'সক্রিয়' : 'নিষ্ক্রিয়'}
                         </span>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Button size="icon" variant="ghost" className="w-8 h-8" onClick={() => openBranchEdit(branch)}>
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="w-8 h-8 text-muted-foreground hover:text-foreground"
+                            onClick={() => handleBranchStatusToggle(branch)}
+                            disabled={setBranchStatus.isPending}
+                          >
+                            {isActive ? <PowerOff className="w-3.5 h-3.5" /> : <Power className="w-3.5 h-3.5" />}
+                          </Button>
+                        </div>
                       </div>
 
                       {branchAnalytics && (
@@ -449,11 +555,13 @@ export default function GroupDashboard() {
                       </Button>
 
                       {/* Admin invite button */}
-                      <BranchAdminInvite
-                        restaurantId={branch.id}
-                        restaurantName={branch.name}
-                        groupId={groupId ?? ''}
-                      />
+                      {isActive && (
+                        <BranchAdminInvite
+                          restaurantId={branch.id}
+                          restaurantName={branch.name}
+                          groupId={groupId ?? ''}
+                        />
+                      )}
                     </CardContent>
                   </Card>
                 );
@@ -464,7 +572,7 @@ export default function GroupDashboard() {
               <div className="py-12 text-center space-y-3">
                 <Building2 className="w-12 h-12 mx-auto text-muted-foreground/20" />
                 <p className="text-sm text-muted-foreground">কোনো শাখা নেই</p>
-                <Button size="sm" onClick={() => navigate('/group/setup')} className="gap-1.5">
+                <Button size="sm" onClick={openBranchCreate} disabled={!canAddBranch} className="gap-1.5">
                   <Plus className="w-4 h-4" /> প্রথম শাখা যোগ করুন
                 </Button>
               </div>
@@ -533,6 +641,69 @@ export default function GroupDashboard() {
                 disabled={createItem.isPending || updateItem.isPending}
               >
                 {createItem.isPending || updateItem.isPending ? 'সংরক্ষণ হচ্ছে...' : 'সংরক্ষণ করুন'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Branch Dialog */}
+        <Dialog open={branchDialog !== null} onOpenChange={() => setBranchDialog(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{branchDialog === 'create' ? 'Add Branch' : 'Edit Branch'}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="space-y-1.5">
+                <Label>Branch name *</Label>
+                <Input
+                  value={branchForm.name}
+                  onChange={(e) => setBranchForm((p) => ({ ...p, name: e.target.value }))}
+                  placeholder="Branch name"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Branch code</Label>
+                  <Input
+                    value={branchForm.branch_code ?? ''}
+                    onChange={(e) => setBranchForm((p) => ({ ...p, branch_code: e.target.value || null }))}
+                    placeholder="BR-01"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Phone</Label>
+                  <Input
+                    value={branchForm.phone ?? ''}
+                    onChange={(e) => setBranchForm((p) => ({ ...p, phone: e.target.value || null }))}
+                    placeholder="+880..."
+                  />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Address</Label>
+                <Textarea
+                  rows={2}
+                  value={branchForm.address ?? ''}
+                  onChange={(e) => setBranchForm((p) => ({ ...p, address: e.target.value || null }))}
+                  placeholder="Branch address"
+                  className="resize-none"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={branchForm.status === 'active'}
+                  onCheckedChange={(v) => setBranchForm((p) => ({ ...p, status: v ? 'active' : 'inactive' }))}
+                />
+                <Label>Active</Label>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setBranchDialog(null)}>Cancel</Button>
+              <Button
+                onClick={handleBranchSave}
+                disabled={createBranch.isPending || updateBranch.isPending}
+              >
+                {createBranch.isPending || updateBranch.isPending ? 'Saving...' : 'Save Branch'}
               </Button>
             </DialogFooter>
           </DialogContent>

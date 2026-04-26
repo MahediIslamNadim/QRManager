@@ -34,7 +34,7 @@ export default function BranchSelector({ group, selectedBranchId, onSelect }: Pr
           <SelectItem value="all">সকল শাখা</SelectItem>
           {group.branches.map((b: BranchInfo) => (
             <SelectItem key={b.id} value={b.id}>
-              {b.name}{b.branch_code ? ` (${b.branch_code})` : ''}
+              {b.name}{b.branch_code ? ` (${b.branch_code})` : ''}{b.status !== 'active' ? ' - inactive' : ''}
             </SelectItem>
           ))}
         </SelectContent>

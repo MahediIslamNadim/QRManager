@@ -1,6 +1,9 @@
 // invite-branch-admin/index.ts
 // Invites a user as branch admin for a specific restaurant in a group
-// Fixed: April 26, 2026 — correct redirect to /admin-setup, proper role assignment
+// Fixed: April 26, 2026
+//   - listUsers() bug fixed: paginated search instead of loading all users
+//   - Invitation stays "pending" until user clicks email link & completes setup
+//   - Pre-assigns role + restaurant for new users so AdminSetup only confirms
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -30,10 +33,7 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) return json({ error: "Unauthorized" }, 401);
 
-    // Admin client (service role) for privileged ops
     const admin = createClient(supabaseUrl, serviceRoleKey);
-
-    // Caller client to verify identity
     const caller = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
@@ -41,7 +41,6 @@ Deno.serve(async (req) => {
     const { data: { user: callerUser } } = await caller.auth.getUser();
     if (!callerUser) return json({ error: "Unauthorized" }, 401);
 
-    // Parse request body
     let body: { restaurant_id?: string; group_id?: string; email?: string };
     try {
       body = await req.json();
@@ -50,7 +49,6 @@ Deno.serve(async (req) => {
     }
 
     const { restaurant_id, group_id, email } = body;
-
     if (!restaurant_id || !group_id || !email) {
       return json({ error: "restaurant_id, group_id, email are required" }, 400);
     }
@@ -60,34 +58,30 @@ Deno.serve(async (req) => {
       return json({ error: "Invalid email address" }, 400);
     }
 
-    // Verify caller owns this group OR is super_admin
+    // ── Permission check ──────────────────────────────────────
     const { data: callerRoles } = await admin
       .from("user_roles")
       .select("role")
       .eq("user_id", callerUser.id);
 
-    const isSuperAdmin = callerRoles?.some(r => r.role === "super_admin");
-    const isGroupOwner = callerRoles?.some(r => r.role === "group_owner");
+    const isSuperAdmin = callerRoles?.some((r: any) => r.role === "super_admin");
+    const isGroupOwner = callerRoles?.some((r: any) => r.role === "group_owner");
 
     if (!isSuperAdmin && !isGroupOwner) {
       return json({ error: "Permission denied: must be group_owner or super_admin" }, 403);
     }
 
     if (isGroupOwner && !isSuperAdmin) {
-      // Verify this group belongs to the caller
       const { data: group } = await admin
         .from("restaurant_groups")
         .select("id")
         .eq("id", group_id)
         .eq("owner_id", callerUser.id)
         .single();
-
-      if (!group) {
-        return json({ error: "Permission denied: you do not own this group" }, 403);
-      }
+      if (!group) return json({ error: "Permission denied: you do not own this group" }, 403);
     }
 
-    // Verify restaurant belongs to this group
+    // ── Validate restaurant belongs to this group ─────────────
     const { data: restaurant } = await admin
       .from("restaurants")
       .select("id, name")
@@ -95,28 +89,39 @@ Deno.serve(async (req) => {
       .eq("group_id", group_id)
       .single();
 
-    if (!restaurant) {
-      return json({ error: "Restaurant not found in this group" }, 404);
-    }
+    if (!restaurant) return json({ error: "Restaurant not found in this group" }, 404);
 
-    // Record/upsert the invitation first (so it shows as "pending")
-    try {
-      await (admin.from("branch_invitations") as any).upsert(
-        {
-          group_id,
-          restaurant_id,
-          invited_email: normalizedEmail,
-          invited_by: callerUser.id,
-          status: "pending",
-          accepted_at: null,
-        },
-        { onConflict: "restaurant_id,invited_email" }
+    // ── Upsert invitation as "pending" ────────────────────────
+    // Status stays "pending" until user clicks the link and AdminSetup.tsx marks it "accepted"
+    await (admin.from("branch_invitations") as any).upsert(
+      {
+        group_id,
+        restaurant_id,
+        invited_email: normalizedEmail,
+        invited_by: callerUser.id,
+        status: "pending",
+        accepted_at: null,
+      },
+      { onConflict: "restaurant_id,invited_email" }
+    );
+
+    // ── Helper: pre-assign role + restaurant to a known user ──
+    const assignRoleAndRestaurant = async (userId: string) => {
+      await admin.from("user_roles").upsert(
+        { user_id: userId, role: "admin" },
+        { onConflict: "user_id,role" }
       );
-    } catch {
-      // Table not yet migrated — continue anyway
-    }
+      await admin.from("profiles").upsert(
+        { id: userId, restaurant_id },
+        { onConflict: "id" }
+      );
+      await admin.from("staff_restaurants").upsert(
+        { user_id: userId, restaurant_id, role: "admin" },
+        { onConflict: "user_id,restaurant_id" }
+      ).catch(() => {/* ignore if table missing */});
+    };
 
-    // Check if a user with this email already exists
+    // ── Check if user already exists in profiles ──────────────
     const { data: existingProfile } = await admin
       .from("profiles")
       .select("id")
@@ -127,68 +132,53 @@ Deno.serve(async (req) => {
     let alreadyExists = false;
 
     if (existingProfile?.id) {
-      // User already exists — assign role directly
+      // Existing user — assign directly and mark accepted immediately
       invitedUserId = existingProfile.id;
       alreadyExists = true;
-    } else {
-      // Invite new user via Supabase Auth magic link
-      // Redirect to /admin-setup so they can name their branch restaurant context
-      // We pass restaurant_id + group_id as query params so setup page can use them
-      const redirectUrl = `${siteUrl}/admin-setup?branch_restaurant_id=${restaurant_id}&group_id=${group_id}`;
+      await assignRoleAndRestaurant(invitedUserId);
+      await (admin.from("branch_invitations") as any)
+        .update({ status: "accepted", accepted_at: new Date().toISOString() })
+        .eq("restaurant_id", restaurant_id)
+        .eq("invited_email", normalizedEmail);
 
-      const { data: inviteData, error: inviteError } = await admin.auth.admin.inviteUserByEmail(
-        normalizedEmail,
-        { redirectTo: redirectUrl }
-      );
+    } else {
+      // ── New user: send magic-link invite email ────────────────
+      const redirectUrl =
+        `${siteUrl}/admin-setup?branch_restaurant_id=${restaurant_id}&group_id=${group_id}`;
+
+      const { data: inviteData, error: inviteError } =
+        await admin.auth.admin.inviteUserByEmail(normalizedEmail, { redirectTo: redirectUrl });
 
       if (inviteError) {
-        // If already invited but not yet confirmed, try to find the user
         if (!inviteError.message.toLowerCase().includes("already")) {
-          // Revert invitation status to pending on error (already set above)
           return json({ error: inviteError.message }, 400);
         }
-        // Find the existing unconfirmed user
-        const { data: { users } } = await admin.auth.admin.listUsers();
-        const found = users?.find(u => u.email === normalizedEmail);
-        if (found) invitedUserId = found.id;
+
+        // ── Already invited but email not yet confirmed ────────
+        // FIX: Search paginated instead of loading all users at once (was a memory/timeout risk)
+        let foundUser: any = null;
+        let page = 1;
+        while (!foundUser) {
+          const { data: pageData, error: listError } =
+            await admin.auth.admin.listUsers({ page, perPage: 1000 });
+          if (listError || !pageData?.users?.length) break;
+          foundUser = pageData.users.find((u: any) => u.email === normalizedEmail);
+          if (pageData.users.length < 1000) break; // reached last page
+          page++;
+        }
+        if (foundUser) {
+          invitedUserId = foundUser.id;
+          // Pre-assign so AdminSetup.tsx only needs to confirm, not re-assign
+          await assignRoleAndRestaurant(invitedUserId);
+        }
       } else {
         invitedUserId = inviteData?.user?.id ?? null;
+        if (invitedUserId) {
+          // Pre-assign for freshly invited users too
+          await assignRoleAndRestaurant(invitedUserId);
+        }
       }
-    }
-
-    // If we have the user ID, assign admin role + link to this specific restaurant
-    if (invitedUserId) {
-      // Assign admin role
-      await admin.from("user_roles").upsert(
-        { user_id: invitedUserId, role: "admin" },
-        { onConflict: "user_id,role" }
-      );
-
-      // Link user to this specific restaurant via profiles
-      await admin.from("profiles").upsert(
-        { id: invitedUserId, restaurant_id: restaurant_id },
-        { onConflict: "id" }
-      );
-
-      // Also link via staff_restaurants for compatibility
-      try {
-        await admin.from("staff_restaurants").upsert(
-          { user_id: invitedUserId, restaurant_id: restaurant_id, role: "admin" },
-          { onConflict: "user_id,restaurant_id" }
-        );
-      } catch {
-        // Table may not exist — ignore
-      }
-
-      // Update invitation status to accepted
-      try {
-        await (admin.from("branch_invitations") as any)
-          .update({ status: "accepted", accepted_at: new Date().toISOString() })
-          .eq("restaurant_id", restaurant_id)
-          .eq("invited_email", normalizedEmail);
-      } catch {
-        // Ignore
-      }
+      // Note: invitation stays "pending" — AdminSetup.tsx marks it "accepted" on arrival
     }
 
     return json({

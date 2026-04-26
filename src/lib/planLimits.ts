@@ -1,4 +1,4 @@
-export type PlanId = "medium_smart" | "high_smart";
+export type PlanId = "medium_smart" | "high_smart" | "high_smart_enterprise";
 
 export interface PlanLimits {
   maxMenuItems: number;
@@ -19,6 +19,12 @@ export const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     maxTables: Infinity,
     maxStaff: Infinity,
     label: "হাই স্মার্ট",
+  },
+  high_smart_enterprise: {
+    maxMenuItems: Infinity,
+    maxTables: Infinity,
+    maxStaff: Infinity,
+    label: "হাই স্মার্ট এন্টারপ্রাইজ",
   },
 };
 

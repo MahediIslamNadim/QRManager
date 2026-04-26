@@ -20,7 +20,7 @@ export function useBranchInvitations(groupId: string | null) {
     queryKey: ['branch-invitations', groupId],
     queryFn: async () => {
       if (!groupId) return [];
-      const { data, error } = await (supabase.from('branch_invitations') as any)
+      const { data, error } = await supabase.from('branch_invitations')
         .select('*')
         .eq('group_id', groupId)
         .order('created_at', { ascending: false });
