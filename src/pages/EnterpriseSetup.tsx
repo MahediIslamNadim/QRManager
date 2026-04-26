@@ -1,6 +1,6 @@
 // EnterpriseSetup.tsx
-// Enterprise account setup page — admin account তৈরি করার জন্য
-// Updated: April 26, 2026 — sanitization hardened (email, password, name validation)
+// Enterprise account setup — এখানে তৈরি হওয়া accounts সবাই group_owner হবে
+// Updated: April 26, 2026 — admin → group_owner, window.confirm → AlertDialog, sanitization
 
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -22,34 +22,28 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useUserGroups } from '@/hooks/useGroupOwner';
 
-// ─── Sanitization ────────────────────────────────────────────────────────────
-
+// ─── Sanitization ─────────────────────────────────────────────────────────────
 const EMAIL_REGEX = /^[^\s@]{1,64}@[^\s@]{1,253}\.[^\s@]{2,}$/;
-
 const sanitizeEmail = (raw: string) => raw.trim().toLowerCase().slice(0, 320);
-const isValidEmail = (email: string) => EMAIL_REGEX.test(email);
-
-const sanitizeName = (raw: string) =>
-  raw.trim().replace(/\s+/g, ' ').slice(0, 100);
-
+const isValidEmail = (e: string) => EMAIL_REGEX.test(e);
+const sanitizeName = (raw: string) => raw.trim().replace(/\s+/g, ' ').slice(0, 100);
 const validatePassword = (pw: string): string | null => {
   if (pw.length < 6) return 'পাসওয়ার্ড কমপক্ষে ৬ অক্ষর হতে হবে';
   if (pw.length > 128) return 'পাসওয়ার্ড সর্বোচ্চ ১২৮ অক্ষর হতে পারে';
-  return null; // ok
+  return null;
 };
 
-// ─── Types ───────────────────────────────────────────────────────────────────
-
-interface AdminAccount {
+// ─── Types ────────────────────────────────────────────────────────────────────
+interface EnterpriseAccount {
   id: string;
   full_name: string | null;
   email: string | null;
   created_at: string;
 }
 
-// ─── Component ───────────────────────────────────────────────────────────────
-
+// ─── Component ────────────────────────────────────────────────────────────────
 export default function EnterpriseSetup() {
   const { user, restaurantId, restaurantPlan, role } = useAuth();
   const navigate = useNavigate();
@@ -61,72 +55,77 @@ export default function EnterpriseSetup() {
   const [showPass, setShowPass] = useState(false);
   const [creating, setCreating] = useState(false);
   const [completing, setCompleting] = useState(false);
-
-  // Confirm delete dialog state (replaces window.confirm)
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
-  const { data: admins = [], isLoading: adminsLoading } = useQuery<AdminAccount[]>({
-    queryKey: ['enterprise-admins', restaurantId],
+  // Caller এর group গুলো — নতুন group_owner কে এর সাথে link করার জন্য
+  const { data: groups = [] } = useUserGroups();
+  const primaryGroupId = groups[0]?.id ?? null;
+
+  // এই restaurant-এর group_owner role-এর accounts
+  const { data: enterpriseAccounts = [], isLoading } = useQuery<EnterpriseAccount[]>({
+    queryKey: ['enterprise-group-owners', primaryGroupId],
     queryFn: async () => {
-      if (!restaurantId) return [];
+      if (!primaryGroupId) return [];
+      // restaurant_groups থেকে group_owner খুঁজি যারা caller নয়
+      const { data: group } = await supabase
+        .from('restaurant_groups')
+        .select('owner_id')
+        .eq('id', primaryGroupId)
+        .single();
+      if (!group) return [];
+
+      // user_roles থেকে group_owner role যাদের আছে এবং caller নয়
       const { data: roles } = await supabase
         .from('user_roles')
         .select('user_id')
-        .eq('role', 'admin')
-        .eq('restaurant_id', restaurantId);
+        .eq('role', 'group_owner');
 
       if (!roles || roles.length === 0) return [];
 
-      const adminIds = roles.map(r => r.user_id).filter(id => id !== user?.id);
-      if (adminIds.length === 0) return [];
+      const otherOwnerIds = roles
+        .map(r => r.user_id)
+        .filter(id => id !== user?.id && id !== group.owner_id);
+
+      if (otherOwnerIds.length === 0) return [];
 
       const { data: profiles } = await supabase
         .from('profiles')
         .select('id, full_name, email, created_at')
-        .in('id', adminIds);
+        .in('id', otherOwnerIds);
 
-      return (profiles || []) as AdminAccount[];
+      return (profiles || []) as EnterpriseAccount[];
     },
-    enabled: !!restaurantId,
+    enabled: !!primaryGroupId,
   });
 
-  const handleCreateAdmin = async () => {
+  const handleCreateGroupOwner = async () => {
     const cleanName = sanitizeName(name);
     const cleanEmail = sanitizeEmail(email);
     const pwError = validatePassword(password);
 
-    if (!cleanName) {
-      toast.error('নাম লিখুন (কমপক্ষে ১ অক্ষর)');
-      return;
-    }
-    if (!isValidEmail(cleanEmail)) {
-      toast.error('সঠিক ইমেইল ঠিকানা দিন');
-      return;
-    }
-    if (pwError) {
-      toast.error(pwError);
-      return;
-    }
+    if (!cleanName) { toast.error('নাম লিখুন'); return; }
+    if (!isValidEmail(cleanEmail)) { toast.error('সঠিক ইমেইল ঠিকানা দিন'); return; }
+    if (pwError) { toast.error(pwError); return; }
 
     setCreating(true);
     try {
-      const { data, error } = await supabase.functions.invoke('create-staff', {
+      // create-staff function call করি — role = 'group_owner'
+      const { data, error } = await supabase.functions.invoke('create-enterprise-group-owner', {
         body: {
-          action: 'add',
           email: cleanEmail,
-          password,           // password sent as-is (not stored client-side after call)
+          password,
           full_name: cleanName,
-          role: 'admin',
-          restaurant_id: restaurantId,
+          group_id: primaryGroupId,      // caller এর primary group এ link হবে
+          restaurant_id: restaurantId,   // caller এর restaurant এও link হবে
         },
       });
 
       if (error) throw new Error(error.message);
       if (data?.error) throw new Error(data.error);
 
-      toast.success(`${cleanName} এর অ্যাকাউন্ট তৈরি হয়েছে!`);
+      toast.success(`✅ ${cleanName} এখন Group Owner হয়েছে!`);
       setName(''); setEmail(''); setPassword('');
-      queryClient.invalidateQueries({ queryKey: ['enterprise-admins', restaurantId] });
+      queryClient.invalidateQueries({ queryKey: ['enterprise-group-owners', primaryGroupId] });
     } catch (e: any) {
       toast.error(e.message || 'অ্যাকাউন্ট তৈরি করা যায়নি');
     } finally {
@@ -135,12 +134,8 @@ export default function EnterpriseSetup() {
   };
 
   const handleComplete = async () => {
-    if (admins.length === 0) {
-      toast.error('কমপক্ষে ১টি Admin অ্যাকাউন্ট তৈরি করুন');
-      return;
-    }
     if (!restaurantId) {
-      toast.success('Setup সম্পন্ন! Enterprise Dashboard-এ যাচ্ছেন...');
+      toast.success('Setup সম্পন্ন!');
       setTimeout(() => navigate('/enterprise/dashboard'), 800);
       return;
     }
@@ -150,7 +145,6 @@ export default function EnterpriseSetup() {
         .from('restaurants')
         .update({ status: 'active_paid' } as any)
         .eq('id', restaurantId!);
-
       toast.success('Setup সম্পন্ন! Enterprise Dashboard-এ যাচ্ছেন...');
       setTimeout(() => navigate('/enterprise/dashboard'), 1000);
     } catch (e: any) {
@@ -160,7 +154,6 @@ export default function EnterpriseSetup() {
     }
   };
 
-  // Called when user confirms delete in the AlertDialog
   const confirmDelete = async () => {
     if (!deleteTarget) return;
     try {
@@ -169,7 +162,7 @@ export default function EnterpriseSetup() {
       });
       if (error) throw new Error(error.message);
       toast.success('অ্যাকাউন্ট মুছে ফেলা হয়েছে');
-      queryClient.invalidateQueries({ queryKey: ['enterprise-admins', restaurantId] });
+      queryClient.invalidateQueries({ queryKey: ['enterprise-group-owners', primaryGroupId] });
     } catch (e: any) {
       toast.error(e.message);
     } finally {
@@ -205,11 +198,11 @@ export default function EnterpriseSetup() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Confirm-delete AlertDialog (replaces window.confirm) */}
+      {/* Delete confirm dialog */}
       <AlertDialog open={!!deleteTarget} onOpenChange={open => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Admin মুছে ফেলবেন?</AlertDialogTitle>
+            <AlertDialogTitle>Group Owner মুছে ফেলবেন?</AlertDialogTitle>
             <AlertDialogDescription>
               <span className="font-semibold">{deleteTarget?.name}</span> এর অ্যাকাউন্ট স্থায়ীভাবে মুছে যাবে।
               এই কাজ পূর্বাবস্থায় ফেরানো যাবে না।
@@ -236,7 +229,7 @@ export default function EnterpriseSetup() {
           <div>
             <h1 className="font-bold text-lg">🏢 Enterprise Setup</h1>
             <p className="text-xs text-muted-foreground">
-              Admin অ্যাকাউন্ট তৈরি করুন এবং setup সম্পন্ন করুন
+              Group Owner অ্যাকাউন্ট তৈরি করুন
             </p>
           </div>
           <Badge className="ml-auto bg-amber-500/10 text-amber-600 border-amber-400/30 border">
@@ -251,24 +244,23 @@ export default function EnterpriseSetup() {
         <Card className="border-amber-400/30 bg-amber-500/5">
           <CardContent className="p-4 space-y-2">
             <div className="flex items-center gap-2 text-sm font-semibold text-amber-600">
-              <Shield className="w-4 h-4" /> Enterprise Setup — কীভাবে কাজ করে
+              <Shield className="w-4 h-4" /> Enterprise — Group Owner কীভাবে কাজ করে
             </div>
             <ul className="text-xs text-muted-foreground space-y-1">
-              <li>• আপনি Group Admin — সব কিছু control করবেন</li>
-              <li>• এখানে Admin অ্যাকাউন্ট তৈরি করুন — তারা restaurant পরিচালনা করবে</li>
-              <li>• Admin-রা login করলে তাদের নিজস্ব dashboard দেখবে</li>
-              <li>• কমপক্ষে ১টি Admin তৈরি করে Setup সম্পন্ন করতে হবে</li>
-              <li>• পরেও যেকোনো সময় নতুন Admin যোগ করা যাবে (unlimited)</li>
+              <li>• আপনি Head Office / Primary Group Owner</li>
+              <li>• এখানে তৈরি প্রতিটি অ্যাকাউন্ট <strong>Group Owner</strong> হবে</li>
+              <li>• তারা সব শাখা, মেনু, অর্ডার — সব দেখতে ও পরিচালনা করতে পারবে</li>
+              <li>• Branch-specific admin (শুধু একটি শাখা দেখবে) করতে Group Dashboard থেকে Branch Admin Invite ব্যবহার করুন</li>
             </ul>
           </CardContent>
         </Card>
 
-        {/* Create Admin form */}
+        {/* Create form */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <UserPlus className="w-5 h-5 text-primary" />
-              নতুন Admin অ্যাকাউন্ট তৈরি করুন
+              নতুন Group Owner অ্যাকাউন্ট তৈরি করুন
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -287,7 +279,7 @@ export default function EnterpriseSetup() {
                 <Label>ইমেইল * (Login ID)</Label>
                 <Input
                   type="email"
-                  placeholder="admin@restaurant.com"
+                  placeholder="owner@company.com"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   maxLength={320}
@@ -310,7 +302,7 @@ export default function EnterpriseSetup() {
                   className="pr-10"
                   maxLength={128}
                   autoComplete="new-password"
-                  onKeyDown={e => e.key === 'Enter' && handleCreateAdmin()}
+                  onKeyDown={e => e.key === 'Enter' && handleCreateGroupOwner()}
                 />
                 <button
                   type="button"
@@ -326,63 +318,61 @@ export default function EnterpriseSetup() {
             </div>
 
             <Button
-              onClick={handleCreateAdmin}
+              onClick={handleCreateGroupOwner}
               disabled={creating || !formOk}
               className="w-full gap-2"
             >
               {creating
                 ? <><RefreshCw className="w-4 h-4 animate-spin" /> তৈরি হচ্ছে...</>
-                : <><UserPlus className="w-4 h-4" /> Admin অ্যাকাউন্ট তৈরি করুন</>
+                : <><UserPlus className="w-4 h-4" /> Group Owner তৈরি করুন</>
               }
             </Button>
           </CardContent>
         </Card>
 
-        {/* Admin list */}
+        {/* List */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <Users className="w-5 h-5 text-primary" />
-              তৈরি করা Admin অ্যাকাউন্ট
-              {admins.length > 0 && (
-                <Badge className="ml-auto bg-success/10 text-success border-success/30 border">
-                  {admins.length}টি
+              Group Owner অ্যাকাউন্টসমূহ
+              {enterpriseAccounts.length > 0 && (
+                <Badge className="ml-auto bg-amber-500/10 text-amber-600 border-amber-400/30 border">
+                  {enterpriseAccounts.length}টি
                 </Badge>
               )}
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {adminsLoading ? (
+            {isLoading ? (
               <div className="flex items-center justify-center py-8 text-muted-foreground gap-2 text-sm">
                 <RefreshCw className="w-4 h-4 animate-spin" /> লোড হচ্ছে...
               </div>
-            ) : admins.length === 0 ? (
+            ) : enterpriseAccounts.length === 0 ? (
               <div className="text-center py-8 space-y-2">
                 <Users className="w-10 h-10 mx-auto text-muted-foreground/20" />
-                <p className="text-sm text-muted-foreground">এখনো কোনো Admin তৈরি হয়নি</p>
-                <p className="text-xs text-muted-foreground">উপরের form থেকে Admin তৈরি করুন</p>
+                <p className="text-sm text-muted-foreground">এখনো কোনো Group Owner তৈরি হয়নি</p>
+                <p className="text-xs text-muted-foreground">উপরের form থেকে তৈরি করুন</p>
               </div>
             ) : (
               <div className="divide-y divide-border/50">
-                {admins.map(admin => (
-                  <div key={admin.id} className="flex items-center gap-3 py-3">
-                    <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary flex-shrink-0">
-                      {(admin.full_name || admin.email || '?')[0].toUpperCase()}
+                {enterpriseAccounts.map(acc => (
+                  <div key={acc.id} className="flex items-center gap-3 py-3">
+                    <div className="w-9 h-9 rounded-full bg-amber-500/10 flex items-center justify-center font-bold text-amber-600 flex-shrink-0">
+                      {(acc.full_name || acc.email || '?')[0].toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold truncate">{admin.full_name || 'নাম নেই'}</p>
-                      <p className="text-xs text-muted-foreground truncate">{admin.email}</p>
+                      <p className="text-sm font-semibold truncate">{acc.full_name || 'নাম নেই'}</p>
+                      <p className="text-xs text-muted-foreground truncate">{acc.email}</p>
                     </div>
-                    <Badge className="bg-success/10 text-success border-success/30 border text-[10px]">
-                      <CheckCircle2 className="w-3 h-3 mr-1" /> Admin
+                    <Badge className="bg-amber-500/10 text-amber-600 border-amber-400/30 border text-[10px] shrink-0">
+                      <CheckCircle2 className="w-3 h-3 mr-1" /> Group Owner
                     </Badge>
                     <button
-                      onClick={() =>
-                        setDeleteTarget({
-                          id: admin.id,
-                          name: admin.full_name || admin.email || 'Admin',
-                        })
-                      }
+                      onClick={() => setDeleteTarget({
+                        id: acc.id,
+                        name: acc.full_name || acc.email || 'Group Owner',
+                      })}
                       className="p-1.5 text-muted-foreground hover:text-destructive transition-colors"
                       title="অ্যাকাউন্ট মুছুন"
                     >
@@ -395,27 +385,20 @@ export default function EnterpriseSetup() {
           </CardContent>
         </Card>
 
-        {/* Complete button */}
-        <div className="space-y-2">
-          {admins.length === 0 && (
-            <p className="text-center text-xs text-warning">
-              ⚠️ Setup সম্পন্ন করতে কমপক্ষে ১টি Admin তৈরি করুন
-            </p>
-          )}
-          <Button
-            onClick={handleComplete}
-            disabled={admins.length === 0 || completing}
-            className="w-full h-12 gap-2 bg-amber-500 hover:bg-amber-600 text-white text-base font-semibold"
-          >
-            {completing
-              ? <><RefreshCw className="w-4 h-4 animate-spin" /> সম্পন্ন হচ্ছে...</>
-              : <><CheckCircle2 className="w-5 h-5" /> Setup সম্পন্ন করুন <ArrowRight className="w-4 h-4" /></>
-            }
-          </Button>
-          <p className="text-center text-xs text-muted-foreground">
-            পরেও Settings থেকে Admin যোগ/বাদ দেওয়া যাবে
-          </p>
-        </div>
+        {/* Complete */}
+        <Button
+          onClick={handleComplete}
+          disabled={completing}
+          className="w-full h-12 gap-2 bg-amber-500 hover:bg-amber-600 text-white text-base font-semibold"
+        >
+          {completing
+            ? <><RefreshCw className="w-4 h-4 animate-spin" /> সম্পন্ন হচ্ছে...</>
+            : <><CheckCircle2 className="w-5 h-5" /> Setup সম্পন্ন করুন <ArrowRight className="w-4 h-4" /></>
+          }
+        </Button>
+        <p className="text-center text-xs text-muted-foreground">
+          পরেও Settings থেকে Group Owner যোগ/বাদ দেওয়া যাবে
+        </p>
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 // EnterpriseDashboard.tsx
 // Enterprise group owner-এর main dashboard
-// Updated: April 26, 2026 — added Group Dashboard navigation
+// Updated: April 26, 2026 — admin → group_owner accounts, navigation updated
 
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
@@ -16,7 +16,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useUserGroups } from '@/hooks/useGroupOwner';
 
-interface AdminAccount {
+interface GroupOwnerAccount {
   id: string;
   full_name: string | null;
   email: string | null;
@@ -43,37 +43,36 @@ export default function EnterpriseDashboard() {
     enabled: !!restaurantId,
   });
 
-  // Fetch admin accounts
-  const { data: admins = [], isLoading } = useQuery<AdminAccount[]>({
-    queryKey: ['enterprise-admins', restaurantId],
+  // Fetch other group_owner accounts (excludes self)
+  const { data: coOwners = [], isLoading } = useQuery<GroupOwnerAccount[]>({
+    queryKey: ['enterprise-co-owners', user?.id],
     queryFn: async () => {
-      if (!restaurantId) return [];
+      if (!user?.id) return [];
       const { data: roles } = await supabase
         .from('user_roles')
         .select('user_id')
-        .eq('role', 'admin')
-        .eq('restaurant_id', restaurantId);
+        .eq('role', 'group_owner');
 
       if (!roles || roles.length === 0) return [];
 
-      const adminIds = roles.map(r => r.user_id).filter(id => id !== user?.id);
-      if (adminIds.length === 0) return [];
+      const otherIds = roles.map(r => r.user_id).filter(id => id !== user.id);
+      if (otherIds.length === 0) return [];
 
       const { data: profiles } = await supabase
         .from('profiles')
         .select('id, full_name, email, created_at')
-        .in('id', adminIds);
+        .in('id', otherIds);
 
-      return (profiles || []) as AdminAccount[];
+      return (profiles || []) as GroupOwnerAccount[];
     },
-    enabled: !!restaurantId,
+    enabled: !!user?.id,
   });
 
   const quickActions = [
     {
       icon: UserPlus,
-      label: 'Admin যোগ করুন',
-      desc: 'নতুন Admin অ্যাকাউন্ট তৈরি করুন',
+      label: 'Group Owner যোগ করুন',
+      desc: 'নতুন Group Owner অ্যাকাউন্ট তৈরি করুন',
       color: 'bg-primary/10 text-primary',
       onClick: () => navigate('/enterprise/setup'),
     },
@@ -83,11 +82,8 @@ export default function EnterpriseDashboard() {
       desc: 'গ্রুপ ও শাখা পরিচালনা করুন',
       color: 'bg-amber-500/10 text-amber-500',
       onClick: () => {
-        if (groups.length > 0) {
-          navigate(`/group/${groups[0].id}`);
-        } else {
-          navigate('/group/setup');
-        }
+        if (groups.length > 0) navigate(`/group/${groups[0].id}`);
+        else navigate('/group/setup');
       },
     },
     {
@@ -132,7 +128,7 @@ export default function EnterpriseDashboard() {
                   </Badge>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  আনলিমিটেড Admin অ্যাকাউন্ট • সম্পূর্ণ নিয়ন্ত্রণ
+                  আনলিমিটেড Group Owner • সম্পূর্ণ নিয়ন্ত্রণ
                 </p>
               </div>
             </div>
@@ -181,12 +177,12 @@ export default function EnterpriseDashboard() {
         <div className="grid grid-cols-2 gap-4">
           <Card>
             <CardContent className="p-5 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                <Users className="w-5 h-5 text-primary" />
+              <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                <Users className="w-5 h-5 text-amber-500" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{isLoading ? '...' : admins.length}</p>
-                <p className="text-xs text-muted-foreground">Admin অ্যাকাউন্ট</p>
+                <p className="text-2xl font-bold">{isLoading ? '...' : coOwners.length}</p>
+                <p className="text-xs text-muted-foreground">Co-Owners</p>
               </div>
             </CardContent>
           </Card>
@@ -228,18 +224,18 @@ export default function EnterpriseDashboard() {
           </CardContent>
         </Card>
 
-        {/* Admin list */}
+        {/* Co-owner list */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-base flex items-center gap-2">
-              <Users className="w-4 h-4" /> Admin অ্যাকাউন্টসমূহ
+              <Users className="w-4 h-4" /> Group Owner অ্যাকাউন্টসমূহ
             </CardTitle>
             <Button
               size="sm" variant="outline"
               onClick={() => navigate('/enterprise/setup')}
               className="gap-1.5 text-xs"
             >
-              <UserPlus className="w-3.5 h-3.5" /> Admin যোগ করুন
+              <UserPlus className="w-3.5 h-3.5" /> Owner যোগ করুন
             </Button>
           </CardHeader>
           <CardContent>
@@ -247,31 +243,27 @@ export default function EnterpriseDashboard() {
               <div className="flex items-center justify-center py-8 text-muted-foreground gap-2 text-sm">
                 <RefreshCw className="w-4 h-4 animate-spin" /> লোড হচ্ছে...
               </div>
-            ) : admins.length === 0 ? (
+            ) : coOwners.length === 0 ? (
               <div className="text-center py-8 space-y-3">
                 <Users className="w-10 h-10 mx-auto text-muted-foreground/20" />
-                <p className="text-sm text-muted-foreground">কোনো Admin নেই</p>
-                <Button
-                  size="sm"
-                  onClick={() => navigate('/enterprise/setup')}
-                  className="gap-1.5"
-                >
-                  <UserPlus className="w-3.5 h-3.5" /> Admin তৈরি করুন
+                <p className="text-sm text-muted-foreground">কোনো Co-Owner নেই</p>
+                <Button size="sm" onClick={() => navigate('/enterprise/setup')} className="gap-1.5">
+                  <UserPlus className="w-3.5 h-3.5" /> Group Owner তৈরি করুন
                 </Button>
               </div>
             ) : (
               <div className="divide-y divide-border/50">
-                {admins.map(admin => (
-                  <div key={admin.id} className="flex items-center gap-3 py-3">
-                    <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary text-sm flex-shrink-0">
-                      {(admin.full_name || admin.email || '?')[0].toUpperCase()}
+                {coOwners.map(acc => (
+                  <div key={acc.id} className="flex items-center gap-3 py-3">
+                    <div className="w-9 h-9 rounded-full bg-amber-500/10 flex items-center justify-center font-bold text-amber-600 text-sm flex-shrink-0">
+                      {(acc.full_name || acc.email || '?')[0].toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold truncate">{admin.full_name || 'নাম নেই'}</p>
-                      <p className="text-xs text-muted-foreground truncate">{admin.email}</p>
+                      <p className="text-sm font-semibold truncate">{acc.full_name || 'নাম নেই'}</p>
+                      <p className="text-xs text-muted-foreground truncate">{acc.email}</p>
                     </div>
-                    <Badge className="bg-success/10 text-success border-success/30 border text-[10px] shrink-0">
-                      Admin
+                    <Badge className="bg-amber-500/10 text-amber-600 border-amber-400/30 border text-[10px] shrink-0">
+                      Group Owner
                     </Badge>
                   </div>
                 ))}
@@ -279,6 +271,7 @@ export default function EnterpriseDashboard() {
             )}
           </CardContent>
         </Card>
+
       </div>
     </DashboardLayout>
   );
