@@ -13,17 +13,10 @@ import { APP_NAME, COMPANY_NAME, FREE_TRIAL_DAYS } from "@/constants/app";
 type Mode = "login" | "signup" | "forgot" | "forgot_sent";
 type RedirectRole = "super_admin" | "group_owner" | "admin" | "waiter" | "kitchen";
 
-/**
- * Wait for session to be fully propagated in Supabase client
- * This ensures auth.uid() will work in RPC functions
- */
 const waitForSession = async (maxAttempts = 5): Promise<boolean> => {
   for (let i = 0; i < maxAttempts; i++) {
     const { data: { session } } = await supabase.auth.getSession();
-    if (session?.access_token) {
-      return true;
-    }
-    // Wait 200ms before retry
+    if (session?.access_token) return true;
     await new Promise(resolve => setTimeout(resolve, 200));
   }
   return false;
@@ -35,7 +28,6 @@ const pickRedirectRole = (
   roleRows: Array<{ role: string }> | null | undefined,
 ): RedirectRole | null => {
   const roles = new Set((roleRows || []).map((row) => row.role));
-
   if (roles.has("super_admin")) return "super_admin";
   if (roles.has("group_owner")) return "group_owner";
   if (roles.has("admin")) return "admin";
@@ -44,9 +36,10 @@ const pickRedirectRole = (
   return null;
 };
 
+// ✅ group_owner → /enterprise/dashboard
 const getRedirectPath = (resolvedRole: RedirectRole, inviteId: string | null) => {
   if (resolvedRole === "super_admin") return "/super-admin";
-  if (resolvedRole === "group_owner") return "/group/setup";
+  if (resolvedRole === "group_owner") return "/enterprise/dashboard";
   if (resolvedRole === "waiter") return "/waiter";
   if (resolvedRole === "kitchen") return "/admin/kitchen";
   if (inviteId) return `/admin-setup?invite=${inviteId}`;
@@ -94,24 +87,15 @@ const Login = () => {
         userId,
       });
 
-      if (roleError) {
-        console.warn("Login role lookup failed:", roleError.message);
-      }
-
+      if (roleError) console.warn("Login role lookup failed:", roleError.message);
       if (resolvedRole) {
         await refetchUserData(userId, accessToken);
-        authDebug("Login", "Context sync completed after direct role lookup", {
-          resolvedRole,
-          userId,
-        });
         return resolvedRole;
       }
-
       await wait(250);
     }
 
-    // Fallback 1: check staff_restaurants (waiter / kitchen / admin staff)
-    authDebug("Login", "user_roles exhausted — falling back to staff_restaurants", { userId });
+    // Fallback 1: staff_restaurants
     const { data: staffRow } = await authedClient
       .from("staff_restaurants" as any)
       .select("role, restaurant_id")
@@ -120,8 +104,6 @@ const Login = () => {
       .maybeSingle();
 
     const staffRole = (staffRow as any)?.role as string | undefined;
-    authDebug("Login", "staff_restaurants fallback result", { staffRole, userId });
-
     if (staffRole) {
       const fallbackRole = pickRedirectRole([{ role: staffRole }]);
       if (fallbackRole) {
@@ -134,8 +116,7 @@ const Login = () => {
       }
     }
 
-    // Fallback 2: check restaurants ownership (owner = admin)
-    authDebug("Login", "staff_restaurants fallback empty — checking restaurants owner", { userId });
+    // Fallback 2: restaurant owner
     const { data: ownedRestaurant } = await authedClient
       .from("restaurants")
       .select("id")
@@ -144,7 +125,6 @@ const Login = () => {
       .maybeSingle();
 
     if (ownedRestaurant?.id) {
-      authDebug("Login", "User owns a restaurant — assigning admin role", { userId });
       await (authedClient.from("user_roles") as any).upsert(
         { user_id: userId, role: "admin", restaurant_id: ownedRestaurant.id },
         { onConflict: "user_id,role" }
@@ -153,40 +133,22 @@ const Login = () => {
       return "admin";
     }
 
-    authDebug("Login", "All role fallbacks exhausted", { maxAttempts, userId });
     return null;
   };
 
   useEffect(() => {
     authDebug("Login", "Auth context snapshot changed", {
-      inviteId,
-      loading,
-      resolvedRole: role,
-      restaurantId,
-      userId: user?.id ?? null,
+      inviteId, loading, resolvedRole: role, restaurantId, userId: user?.id ?? null,
     });
   }, [inviteId, loading, restaurantId, role, user?.id]);
 
   useEffect(() => {
-    // Wait until auth is fully resolved AND a role has been assigned.
-    // role=null means fetchUserData either hasn't finished or found no role row yet —
-    // navigating early would send the user to /login in an infinite loop.
     if (loading || !user || !role) return;
-
     const target = getRedirectPath(role as RedirectRole, inviteId);
     authDebug("Login", "Context-based redirect branch chosen", {
-      inviteId,
-      resolvedRole: role,
-      restaurantId,
-      target,
-      userId: user.id,
+      inviteId, resolvedRole: role, restaurantId, target, userId: user.id,
     });
-    setPendingLoginRedirect({
-      inviteId,
-      role,
-      target,
-      userId: user.id,
-    });
+    setPendingLoginRedirect({ inviteId, role, target, userId: user.id });
     navigate(target, { replace: true });
   }, [user, role, loading, navigate, inviteId, restaurantId]);
 
@@ -210,11 +172,6 @@ const Login = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     clearPendingLoginRedirect();
-    authDebug("Login", "Auth form submitted", {
-      inviteId,
-      mode,
-      userEmail: email.trim(),
-    });
     if (!email.trim() || !password.trim()) { toast.error("সব ফিল্ড পূরণ করুন"); return; }
     if (mode === "signup" && !restaurantName.trim()) { toast.error("রেস্টুরেন্টের নাম দিন"); return; }
     if (mode === "signup" && password.length < 6) { toast.error("পাসওয়ার্ড কমপক্ষে ৬ অক্ষর হতে হবে"); return; }
@@ -227,32 +184,16 @@ const Login = () => {
         });
         if (error) throw error;
         if (data.session) {
-          // signUp() returns the session in data but may not have flushed it to the
-          // client's internal store before we call the next RPC. setSession() forces
-          // the access token to be attached so auth.uid() is non-null in the DB function.
           await supabase.auth.setSession({
-          access_token: data.session.access_token,
-          refresh_token: data.session.refresh_token,
+            access_token: data.session.access_token,
+            refresh_token: data.session.refresh_token,
           });
-
-          // 🔧 CRITICAL FIX - Wait for session to propagate
           const sessionReady = await waitForSession();
-          if (!sessionReady) {
-            throw new Error("Session setup failed. Please try logging in.");
-        }
-        
-        // Verify session is actually set
-        const { data: { session: currentSession } } = await supabase.auth.getSession();
-        if (!currentSession) {
-          throw new Error("Authentication session not found. Please try again.");
-        }
-        
-        console.log("✅ Session verified, user ID:", currentSession.user.id);
+          if (!sessionReady) throw new Error("Session setup failed. Please try logging in.");
+          const { data: { session: currentSession } } = await supabase.auth.getSession();
+          if (!currentSession) throw new Error("Authentication session not found. Please try again.");
 
-        // Session exists — user is immediately active (email auto-confirm or disabled).
-        // Use server-side RPC: atomically creates restaurant + assigns admin role.
-        // Direct user_roles INSERT is no longer allowed by RLS from the client.
-        const { data: setupData, error: setupError } = await supabase.rpc(
+          const { data: setupData, error: setupError } = await supabase.rpc(
             "complete_admin_signup" as any,
             {
               p_restaurant_name: restaurantName.trim(),
@@ -287,60 +228,28 @@ const Login = () => {
           }
           const planLabel = selectedPlan === "high_smart" ? "High Smart" : "Medium Smart";
           toast.success(`অ্যাকাউন্ট তৈরি হয়েছে! ${FREE_TRIAL_DAYS} দিনের ফ্রি ট্রায়াল (${planLabel}) শুরু হয়েছে।`);
-          // onAuthStateChange fired during signUp BEFORE the RPC created the role row,
-          // so fetchUserData ran against an empty user_roles table → role stayed null.
-          // Explicitly re-fetch user data now that the role row exists; this updates
-          // role in context which triggers the navigation useEffect above.
           if (data.user) await refetchUserData(data.user.id, data.session.access_token);
         } else {
-          // data.session is null → Supabase email confirmation is enabled.
-          // The user exists in auth but is not yet logged in — they must confirm first.
-          toast.success("ইমেইল নিশ্চিত করুন! আপনার ইমেইলে একটি লিংক পাঠানো হয়েছে। লিংকে ক্লিক করার পর লগইন করুন।");
+          toast.success("ইমেইল নিশ্চিত করুন! আপনার ইমেইলে একটি লিংক পাঠানো হয়েছে।");
           setMode("login");
         }
       } else {
         const { data: signInData, error } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
-          password,
+          email: email.trim(), password,
         });
         if (error) throw error;
-        authDebug("Login", "signInWithPassword succeeded", {
-          hasReturnedSession: Boolean(signInData.session),
-          userId: signInData.user?.id ?? null,
-        });
 
         const sessionReady = await waitForSession();
-        authDebug("Login", "waitForSession completed", { sessionReady });
-        if (!sessionReady) {
-          throw new Error("Login succeeded, but the session is still loading. Please try again.");
-        }
+        if (!sessionReady) throw new Error("Login succeeded, but the session is still loading. Please try again.");
 
         const { data: { session } } = await supabase.auth.getSession();
         const currentUser = session?.user || signInData.user;
-        authDebug("Login", "Session lookup after sign-in finished", {
-          hasSession: Boolean(session),
-          sessionUserId: session?.user.id ?? null,
-          userId: currentUser?.id ?? null,
-        });
-
-        if (!currentUser) {
-          throw new Error("Login succeeded, but we couldn't load your account session. Please try again.");
-        }
+        if (!currentUser) throw new Error("Login succeeded, but we couldn't load your account session.");
 
         const accessToken = session?.access_token || signInData.session?.access_token;
-        authDebug("Login", "Access token availability checked", {
-          hasAccessToken: Boolean(accessToken),
-          userId: currentUser.id,
-        });
-        if (!accessToken) {
-          throw new Error("Login succeeded, but the access token is not ready yet. Please try again.");
-        }
+        if (!accessToken) throw new Error("Login succeeded, but the access token is not ready yet.");
 
         const resolvedRole = await resolveRoleForRedirect(currentUser.id, accessToken);
-        authDebug("Login", "Direct role resolution completed", {
-          resolvedRole,
-          userId: currentUser.id,
-        });
         if (!resolvedRole) {
           toast.error("অ্যাকাউন্টে কোনো ভূমিকা পাওয়া যায়নি। অ্যাডমিনকে জানান।");
           return;
@@ -348,28 +257,12 @@ const Login = () => {
 
         toast.success("স্বাগতম!");
         const target = getRedirectPath(resolvedRole, inviteId);
-        authDebug("Login", "Fallback redirect target chosen", {
-          inviteId,
-          resolvedRole,
-          target,
-          userId: currentUser.id,
-        });
-        setPendingLoginRedirect({
-          inviteId,
-          role: resolvedRole,
-          target,
-          userId: currentUser.id,
-        });
+        setPendingLoginRedirect({ inviteId, role: resolvedRole, target, userId: currentUser.id });
         navigate(target, { replace: true });
         return;
       }
     } catch (err: any) {
       console.error("Auth error:", err);
-      authDebug("Login", "Auth form submission failed", {
-        error: err?.message ?? String(err),
-        inviteId,
-        mode,
-      });
       toast.error(err.message || "প্রমাণীকরণ ব্যর্থ");
     } finally {
       setSubmitting(false);
@@ -403,15 +296,13 @@ const Login = () => {
     { icon: ShieldCheck, title: "নিরাপদ", desc: "সম্পূর্ণ সুরক্ষিত ডেটা ম্যানেজমেন্ট" },
   ];
 
-  // ── Logo component (reused) ──
   const Logo = ({ size = "md" }: { size?: "sm" | "md" }) => (
     <div style={{ display: "flex", alignItems: "center", gap: size === "sm" ? 10 : 14 }}>
       <div style={{
         width: size === "sm" ? 36 : 44, height: size === "sm" ? 36 : 44,
         borderRadius: size === "sm" ? 10 : 12,
         background: gold, display: "flex", alignItems: "center", justifyContent: "center",
-        boxShadow: "0 0 24px rgba(201,168,76,0.35)",
-        flexShrink: 0,
+        boxShadow: "0 0 24px rgba(201,168,76,0.35)", flexShrink: 0,
       }}>
         <UtensilsCrossed size={size === "sm" ? 18 : 22} color="#0a0a0a" strokeWidth={2.2} />
       </div>
@@ -425,17 +316,17 @@ const Login = () => {
   return (
     <div style={{ fontFamily: "'DM Sans', sans-serif", minHeight: "100vh", display: "flex", backgroundColor: "hsl(0 0% 4%)" }}>
 
-      {/* ── LEFT PANEL ── */}
+      {/* LEFT PANEL */}
       <div style={{
         width: "52%", position: "relative", overflow: "hidden",
         flexDirection: "column", justifyContent: "space-between", padding: "48px",
         background: "linear-gradient(145deg, hsl(0 0% 5%) 0%, hsl(0 0% 6%) 60%, hsl(0 0% 4%) 100%)",
         borderRight: "1px solid hsl(0 0% 14%)",
       }} className="hidden lg:flex">
-        <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, pointerEvents: "none" }}>
+        <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
           <div style={{ position: "absolute", top: "-5%", right: "-10%", width: 500, height: 500, borderRadius: "50%", background: "radial-gradient(circle, rgba(201,168,76,0.07) 0%, transparent 65%)" }} />
           <div style={{ position: "absolute", bottom: "-10%", left: "-5%", width: 400, height: 400, borderRadius: "50%", background: "radial-gradient(circle, rgba(201,168,76,0.04) 0%, transparent 65%)" }} />
-          <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundImage: "linear-gradient(rgba(201,168,76,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(201,168,76,0.04) 1px, transparent 1px)", backgroundSize: "60px 60px" }} />
+          <div style={{ position: "absolute", inset: 0, backgroundImage: "linear-gradient(rgba(201,168,76,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(201,168,76,0.04) 1px, transparent 1px)", backgroundSize: "60px 60px" }} />
         </div>
         <div style={{ position: "relative", zIndex: 1 }}><Logo /></div>
         <div style={{ position: "relative", zIndex: 1 }}>
@@ -468,16 +359,15 @@ const Login = () => {
         </p>
       </div>
 
-      {/* ── RIGHT PANEL ── */}
+      {/* RIGHT PANEL */}
       <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 24px", overflowY: "auto", background: "hsl(0 0% 4%)" }}>
         <div style={{ width: "100%", maxWidth: 440 }}>
 
-          {/* Mobile logo */}
           <div style={{ justifyContent: "center", marginBottom: 36 }} className="flex lg:hidden">
             <Logo size="sm" />
           </div>
 
-          {/* ── FORGOT SENT ── */}
+          {/* FORGOT SENT */}
           {mode === "forgot_sent" ? (
             <div style={{ textAlign: "center" }}>
               <div style={{ width: 72, height: 72, borderRadius: 20, background: "rgba(201,168,76,0.12)", border: "1px solid rgba(201,168,76,0.3)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px" }}>
@@ -494,7 +384,7 @@ const Login = () => {
               </button>
             </div>
 
-          /* ── FORGOT FORM ── */
+          /* FORGOT FORM */
           ) : mode === "forgot" ? (
             <div>
               <button onClick={() => setMode("login")}
@@ -519,16 +409,14 @@ const Login = () => {
                       onBlur={e => { e.target.style.borderColor = "hsl(0 0% 14%)"; e.target.style.backgroundColor = "hsl(0 0% 7%)"; }} />
                   </div>
                   <button type="submit" disabled={submitting}
-                    style={{ width: "100%", height: 52, borderRadius: 12, background: submitting ? "rgba(201,168,76,0.4)" : gold, border: "none", cursor: submitting ? "not-allowed" : "pointer", fontSize: 15, fontWeight: 700, color: "#0a0a0a", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "'DM Sans', sans-serif", boxShadow: "0 8px 32px rgba(201,168,76,0.3)", transition: "all 0.25s" }}
-                    onMouseEnter={e => { if (!submitting) { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 12px 40px rgba(201,168,76,0.45)"; } }}
-                    onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 8px 32px rgba(201,168,76,0.3)"; }}>
-                    {submitting ? <><span style={{ width: 16, height: 16, border: "2px solid rgba(10,10,10,0.3)", borderTopColor: "#0a0a0a", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} /> অপেক্ষা করুন...</> : <>রিসেট লিংক পাঠান <ArrowRight size={16} /></>}
+                    style={{ width: "100%", height: 52, borderRadius: 12, background: submitting ? "rgba(201,168,76,0.4)" : gold, border: "none", cursor: submitting ? "not-allowed" : "pointer", fontSize: 15, fontWeight: 700, color: "#0a0a0a", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "'DM Sans', sans-serif", boxShadow: "0 8px 32px rgba(201,168,76,0.3)", transition: "all 0.25s" }}>
+                    {submitting ? "অপেক্ষা করুন..." : <>রিসেট লিংক পাঠান <ArrowRight size={16} /></>}
                   </button>
                 </div>
               </form>
             </div>
 
-          /* ── LOGIN / SIGNUP ── */
+          /* LOGIN / SIGNUP */
           ) : (
             <>
               <div style={{ marginBottom: 28 }}>
@@ -538,17 +426,16 @@ const Login = () => {
                 <p style={{ fontSize: 14, color: "rgba(255,255,255,0.45)", marginBottom: 20 }}>
                   {mode === "signup" ? `Medium Smart বা High Smart — ${FREE_TRIAL_DAYS} দিন ফ্রি ট্রায়াল` : `${APP_NAME} ড্যাশবোর্ডে লগইন করুন`}
                 </p>
-                {/* Tab switcher */}
                 <div style={{ display: "flex", background: "hsl(0 0% 7%)", borderRadius: 12, padding: 4, border: "1px solid hsl(0 0% 14%)" }}>
                   <button type="button" onClick={() => { setMode("login"); setPassword(""); setFullName(""); setRestaurantName(""); setRestaurantAddress(""); setRestaurantPhone(""); }}
                     style={{ flex: 1, height: 38, borderRadius: 9, border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600, transition: "all 0.2s",
-                      background: mode === "login" ? "linear-gradient(135deg, #f5d780, #c9a84c, #e8c04a)" : "transparent",
+                      background: mode === "login" ? gold : "transparent",
                       color: mode === "login" ? "#0a0a0a" : "rgba(255,255,255,0.45)",
                       boxShadow: mode === "login" ? "0 2px 12px rgba(201,168,76,0.35)" : "none",
                     }}>লগইন</button>
                   <button type="button" onClick={() => { setMode("signup"); setPassword(""); setFullName(""); setRestaurantName(""); setRestaurantAddress(""); setRestaurantPhone(""); }}
                     style={{ flex: 1, height: 38, borderRadius: 9, border: "none", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600, transition: "all 0.2s",
-                      background: mode === "signup" ? "linear-gradient(135deg, #f5d780, #c9a84c, #e8c04a)" : "transparent",
+                      background: mode === "signup" ? gold : "transparent",
                       color: mode === "signup" ? "#0a0a0a" : "rgba(255,255,255,0.45)",
                       boxShadow: mode === "signup" ? "0 2px 12px rgba(201,168,76,0.35)" : "none",
                     }}>সাইন আপ</button>
@@ -567,70 +454,61 @@ const Login = () => {
                       </div>
                       <div>
                         <label style={labelStyle}>রেস্টুরেন্টের নাম <span style={{ color: "#f87171" }}>*</span></label>
-                        <input type="text" placeholder="আপনার রেস্টুরেন্টের নাম" value={restaurantName} onChange={e => setRestaurantName(e.target.value)} style={inputStyle} required autoComplete="organization"
+                        <input type="text" placeholder="আপনার রেস্টুরেন্টের নাম" value={restaurantName} onChange={e => setRestaurantName(e.target.value)} style={inputStyle} required
                           onFocus={e => { e.target.style.borderColor = "hsl(38 92% 50% / 0.6)"; e.target.style.backgroundColor = "hsl(0 0% 9%)"; }}
                           onBlur={e => { e.target.style.borderColor = "hsl(0 0% 14%)"; e.target.style.backgroundColor = "hsl(0 0% 7%)"; }} />
                       </div>
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
                         <div>
                           <label style={labelStyle}>ঠিকানা</label>
-                          <input type="text" placeholder="ঠিকানা" value={restaurantAddress} onChange={e => setRestaurantAddress(e.target.value)} style={inputStyle} autoComplete="off"
+                          <input type="text" placeholder="ঠিকানা" value={restaurantAddress} onChange={e => setRestaurantAddress(e.target.value)} style={inputStyle}
                             onFocus={e => { e.target.style.borderColor = "hsl(38 92% 50% / 0.6)"; e.target.style.backgroundColor = "hsl(0 0% 9%)"; }}
                             onBlur={e => { e.target.style.borderColor = "hsl(0 0% 14%)"; e.target.style.backgroundColor = "hsl(0 0% 7%)"; }} />
                         </div>
                         <div>
                           <label style={labelStyle}>ফোন</label>
-                          <input type="text" placeholder="+880..." value={restaurantPhone} onChange={e => setRestaurantPhone(e.target.value)} style={inputStyle} autoComplete="off"
+                          <input type="text" placeholder="+880..." value={restaurantPhone} onChange={e => setRestaurantPhone(e.target.value)} style={inputStyle}
                             onFocus={e => { e.target.style.borderColor = "hsl(38 92% 50% / 0.6)"; e.target.style.backgroundColor = "hsl(0 0% 9%)"; }}
                             onBlur={e => { e.target.style.borderColor = "hsl(0 0% 14%)"; e.target.style.backgroundColor = "hsl(0 0% 7%)"; }} />
                         </div>
                       </div>
-                      {/* Plan selector */}
                       <div>
                         <label style={{ ...labelStyle, marginBottom: 10 }}>প্যাকেজ বেছে নিন <span style={{ color: "#86efac", fontWeight: 700, textTransform: "none", letterSpacing: 0 }}>— {FREE_TRIAL_DAYS} দিন ফ্রি</span></label>
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                           {([
-                            { id: "medium_smart" as const, label: "Medium Smart", price: "৳৯৯৯", period: "/মাস", features: ["QR অর্ডারিং", "রিয়েলটাইম ট্র্যাকিং", "৩টি স্টাফ অ্যাকাউন্ট"] },
-                            { id: "high_smart" as const, label: "High Smart", price: "৳১৯৯৯", period: "/মাস", features: ["সব Medium ফিচার", "AI Insights", "আনলিমিটেড স্টাফ"] },
+                            { id: "medium_smart" as const, label: "Medium Smart", price: "৳৯৯৯", features: ["QR অর্ডারিং", "রিয়েলটাইম ট্র্যাকিং", "৫ জন স্টাফ"] },
+                            { id: "high_smart" as const, label: "High Smart", price: "৳১৯৯৯", features: ["সব Medium ফিচার", "AI Insights", "আনলিমিটেড স্টাফ"] },
                           ]).map(plan => {
                             const active = selectedPlan === plan.id;
                             return (
                               <button key={plan.id} type="button" onClick={() => setSelectedPlan(plan.id)}
-                                style={{
-                                  padding: "14px 12px", borderRadius: 14, textAlign: "left", cursor: "pointer",
-                                  border: active ? "2px solid rgba(201,168,76,0.8)" : "2px solid hsl(0 0% 14%)",
-                                  background: active ? "rgba(201,168,76,0.08)" : "hsl(0 0% 7%)",
-                                  transition: "all 0.2s", position: "relative", width: "100%",
-                                }}>
+                                style={{ padding: "14px 12px", borderRadius: 14, textAlign: "left", cursor: "pointer", border: active ? "2px solid rgba(201,168,76,0.8)" : "2px solid hsl(0 0% 14%)", background: active ? "rgba(201,168,76,0.08)" : "hsl(0 0% 7%)", transition: "all 0.2s", position: "relative", width: "100%" }}>
                                 {active && (
                                   <div style={{ position: "absolute", top: 8, right: 8, width: 16, height: 16, borderRadius: "50%", background: gold, display: "flex", alignItems: "center", justifyContent: "center" }}>
                                     <span style={{ fontSize: 9, color: "#0a0a0a", fontWeight: 800 }}>✓</span>
                                   </div>
                                 )}
-                                <div style={{ fontSize: 13, fontWeight: 700, color: active ? "#f5d780" : "#fff", marginBottom: 4, fontFamily: "'DM Sans', sans-serif" }}>{plan.label}</div>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: active ? "#f5d780" : "#fff", marginBottom: 4 }}>{plan.label}</div>
                                 <div style={{ marginBottom: 8 }}>
-                                  <span style={{ fontSize: 16, fontWeight: 800, color: active ? "#f5d780" : "rgba(255,255,255,0.7)", fontFamily: "'DM Sans', sans-serif" }}>{plan.price}</span>
-                                  <span style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", fontFamily: "'DM Sans', sans-serif" }}>{plan.period}</span>
+                                  <span style={{ fontSize: 16, fontWeight: 800, color: active ? "#f5d780" : "rgba(255,255,255,0.7)" }}>{plan.price}</span>
+                                  <span style={{ fontSize: 10, color: "rgba(255,255,255,0.35)" }}>/মাস</span>
                                 </div>
-                                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                                  {plan.features.map(f => (
-                                    <div key={f} style={{ fontSize: 10, color: active ? "rgba(245,215,128,0.7)" : "rgba(255,255,255,0.35)", display: "flex", alignItems: "center", gap: 4, fontFamily: "'DM Sans', sans-serif" }}>
-                                      <span style={{ fontSize: 9 }}>✓</span> {f}
-                                    </div>
-                                  ))}
-                                </div>
+                                {plan.features.map(f => (
+                                  <div key={f} style={{ fontSize: 10, color: active ? "rgba(245,215,128,0.7)" : "rgba(255,255,255,0.35)", display: "flex", alignItems: "center", gap: 4 }}>
+                                    <span style={{ fontSize: 9 }}>✓</span> {f}
+                                  </div>
+                                ))}
                               </button>
                             );
                           })}
                         </div>
-                        <div style={{ marginTop: 8, padding: "10px 14px", borderRadius: 10, background: "rgba(134,239,172,0.06)", border: "1px solid rgba(134,239,172,0.18)", fontSize: 11, color: "#86efac", textAlign: "center", fontFamily: "'DM Sans', sans-serif" }}>
+                        <div style={{ marginTop: 8, padding: "10px 14px", borderRadius: 10, background: "rgba(134,239,172,0.06)", border: "1px solid rgba(134,239,172,0.18)", fontSize: 11, color: "#86efac", textAlign: "center" }}>
                           প্রথম {FREE_TRIAL_DAYS} দিন সম্পূর্ণ বিনামূল্যে — কার্ড লাগবে না
                         </div>
                       </div>
                     </>
                   )}
 
-                  {/* Email */}
                   <div>
                     <label style={labelStyle}>ইমেইল</label>
                     <input type="email" placeholder="your@email.com" value={email} onChange={e => setEmail(e.target.value)} style={inputStyle} required
@@ -638,83 +516,37 @@ const Login = () => {
                       onBlur={e => { e.target.style.borderColor = "hsl(0 0% 14%)"; e.target.style.backgroundColor = "hsl(0 0% 7%)"; }} />
                   </div>
 
-                  {/* Password */}
                   <div>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                       <label style={{ ...labelStyle, marginBottom: 0 }}>পাসওয়ার্ড</label>
                       {mode === "login" && (
                         <button type="button" onClick={() => setMode("forgot")}
-                          style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "rgba(201,168,76,0.7)", fontFamily: "'DM Sans', sans-serif", transition: "color 0.2s", padding: 0 }}
-                          onMouseEnter={e => e.currentTarget.style.color = "#f5d780"}
-                          onMouseLeave={e => e.currentTarget.style.color = "rgba(201,168,76,0.7)"}>
+                          style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "rgba(201,168,76,0.7)", fontFamily: "'DM Sans', sans-serif", padding: 0 }}>
                           পাসওয়ার্ড ভুলে গেছেন?
                         </button>
                       )}
                     </div>
                     <div style={{ position: "relative" }}>
-                      <input type={showPassword ? "text" : "password"} placeholder={mode === "signup" ? "যেমন: Admin@123" : "••••••••"} value={password} onChange={e => setPassword(e.target.value)} style={{ ...inputStyle, paddingRight: 48 }} required minLength={6} autoComplete={mode === "signup" ? "new-password" : "current-password"}
+                      <input type={showPassword ? "text" : "password"} placeholder={mode === "signup" ? "যেমন: Admin@123" : "••••••••"} value={password} onChange={e => setPassword(e.target.value)} style={{ ...inputStyle, paddingRight: 48 }} required minLength={6}
                         onFocus={e => { e.target.style.borderColor = "hsl(38 92% 50% / 0.6)"; e.target.style.backgroundColor = "hsl(0 0% 9%)"; }}
                         onBlur={e => { e.target.style.borderColor = "hsl(0 0% 14%)"; e.target.style.backgroundColor = "hsl(0 0% 7%)"; }} />
                       <button type="button" onClick={() => setShowPassword(!showPassword)}
-                        style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.35)", display: "flex", alignItems: "center", padding: 0, transition: "color 0.2s" }}
-                        onMouseEnter={e => e.currentTarget.style.color = "rgba(245,215,128,0.8)"}
-                        onMouseLeave={e => e.currentTarget.style.color = "rgba(255,255,255,0.35)"}> 
+                        style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.35)", display: "flex", alignItems: "center", padding: 0 }}>
                         {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
                       </button>
                     </div>
-                    {/* Password strength for signup */}
-                    {mode === "signup" && password.length > 0 && (() => {
-                      const checks = [
-                        { label: "৬+ অক্ষর", ok: password.length >= 6 },
-                        { label: "বড় হাতের", ok: /[A-Z]/.test(password) },
-                        { label: "সংখ্যা", ok: /[0-9]/.test(password) },
-                        { label: "চিহ্ন (!@#$)", ok: /[^a-zA-Z0-9]/.test(password) },
-                      ];
-                      const score = checks.filter(c => c.ok).length;
-                      const colors = ["#ef4444", "#f97316", "#eab308", "#22c55e"];
-                      return (
-                        <div style={{ marginTop: 8 }}>
-                          <div style={{ display: "flex", gap: 4, marginBottom: 6 }}>
-                            {[0,1,2,3].map(i => (
-                              <div key={i} style={{ flex: 1, height: 3, borderRadius: 2, background: i < score ? colors[score - 1] : "rgba(255,255,255,0.1)", transition: "background 0.3s" }} />
-                            ))}
-                          </div>
-                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                            {checks.map(c => (
-                              <span key={c.label} style={{ fontSize: 11, color: c.ok ? "#86efac" : "rgba(255,255,255,0.3)", display: "flex", alignItems: "center", gap: 3 }}>
-                                <span>{c.ok ? "✓" : "○"}</span> {c.label}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })()}
                   </div>
 
-                  {/* Submit */}
                   <button type="submit" disabled={submitting}
-                    style={{ width: "100%", height: 52, borderRadius: 12, background: submitting ? "rgba(201,168,76,0.4)" : gold, border: "none", cursor: submitting ? "not-allowed" : "pointer", fontSize: 15, fontWeight: 700, color: "#0a0a0a", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "'DM Sans', sans-serif", letterSpacing: "0.03em", boxShadow: submitting ? "none" : "0 8px 32px rgba(201,168,76,0.3)", transition: "all 0.25s", marginTop: 4 }}
-                    onMouseEnter={e => { if (!submitting) { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 12px 40px rgba(201,168,76,0.45)"; } }}
-                    onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 8px 32px rgba(201,168,76,0.3)"; }}>
-                    {submitting ? <><span style={{ width: 16, height: 16, border: "2px solid rgba(10,10,10,0.3)", borderTopColor: "#0a0a0a", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} /> অপেক্ষা করুন...</> : <>{mode === "signup" ? "সাইন আপ করুন" : "লগইন করুন"} <ArrowRight size={16} /></>}
+                    style={{ width: "100%", height: 52, borderRadius: 12, background: submitting ? "rgba(201,168,76,0.4)" : gold, border: "none", cursor: submitting ? "not-allowed" : "pointer", fontSize: 15, fontWeight: 700, color: "#0a0a0a", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "'DM Sans', sans-serif", boxShadow: "0 8px 32px rgba(201,168,76,0.3)", transition: "all 0.25s", marginTop: 4 }}>
+                    {submitting ? "অপেক্ষা করুন..." : <>{mode === "signup" ? "সাইন আপ করুন" : "লগইন করুন"} <ArrowRight size={16} /></>}
                   </button>
                 </div>
               </form>
-
-              {mode === "login" && (
-                <p style={{ textAlign: "center", marginTop: 20, fontSize: 13, color: "rgba(255,255,255,0.3)" }}>
-                  নতুন অ্যাকাউন্ট? উপরের{" "}
-                  <button type="button" onClick={() => { setMode("signup"); setPassword(""); }}
-                    style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 700, color: "#f5d780", fontFamily: "'DM Sans', sans-serif", padding: 0 }}>
-                    সাইন আপ
-                  </button>
-                  {" "}ট্যাব ক্লিক করুন
-                </p>
-              )}
             </>
           )}
 
-          <p style={{ textAlign: "center", fontSize: 11, color: "rgba(255,255,255,0.18)", marginTop: 32, letterSpacing: "0.03em" }}>
+          <p style={{ textAlign: "center", fontSize: 11, color: "rgba(255,255,255,0.18)", marginTop: 32 }}>
             © {new Date().getFullYear()} {APP_NAME} · <span style={{ color: "rgba(201,168,76,0.4)" }}>{COMPANY_NAME}</span>
           </p>
         </div>
