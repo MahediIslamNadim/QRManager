@@ -1,6 +1,6 @@
 // invite-branch-admin/index.ts
 // Invites a user as branch admin for a specific restaurant in a group
-// Created: April 25, 2026
+// Fixed: April 26, 2026 — correct redirect to /admin-setup, proper role assignment
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -99,6 +99,23 @@ Deno.serve(async (req) => {
       return json({ error: "Restaurant not found in this group" }, 404);
     }
 
+    // Record/upsert the invitation first (so it shows as "pending")
+    try {
+      await (admin.from("branch_invitations") as any).upsert(
+        {
+          group_id,
+          restaurant_id,
+          invited_email: normalizedEmail,
+          invited_by: callerUser.id,
+          status: "pending",
+          accepted_at: null,
+        },
+        { onConflict: "restaurant_id,invited_email" }
+      );
+    } catch {
+      // Table not yet migrated — continue anyway
+    }
+
     // Check if a user with this email already exists
     const { data: existingProfile } = await admin
       .from("profiles")
@@ -107,23 +124,30 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     let invitedUserId: string | null = null;
+    let alreadyExists = false;
 
     if (existingProfile?.id) {
-      // User already exists — just assign admin role for this restaurant
+      // User already exists — assign role directly
       invitedUserId = existingProfile.id;
+      alreadyExists = true;
     } else {
       // Invite new user via Supabase Auth magic link
+      // Redirect to /admin-setup so they can name their branch restaurant context
+      // We pass restaurant_id + group_id as query params so setup page can use them
+      const redirectUrl = `${siteUrl}/admin-setup?branch_restaurant_id=${restaurant_id}&group_id=${group_id}`;
+
       const { data: inviteData, error: inviteError } = await admin.auth.admin.inviteUserByEmail(
         normalizedEmail,
-        { redirectTo: `${siteUrl}/admin` }
+        { redirectTo: redirectUrl }
       );
 
       if (inviteError) {
-        // If already invited but not yet confirmed — still proceed
+        // If already invited but not yet confirmed, try to find the user
         if (!inviteError.message.toLowerCase().includes("already")) {
+          // Revert invitation status to pending on error (already set above)
           return json({ error: inviteError.message }, 400);
         }
-        // Try to find the user anyway
+        // Find the existing unconfirmed user
         const { data: { users } } = await admin.auth.admin.listUsers();
         const found = users?.find(u => u.email === normalizedEmail);
         if (found) invitedUserId = found.id;
@@ -132,7 +156,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // If we have the user ID, assign admin role + link to restaurant
+    // If we have the user ID, assign admin role + link to this specific restaurant
     if (invitedUserId) {
       // Assign admin role
       await admin.from("user_roles").upsert(
@@ -146,7 +170,7 @@ Deno.serve(async (req) => {
         { onConflict: "id" }
       );
 
-      // Also link via staff_restaurants if that table exists
+      // Also link via staff_restaurants for compatibility
       try {
         await admin.from("staff_restaurants").upsert(
           { user_id: invitedUserId, restaurant_id: restaurant_id, role: "admin" },
@@ -155,29 +179,25 @@ Deno.serve(async (req) => {
       } catch {
         // Table may not exist — ignore
       }
-    }
 
-    // Record the invitation in branch_invitations table
-    try {
-      await (admin.from("branch_invitations") as any).upsert(
-        {
-          group_id,
-          restaurant_id,
-          invited_email: normalizedEmail,
-          invited_by: callerUser.id,
-          status: invitedUserId ? "accepted" : "pending",
-          accepted_at: invitedUserId ? new Date().toISOString() : null,
-        },
-        { onConflict: "restaurant_id,invited_email" }
-      );
-    } catch {
-      // Table not yet migrated — ignore, main invite still succeeded
+      // Update invitation status to accepted
+      try {
+        await (admin.from("branch_invitations") as any)
+          .update({ status: "accepted", accepted_at: new Date().toISOString() })
+          .eq("restaurant_id", restaurant_id)
+          .eq("invited_email", normalizedEmail);
+      } catch {
+        // Ignore
+      }
     }
 
     return json({
       success: true,
-      message: `আমন্ত্রণ পাঠানো হয়েছে ${normalizedEmail}-এ`,
+      message: alreadyExists
+        ? `${normalizedEmail} ইতিমধ্যে account আছে — admin role দেওয়া হয়েছে`
+        : `আমন্ত্রণ পাঠানো হয়েছে ${normalizedEmail}-এ`,
       user_linked: !!invitedUserId,
+      already_existed: alreadyExists,
     });
 
   } catch (err: unknown) {

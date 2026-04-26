@@ -4,7 +4,7 @@ import {
   LayoutDashboard, UtensilsCrossed, Store, Users, BarChart3,
   CreditCard, Menu, QrCode, ShoppingCart, UserCheck, Bell,
   Settings, LogOut, ChevronLeft, X, ChefHat, Sparkles, Receipt, FileText, MessageSquare, Headphones,
-  Building2, GitBranch,
+  Building2, GitBranch, MapPin,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -46,7 +46,13 @@ const navItems: Record<Role, { title: string; href: string; icon: any }[]> = {
     { title: "সেটিংস", href: "/admin/settings", icon: Settings },
   ],
   group_owner: [
-    { title: "গ্রুপ সেটআপ", href: "/group/setup", icon: Building2 },
+    { title: "Enterprise Dashboard", href: "/enterprise/dashboard", icon: LayoutDashboard },
+    { title: "গ্রুপ সেটআপ", href: "/group/setup", icon: GitBranch },
+    { title: "রেস্টুরেন্ট Dashboard", href: "/admin", icon: Store },
+    { title: "মেনু ম্যানেজমেন্ট", href: "/admin/menu", icon: Menu },
+    { title: "অর্ডারসমূহ", href: "/admin/orders", icon: ShoppingCart },
+    { title: "অ্যানালিটিক্স", href: "/admin/analytics", icon: BarChart3 },
+    { title: "প্ল্যান ও বিলিং", href: "/billing", icon: Receipt },
     { title: "সেটিংস", href: "/admin/settings", icon: Settings },
   ],
   waiter: [
@@ -141,7 +147,7 @@ const SidebarContent = ({
                   className={cn("sidebar-nav-item", isActive && "active")}
                   title={g.name}
                 >
-                  <Building2 className="w-5 h-5 flex-shrink-0" />
+                  <MapPin className="w-5 h-5 flex-shrink-0" />
                   {(!collapsed || isMobile) && (
                     <span className="font-body text-sm truncate">{g.name}</span>
                   )}
@@ -171,7 +177,7 @@ const DashboardSidebar = ({ role, mobileOpen, onMobileClose }: SidebarProps) => 
 
   return (
     <>
-      {/* ✅ MOBILE: Overlay + slide-in drawer */}
+      {/* MOBILE: Overlay + slide-in drawer */}
       {mobileOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
           {/* Backdrop */}
@@ -192,7 +198,7 @@ const DashboardSidebar = ({ role, mobileOpen, onMobileClose }: SidebarProps) => 
         </div>
       )}
 
-      {/* ✅ DESKTOP: Sticky sidebar */}
+      {/* DESKTOP: Sticky sidebar */}
       <aside
         className={cn(
           "hidden md:flex h-screen sticky top-0 flex-col bg-sidebar border-r border-sidebar-border transition-all duration-300",

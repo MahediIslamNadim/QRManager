@@ -1,6 +1,6 @@
 // EnterpriseDashboard.tsx
 // Enterprise group owner-এর main dashboard
-// Created: April 26, 2026
+// Updated: April 26, 2026 — added Group Dashboard navigation
 
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
@@ -10,10 +10,11 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
   Building2, Users, Settings, UserPlus,
-  ArrowRight, Store, BarChart3, RefreshCw,
+  ArrowRight, Store, BarChart3, RefreshCw, MapPin,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useUserGroups } from '@/hooks/useGroupOwner';
 
 interface AdminAccount {
   id: string;
@@ -25,6 +26,7 @@ interface AdminAccount {
 export default function EnterpriseDashboard() {
   const { user, restaurantId, restaurantPlan } = useAuth();
   const navigate = useNavigate();
+  const { data: groups = [], isLoading: groupsLoading } = useUserGroups();
 
   // Fetch restaurant info
   const { data: restaurant } = useQuery({
@@ -76,6 +78,19 @@ export default function EnterpriseDashboard() {
       onClick: () => navigate('/enterprise/setup'),
     },
     {
+      icon: MapPin,
+      label: 'Multi-Location',
+      desc: 'গ্রুপ ও শাখা পরিচালনা করুন',
+      color: 'bg-amber-500/10 text-amber-500',
+      onClick: () => {
+        if (groups.length > 0) {
+          navigate(`/group/${groups[0].id}`);
+        } else {
+          navigate('/group/setup');
+        }
+      },
+    },
+    {
       icon: Store,
       label: 'রেস্টুরেন্ট দেখুন',
       desc: 'মেনু, অর্ডার, টেবিল পরিচালনা',
@@ -124,6 +139,44 @@ export default function EnterpriseDashboard() {
           </CardContent>
         </Card>
 
+        {/* Groups section */}
+        {(groups.length > 0 || groupsLoading) && (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-amber-500" /> রেস্টুরেন্ট গ্রুপসমূহ
+              </CardTitle>
+              <Button size="sm" variant="outline" onClick={() => navigate('/group/setup')} className="gap-1.5 text-xs">
+                <UserPlus className="w-3.5 h-3.5" /> নতুন গ্রুপ
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {groupsLoading ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                  <RefreshCw className="w-4 h-4 animate-spin" /> লোড হচ্ছে...
+                </div>
+              ) : (
+                groups.map(g => (
+                  <button
+                    key={g.id}
+                    onClick={() => navigate(`/group/${g.id}`)}
+                    className="w-full flex items-center gap-3 p-3 rounded-xl border border-border hover:bg-secondary/40 transition-colors text-left"
+                  >
+                    <div className="w-9 h-9 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
+                      <Building2 className="w-4 h-4 text-amber-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold">{g.name}</p>
+                      {g.description && <p className="text-xs text-muted-foreground truncate">{g.description}</p>}
+                    </div>
+                    <ArrowRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                  </button>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Stats */}
         <div className="grid grid-cols-2 gap-4">
           <Card>
@@ -143,8 +196,8 @@ export default function EnterpriseDashboard() {
                 <Building2 className="w-5 h-5 text-amber-500" />
               </div>
               <div>
-                <p className="text-2xl font-bold">∞</p>
-                <p className="text-xs text-muted-foreground">আনলিমিটেড অ্যাকাউন্ট</p>
+                <p className="text-2xl font-bold">{groups.length || '∞'}</p>
+                <p className="text-xs text-muted-foreground">{groups.length ? 'গ্রুপ' : 'আনলিমিটেড'}</p>
               </div>
             </CardContent>
           </Card>
