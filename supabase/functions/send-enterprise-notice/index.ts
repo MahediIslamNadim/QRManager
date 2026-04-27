@@ -169,6 +169,31 @@ Deno.serve(async (req) => {
       })),
     );
 
+    const { data: groupNotice, error: groupNoticeError } = await (admin.from("group_notices") as any)
+      .insert({
+        group_id: body.group_id,
+        title: cleanTitle,
+        message: cleanMessage,
+        audience: targetMode,
+        send_email: Boolean(body.send_email),
+        source_enterprise_notice_id: notice.id,
+        created_by: caller.id,
+      })
+      .select("id")
+      .single();
+
+    if (groupNoticeError || !groupNotice) {
+      return json({ error: groupNoticeError?.message || "Could not create group notice" }, 500);
+    }
+
+    await (admin.from("group_notice_targets") as any).insert(
+      targetRestaurants.map((restaurant: { id: string }) => ({
+        notice_id: groupNotice.id,
+        restaurant_id: restaurant.id,
+        delivery_status: "pending",
+      })),
+    );
+
     let deliveredCount = 0;
     let emailedCount = 0;
 
@@ -249,11 +274,37 @@ Deno.serve(async (req) => {
         })
         .eq("notice_id", notice.id)
         .eq("restaurant_id", restaurant.id);
+
+      await (admin.from("group_notice_targets") as any)
+        .update({
+          delivery_status: deliveryStatus,
+          delivered_in_app_at: new Date().toISOString(),
+          delivered_email_at: deliveredEmailAt,
+          email_error: emailError,
+        })
+        .eq("notice_id", groupNotice.id)
+        .eq("restaurant_id", restaurant.id);
     }
+
+    await (admin.from("group_admin_actions") as any).insert({
+      group_id: body.group_id,
+      actor_id: caller.id,
+      action: "send_notice",
+      entity_type: "group_notice",
+      entity_id: groupNotice.id,
+      metadata: {
+        target_mode: targetMode,
+        target_count: targetRestaurants.length,
+        delivered_count: deliveredCount,
+        emailed_count: emailedCount,
+        source_enterprise_notice_id: notice.id,
+      },
+    });
 
     return json({
       success: true,
       notice_id: notice.id,
+      group_notice_id: groupNotice.id,
       target_count: targetRestaurants.length,
       delivered_count: deliveredCount,
       emailed_count: emailedCount,

@@ -107,7 +107,7 @@ export default function EnterpriseDashboard() {
             </div>
             <Button
               size="sm"
-              onClick={() => navigate("/enterprise/restaurants/new")}
+              onClick={() => navigate("/enterprise/add-restaurant")}
               className="bg-amber-500 hover:bg-amber-600 text-white gap-1.5 shrink-0"
             >
               <Plus className="h-4 w-4" />
@@ -224,7 +224,7 @@ export default function EnterpriseDashboard() {
                 <div className="py-8 text-center space-y-3">
                   <Store className="mx-auto h-10 w-10 text-muted-foreground/20" />
                   <p className="text-sm text-muted-foreground">কোনো রেস্টুরেন্ট নেই।</p>
-                  <Button size="sm" onClick={() => navigate("/enterprise/restaurants/new")} className="gap-1.5">
+                  <Button size="sm" onClick={() => navigate("/enterprise/add-restaurant")} className="gap-1.5">
                     <Plus className="h-3.5 w-3.5" /> প্রথম রেস্টুরেন্ট যোগ করুন
                   </Button>
                 </div>
@@ -338,7 +338,7 @@ export default function EnterpriseDashboard() {
                 <Button
                   className="justify-between text-sm"
                   variant="outline"
-                  onClick={() => navigate("/enterprise/restaurants/new")}
+                  onClick={() => navigate("/enterprise/add-restaurant")}
                 >
                   রেস্টুরেন্ট যোগ করুন
                   <Plus className="h-4 w-4" />

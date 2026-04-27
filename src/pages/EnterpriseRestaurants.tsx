@@ -50,7 +50,7 @@ export default function EnterpriseRestaurants() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          <Button onClick={() => navigate("/enterprise/restaurants/new")} className="gap-2">
+          <Button onClick={() => navigate("/enterprise/add-restaurant")} className="gap-2">
             <Plus className="h-4 w-4" />
             রেস্টুরেন্ট যোগ করুন
           </Button>
@@ -74,7 +74,7 @@ export default function EnterpriseRestaurants() {
                   {search ? "এই সার্চে কোনো রেস্টুরেন্ট পাওয়া যায়নি।" : "এখনো কোনো রেস্টুরেন্ট নেই।"}
                 </p>
                 {!search && (
-                  <Button size="sm" onClick={() => navigate("/enterprise/restaurants/new")} className="gap-1.5">
+                  <Button size="sm" onClick={() => navigate("/enterprise/add-restaurant")} className="gap-1.5">
                     <Plus className="h-3.5 w-3.5" /> প্রথম রেস্টুরেন্ট যোগ করুন
                   </Button>
                 )}

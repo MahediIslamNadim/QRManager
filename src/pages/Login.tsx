@@ -46,6 +46,42 @@ const getRedirectPath = (resolvedRole: RedirectRole, inviteId: string | null, re
   return "/admin";
 };
 
+const resolveRestaurantPlanForRedirect = async (
+  userId: string,
+  accessToken: string,
+): Promise<string | undefined> => {
+  const authedClient = createAuthedSupabaseClient(accessToken);
+
+  const fetchPlan = async (id: string) => {
+    const { data } = await authedClient
+      .from("restaurants")
+      .select("tier, plan")
+      .eq("id", id)
+      .maybeSingle();
+
+    return data?.tier || data?.plan || undefined;
+  };
+
+  const { data: restaurantIdFromRpc } = await authedClient.rpc("get_user_restaurant_id", {
+    _user_id: userId,
+  });
+
+  if (restaurantIdFromRpc) {
+    const plan = await fetchPlan(restaurantIdFromRpc);
+    if (plan) return plan;
+  }
+
+  const { data: ownedRestaurant } = await authedClient
+    .from("restaurants")
+    .select("tier, plan")
+    .eq("owner_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  return ownedRestaurant?.tier || ownedRestaurant?.plan || undefined;
+};
+
 const Login = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -256,7 +292,8 @@ const Login = () => {
         }
 
         toast.success("স্বাগতম!");
-        const target = getRedirectPath(resolvedRole, inviteId);
+        const resolvedPlan = await resolveRestaurantPlanForRedirect(currentUser.id, accessToken);
+        const target = getRedirectPath(resolvedRole, inviteId, resolvedPlan);
         setPendingLoginRedirect({ inviteId, role: resolvedRole, target, userId: currentUser.id });
         navigate(target, { replace: true });
         return;

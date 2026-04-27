@@ -67,7 +67,7 @@ const navItems: Record<Role, Array<{ title: string; href: string; icon: typeof L
     { title: "রেস্টুরেন্ট অ্যানালিটিক্স", href: "/enterprise/analytics",    icon: BarChart3 },
     { title: "টপ সেলিং ফুড",            href: "/enterprise/top-selling",     icon: ShoppingCart },
     { title: "সকল মেনু",                href: "/enterprise/menus",           icon: Menu },
-    { title: "রেস্টুরেন্ট যোগ করুন",    href: "/enterprise/restaurants/new", icon: PlusSquare },
+    { title: "রেস্টুরেন্ট যোগ করুন",    href: "/enterprise/add-restaurant", icon: PlusSquare },
     { title: "নোটিস পাঠান",             href: "/enterprise/notices",         icon: Bell },
     { title: "প্ল্যান ও বিলিং",         href: "/billing",                    icon: Receipt },
     { title: "সেটিংস",                  href: "/enterprise/settings",        icon: Settings },

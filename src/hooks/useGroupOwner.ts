@@ -24,13 +24,22 @@ export function useUserGroups() {
     queryKey: ['user-groups', user?.id],
     queryFn: async () => {
       if (!user) return [];
-      const { data, error } = await supabase
-        .from('restaurant_groups')
-        .select('*')
-        .eq('owner_id', user.id)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return (data ?? []) as RestaurantGroup[];
+
+      const fallbackToOwnedGroups = async () => {
+        const { data, error } = await supabase
+          .from('restaurant_groups')
+          .select('*')
+          .eq('owner_id', user.id)
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        return (data ?? []) as RestaurantGroup[];
+      };
+
+      const { data, error } = await supabase.rpc('get_user_groups', { _user_id: user.id });
+      if (!error) return (data ?? []) as RestaurantGroup[];
+
+      console.warn('get_user_groups RPC unavailable, falling back to owner query:', error.message);
+      return fallbackToOwnedGroups();
     },
     enabled: !!user,
   });

@@ -144,79 +144,37 @@ Deno.serve(async (req) => {
       return json({ error: createUserError?.message || "Could not create admin user" }, 400);
     }
 
-    const restaurantExpiry =
-      headOffice.subscription_end_date ||
-      headOffice.trial_end_date ||
-      new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+    const { data: restaurantId, error: restaurantError } = await callerClient.rpc(
+      "create_enterprise_restaurant" as any,
+      {
+        p_group_id: body.group_id,
+        p_restaurant_name: restaurantName,
+        p_admin_user_id: authUser.user.id,
+        p_admin_full_name: adminFullName,
+        p_admin_email: adminEmail,
+        p_admin_phone: adminPhone,
+        p_restaurant_address: restaurantAddress,
+        p_restaurant_phone: restaurantPhone,
+      } as any,
+    );
 
-    const { data: restaurant, error: restaurantError } = await admin
-      .from("restaurants")
-      .insert({
-        name: restaurantName,
-        address: restaurantAddress,
-        phone: restaurantPhone,
-        owner_id: authUser.user.id,
-        status: "active",
-        group_id: body.group_id,
-        is_branch: true,
-        plan: "high_smart_enterprise",
-        tier: "high_smart_enterprise",
-        billing_cycle: headOffice.billing_cycle || "yearly",
-        subscription_status: "active",
-        subscription_start_date: new Date().toISOString(),
-        subscription_end_date: restaurantExpiry,
-        trial_end_date: restaurantExpiry,
-        trial_ends_at: restaurantExpiry,
-      })
-      .select("id, name")
-      .single();
-
-    if (restaurantError || !restaurant) {
+    if (restaurantError || !restaurantId) {
       await admin.auth.admin.deleteUser(authUser.user.id);
       return json({ error: restaurantError?.message || "Could not create restaurant" }, 500);
     }
 
-    await admin.from("profiles").upsert(
-      {
-        id: authUser.user.id,
-        full_name: adminFullName,
-        email: adminEmail,
-        phone: adminPhone,
-        restaurant_id: restaurant.id,
-      },
-      { onConflict: "id" },
-    );
-
-    await admin.from("user_roles").upsert(
-      {
-        user_id: authUser.user.id,
-        role: "admin",
-        restaurant_id: restaurant.id,
-      } as any,
-      { onConflict: "user_id,role" },
-    );
-
-    await admin.from("staff_restaurants").upsert(
-      {
-        user_id: authUser.user.id,
-        restaurant_id: restaurant.id,
-        role: "admin",
-      } as any,
-      { onConflict: "user_id,restaurant_id" },
-    );
-
     await admin.from("notifications").insert({
       user_id: authUser.user.id,
-      restaurant_id: restaurant.id,
+      restaurant_id: restaurantId,
       title: "Enterprise restaurant added",
-      message: `${restaurant.name} is now connected to ${group.name}.`,
+      message: `${restaurantName} is now connected to ${group.name}.`,
       type: "success",
     } as any);
 
     return json({
       success: true,
       group_id: body.group_id,
-      restaurant_id: restaurant.id,
+      restaurant_id: restaurantId,
       admin_user_id: authUser.user.id,
     });
   } catch (error) {

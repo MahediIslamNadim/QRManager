@@ -161,6 +161,7 @@ const App = () => (
               <Route path="/enterprise/setup" element={<ProtectedRoute allowedRoles={["group_owner", "super_admin"]}><EnterpriseSetup /></ProtectedRoute>} />
               <Route path="/enterprise/dashboard" element={<ProtectedRoute allowedRoles={["group_owner", "super_admin"]}><EnterpriseDashboard /></ProtectedRoute>} />
               <Route path="/enterprise/restaurants" element={<ProtectedRoute allowedRoles={["group_owner", "super_admin"]}><EnterpriseRestaurants /></ProtectedRoute>} />
+              <Route path="/enterprise/add-restaurant" element={<ProtectedRoute allowedRoles={["group_owner", "super_admin"]}><EnterpriseAddRestaurant /></ProtectedRoute>} />
               <Route path="/enterprise/restaurants/new" element={<ProtectedRoute allowedRoles={["group_owner", "super_admin"]}><EnterpriseAddRestaurant /></ProtectedRoute>} />
               <Route path="/enterprise/restaurants/:restaurantId" element={<ProtectedRoute allowedRoles={["group_owner", "super_admin"]}><EnterpriseRestaurantDetails /></ProtectedRoute>} />
               <Route path="/enterprise/analytics" element={<ProtectedRoute allowedRoles={["group_owner", "super_admin"]}><EnterpriseAnalytics /></ProtectedRoute>} />
