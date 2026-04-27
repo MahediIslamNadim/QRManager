@@ -208,10 +208,11 @@ Deno.serve(async (req) => {
       if (payment.status === "approved") {
         const otherApproved = await hasOtherApprovedPayment(admin, payment.restaurant_id, body.payment_id);
         if (!otherApproved) {
-          await admin
+          const { error: restaurantUpdateError } = await admin
             .from("restaurants")
             .update({ status: "inactive", subscription_status: "expired", updated_at: now })
             .eq("id", payment.restaurant_id);
+          if (restaurantUpdateError) return json({ error: restaurantUpdateError.message }, 500);
         }
       }
 
@@ -254,7 +255,7 @@ Deno.serve(async (req) => {
         const expiryDate = getExpiryDate(payment.billing_cycle);
         const tier = resolveTier(nextPlan);
 
-        await admin
+        const { error: restaurantUpdateError } = await admin
           .from("restaurants")
           .update({
             status: "active_paid",
@@ -267,15 +268,17 @@ Deno.serve(async (req) => {
             updated_at: now,
           })
           .eq("id", payment.restaurant_id);
+        if (restaurantUpdateError) return json({ error: restaurantUpdateError.message }, 500);
 
         await bootstrapEnterpriseIfNeeded(admin, payment.restaurant_id, nextPlan);
       } else if (payment.status === "approved") {
         const otherApproved = await hasOtherApprovedPayment(admin, payment.restaurant_id, body.payment_id);
         if (!otherApproved) {
-          await admin
+          const { error: restaurantUpdateError } = await admin
             .from("restaurants")
             .update({ status: "inactive", subscription_status: "expired", updated_at: now })
             .eq("id", payment.restaurant_id);
+          if (restaurantUpdateError) return json({ error: restaurantUpdateError.message }, 500);
         }
       }
 
@@ -293,10 +296,11 @@ Deno.serve(async (req) => {
       if (payment.status === "approved") {
         const otherApproved = await hasOtherApprovedPayment(admin, payment.restaurant_id, body.payment_id);
         if (!otherApproved) {
-          await admin
+          const { error: restaurantUpdateError } = await admin
             .from("restaurants")
             .update({ status: "inactive", subscription_status: "expired", updated_at: now })
             .eq("id", payment.restaurant_id);
+          if (restaurantUpdateError) return json({ error: restaurantUpdateError.message }, 500);
         }
       }
 
@@ -306,10 +310,11 @@ Deno.serve(async (req) => {
     if (payment.status === "approved") {
       const otherApproved = await hasOtherApprovedPayment(admin, payment.restaurant_id, body.payment_id);
       if (!otherApproved) {
-        await admin
+        const { error: restaurantUpdateError } = await admin
           .from("restaurants")
           .update({ status: "inactive", subscription_status: "expired", updated_at: now })
           .eq("id", payment.restaurant_id);
+        if (restaurantUpdateError) return json({ error: restaurantUpdateError.message }, 500);
       }
     }
 

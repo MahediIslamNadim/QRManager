@@ -28,6 +28,10 @@ interface Restaurant {
   tier: string;
   subscription_status: string;
   trial_end_date: string | null;
+  billing_cycle?: string | null;
+  subscription_start_date?: string | null;
+  subscription_end_date?: string | null;
+  next_billing_date?: string | null;
 }
 
 const TIER_CONFIG: Record<string, { label: string; color: string; icon: string }> = {
@@ -41,6 +45,70 @@ const SUB_CONFIG: Record<string, { label: string; color: string }> = {
   trial:     { label: '🎯 ট্রায়াল',      color: 'bg-blue-500/10 text-blue-500' },
   expired:   { label: '⏰ মেয়াদ শেষ',   color: 'bg-destructive/10 text-destructive' },
   cancelled: { label: '❌ বাতিল',        color: 'bg-muted text-muted-foreground' },
+};
+
+const getDateYearsFromNow = (years: number) => {
+  const date = new Date();
+  date.setFullYear(date.getFullYear() + years);
+  return date.toISOString();
+};
+
+const getDateDaysFromNow = (days: number) => {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return date.toISOString();
+};
+
+const subscriptionStatusForRestaurantStatus = (status: string) => {
+  if (status === "active_paid") return "active";
+  if (status === "inactive") return "expired";
+  return "trial";
+};
+
+const buildRestaurantSubscriptionPatch = (
+  status: string,
+  plan: string,
+  current?: Restaurant | null,
+) => {
+  const now = new Date().toISOString();
+  const subscriptionStatus = subscriptionStatusForRestaurantStatus(status);
+  const patch: Record<string, unknown> = {
+    status,
+    plan,
+    tier: plan,
+    subscription_status: subscriptionStatus,
+    updated_at: now,
+  };
+
+  if (status === "active_paid") {
+    const existingEnd =
+      current?.subscription_end_date ||
+      current?.trial_end_date ||
+      current?.trial_ends_at;
+    const hasFutureEnd = existingEnd ? new Date(existingEnd).getTime() > Date.now() : false;
+    const expiryDate = current?.subscription_status === "active" && hasFutureEnd
+      ? existingEnd
+      : getDateYearsFromNow(1);
+
+    patch.billing_cycle = current?.billing_cycle || "yearly";
+    patch.subscription_start_date = current?.subscription_start_date || now;
+    patch.subscription_end_date = expiryDate;
+    patch.next_billing_date = expiryDate;
+    patch.trial_end_date = expiryDate;
+    patch.trial_ends_at = expiryDate;
+  } else if (status === "active") {
+    const trialEnd = current?.trial_end_date || current?.trial_ends_at || getDateDaysFromNow(14);
+    patch.trial_end_date = trialEnd;
+    patch.trial_ends_at = trialEnd;
+    patch.subscription_start_date = null;
+    patch.subscription_end_date = null;
+    patch.next_billing_date = null;
+  } else if (status === "inactive") {
+    patch.subscription_end_date = now;
+    patch.next_billing_date = null;
+  }
+
+  return patch;
 };
 
 const SuperAdminRestaurants = () => {
@@ -121,13 +189,22 @@ const SuperAdminRestaurants = () => {
         throw new Error("Use the dedicated Enterprise create flow for a brand new enterprise account.");
       }
 
+      const currentRestaurant = editingId
+        ? restaurants.find((restaurant) => restaurant.id === editingId)
+        : null;
+      const subscriptionPatch = buildRestaurantSubscriptionPatch(
+        formStatus,
+        formPlan,
+        currentRestaurant,
+      );
+
       if (editingId) {
         const { error } = await supabase
           .from("restaurants")
           .update({
             name: formName, address: formAddress, phone: formPhone,
-            status: formStatus, tier: formPlan, updated_at: new Date().toISOString(),
-          })
+            ...subscriptionPatch,
+          } as any)
           .eq("id", editingId);
         if (error) throw error;
         if (formPlan === "high_smart_enterprise") {
@@ -141,8 +218,8 @@ const SuperAdminRestaurants = () => {
           .from("restaurants")
           .insert({
             name: formName, address: formAddress, phone: formPhone,
-            status: formStatus, tier: formPlan, subscription_status: "trial",
-          })
+            ...subscriptionPatch,
+          } as any)
           .select("id")
           .single();
         if (error) throw error;

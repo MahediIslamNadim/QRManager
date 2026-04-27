@@ -37,9 +37,9 @@ const pickRedirectRole = (
 };
 
 // ✅ group_owner → /enterprise/dashboard
-const getRedirectPath = (resolvedRole: RedirectRole, inviteId: string | null) => {
+const getRedirectPath = (resolvedRole: RedirectRole, inviteId: string | null, restaurantPlan?: string) => {
   if (resolvedRole === "super_admin") return "/super-admin";
-  if (resolvedRole === "group_owner") return "/enterprise/dashboard";
+  if (resolvedRole === "group_owner" || (resolvedRole === "admin" && restaurantPlan === "high_smart_enterprise")) return "/enterprise/dashboard";
   if (resolvedRole === "waiter") return "/waiter";
   if (resolvedRole === "kitchen") return "/admin/kitchen";
   if (inviteId) return `/admin-setup?invite=${inviteId}`;
@@ -50,7 +50,7 @@ const Login = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const inviteId = searchParams.get("invite");
-  const { user, role, loading, restaurantId, refetchUserData } = useAuth();
+  const { user, role, loading, restaurantId, restaurantPlan, refetchUserData } = useAuth();
 
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
@@ -144,13 +144,13 @@ const Login = () => {
 
   useEffect(() => {
     if (loading || !user || !role) return;
-    const target = getRedirectPath(role as RedirectRole, inviteId);
+    const target = getRedirectPath(role as RedirectRole, inviteId, restaurantPlan);
     authDebug("Login", "Context-based redirect branch chosen", {
-      inviteId, resolvedRole: role, restaurantId, target, userId: user.id,
+      inviteId, resolvedRole: role, restaurantPlan, restaurantId, target, userId: user.id,
     });
     setPendingLoginRedirect({ inviteId, role, target, userId: user.id });
     navigate(target, { replace: true });
-  }, [user, role, loading, navigate, inviteId, restaurantId]);
+  }, [user, role, loading, navigate, inviteId, restaurantId, restaurantPlan]);
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
