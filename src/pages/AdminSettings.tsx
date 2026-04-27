@@ -10,7 +10,7 @@ import { User, Store, Save, Loader2, CreditCard, Check, Crown, Copy, AlertCircle
 import { useFeatureGate } from '@/hooks/useFeatureGate';
 import { useAuth } from "@/hooks/useAuth";
 
-// ── BrandingGate: High Smart only wrapper ──
+// ── BrandingGate: Medium Smart or higher wrapper ──
 const BrandingGate = ({ restaurantId, children }: { restaurantId: string | undefined; children: React.ReactNode }) => {
   const { hasAccess, loading } = useFeatureGate('custom_branding', restaurantId);
   if (loading) return <div className="animate-pulse bg-muted rounded-2xl h-40" />;
@@ -45,13 +45,14 @@ const BrandingGate = ({ restaurantId, children }: { restaurantId: string | undef
       </div>
       <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/70 backdrop-blur-[2px] rounded-2xl px-6 py-10">
         <div className="w-full max-w-sm text-center space-y-5">
-          <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center mx-auto shadow-2xl shadow-purple-500/40">
+          <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center mx-auto shadow-2xl shadow-purple-500/40">
             <Crown className="w-10 h-10 text-white" />
           </div>
           <div>
             <p className="font-display font-bold text-xl text-foreground">কাস্টম ব্র্যান্ডিং</p>
             <p className="text-sm text-muted-foreground mt-1">
-              এই ফিচারটি শুধুমাত্র <span className="font-semibold text-purple-500">High Smart Package</span>-এ পাওয়া যায়
+              এই ফিচারটি <span className="font-semibold text-blue-500">Medium Smart</span> বা{" "}
+              <span className="font-semibold text-purple-500">High Smart Package</span>-এ পাওয়া যায়
             </p>
           </div>
           <div className="text-left space-y-2 bg-purple-500/5 border border-purple-500/20 rounded-2xl px-4 py-3">
@@ -65,15 +66,15 @@ const BrandingGate = ({ restaurantId, children }: { restaurantId: string | undef
             ))}
           </div>
           <a
-            href="/upgrade?tier=high_smart"
+            href="/upgrade"
             className="flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl text-white font-bold text-base shadow-xl shadow-purple-500/30 hover:opacity-90 active:scale-[.98] transition-all"
-            style={{ background: 'linear-gradient(135deg, #a855f7, #7c3aed)' }}
+            style={{ background: 'linear-gradient(135deg, #3b82f6, #a855f7)' }}
           >
             <Crown className="w-5 h-5" />
-            High Smart Package কিনুন
+            প্যাকেজ আপগ্রেড করুন
           </a>
           <p className="text-xs text-muted-foreground">
-            মাত্র ৳১৯৯৯/মাস — সব প্রিমিয়াম ফিচার আনলক হবে
+            Medium Smart ৳৯৯৯/মাস বা High Smart ৳১৯৯৯/মাস
           </p>
         </div>
       </div>

@@ -140,15 +140,8 @@ const SuperAdminPayments = () => {
   const closeDialog = () => { setDialogOpen(false); setSelectedPayment(null); setAdminNotes(""); };
 
   const approveMutation = useMutation({
-    mutationFn: async ({ paymentId, plan, billingCycle, userId }: { paymentId: string; plan: string; billingCycle?: string; userId?: string }) => {
+    mutationFn: async ({ paymentId, plan, billingCycle }: { paymentId: string; plan: string; billingCycle?: string }) => {
       await invokePayment({ action: "approve", payment_id: paymentId, plan, billing_cycle: billingCycle, admin_notes: adminNotes || null });
-      // high_smart এবং enterprise উভয় ক্ষেত্রে group_owner role assign করো
-      if ((plan === "high_smart" || plan === "high_smart_enterprise") && userId) {
-        await supabase.from("user_roles").upsert(
-          { user_id: userId, role: "group_owner" },
-          { onConflict: "user_id,role" },
-        );
-      }
     },
     onSuccess: () => { toast.success("✅ পেমেন্ট অনুমোদিত! রেস্টুরেন্ট সক্রিয় করা হয়েছে।"); closeDialog(); invalidate(); },
     onError: (err: any) => toast.error(err.message),
@@ -521,7 +514,7 @@ const SuperAdminPayments = () => {
               {selectedPayment.status === "pending" && (
                 <div className="grid grid-cols-2 gap-3">
                   <Button variant="hero" className="h-10"
-                    onClick={() => approveMutation.mutate({ paymentId: selectedPayment.id, plan: editPlan, billingCycle: selectedPayment.billing_cycle, userId: selectedPayment.user_id })}
+                    onClick={() => approveMutation.mutate({ paymentId: selectedPayment.id, plan: editPlan, billingCycle: selectedPayment.billing_cycle })}
                     disabled={approveMutation.isPending}>
                     {approveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
                     <span className="ml-1">অনুমোদন</span>
@@ -571,3 +564,4 @@ const SuperAdminPayments = () => {
 };
 
 export default SuperAdminPayments;
+

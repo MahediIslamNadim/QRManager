@@ -1,11 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-/**
- * process-payment — super_admin approves/rejects/edits manual bKash/Nagad payments.
- * Actions: approve | reject | update | reopen | delete
- * Updated: April 26, 2026 — Added high_smart_enterprise support + group_owner role assignment
- */
-
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -23,37 +17,41 @@ interface RequestBody {
   status?: string;
 }
 
-// ✅ enterprise added
 const VALID_PLANS = [
-  "basic", "premium", "enterprise",
-  "medium_smart", "high_smart", "high_smart_enterprise",
+  "basic",
+  "premium",
+  "enterprise",
+  "medium_smart",
+  "high_smart",
+  "high_smart_enterprise",
 ] as const;
 
 const VALID_ACTIONS: Action[] = ["approve", "reject", "update", "reopen", "delete"];
 
-// Plans that require group_owner role
-const MULTI_LOCATION_PLANS = ["high_smart", "high_smart_enterprise"];
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
 
-function getExpiryDate(billingCycle?: string): string {
-  const d = new Date();
-  if (billingCycle === "yearly") d.setFullYear(d.getFullYear() + 1);
-  else d.setMonth(d.getMonth() + 1);
-  return d.toISOString();
+function getExpiryDate(billingCycle?: string) {
+  const date = new Date();
+  if (billingCycle === "yearly") date.setFullYear(date.getFullYear() + 1);
+  else date.setMonth(date.getMonth() + 1);
+  return date.toISOString();
 }
 
-// ✅ Returns correct tier string including enterprise
-function resolveTier(plan: string): string {
+function resolveTier(plan: string) {
   if (plan === "high_smart_enterprise") return "high_smart_enterprise";
   if (plan === "high_smart") return "high_smart";
-  if (plan === "medium_smart") return "medium_smart";
-  return "medium_smart"; // fallback
+  return "medium_smart";
 }
 
 async function hasOtherApprovedPayment(
   admin: ReturnType<typeof createClient>,
   restaurantId: string,
   excludePaymentId: string,
-): Promise<boolean> {
+) {
   const { data } = await admin
     .from("payment_requests")
     .select("id")
@@ -61,6 +59,7 @@ async function hasOtherApprovedPayment(
     .eq("status", "approved")
     .neq("id", excludePaymentId)
     .limit(1);
+
   return Array.isArray(data) && data.length > 0;
 }
 
@@ -77,216 +76,204 @@ async function notifyRestaurantAdmins(
     .eq("role", "admin")
     .eq("restaurant_id", restaurantId);
 
-  if (roles && roles.length > 0) {
-    await admin.from("notifications").insert(
-      roles.map((r: { user_id: string }) => ({
-        user_id: r.user_id,
-        restaurant_id: restaurantId,
-        title,
-        message,
-        type,
-      })),
-    );
-  }
+  if (!roles?.length) return;
+
+  await admin.from("notifications").insert(
+    roles.map((role: { user_id: string }) => ({
+      user_id: role.user_id,
+      restaurant_id: restaurantId,
+      title,
+      message,
+      type,
+    })),
+  );
 }
 
-// ✅ Assign group_owner role for multi-location plans
-async function assignGroupOwnerRole(
+async function bootstrapEnterpriseIfNeeded(
   admin: ReturnType<typeof createClient>,
   restaurantId: string,
   plan: string,
 ) {
-  if (!MULTI_LOCATION_PLANS.includes(plan)) return;
+  if (plan !== "high_smart_enterprise") return;
 
-  // Find the owner of this restaurant
-  const { data: restaurant } = await admin
-    .from("restaurants")
-    .select("owner_id")
-    .eq("id", restaurantId)
-    .single();
+  const { error } = await admin.rpc("ensure_enterprise_group", {
+    p_restaurant_id: restaurantId,
+    p_group_name: null,
+  });
 
-  if (!restaurant?.owner_id) return;
-
-  // Assign group_owner role
-  await admin.from("user_roles").upsert(
-    { user_id: restaurant.owner_id, role: "group_owner" },
-    { onConflict: "user_id,role" },
-  );
-
-  console.log(`[process-payment] Assigned group_owner role to user=${restaurant.owner_id} for plan=${plan}`);
+  if (error) throw error;
 }
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-
-  const json = (body: unknown, status = 200) =>
-    new Response(JSON.stringify(body), {
-      status,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
 
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) return json({ error: "Unauthorized" }, 401);
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceKey  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const anonKey     = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
     const callerClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
-    const { data: { user: caller }, error: authErr } = await callerClient.auth.getUser();
-    if (authErr || !caller) return json({ error: "Unauthorized" }, 401);
+    const admin = createClient(supabaseUrl, serviceRoleKey);
 
-    const admin = createClient(supabaseUrl, serviceKey);
+    const {
+      data: { user: caller },
+      error: authError,
+    } = await callerClient.auth.getUser();
+
+    if (authError || !caller) return json({ error: "Unauthorized" }, 401);
+
     const { data: roleRow } = await admin
       .from("user_roles")
       .select("role")
       .eq("user_id", caller.id)
       .eq("role", "super_admin")
       .maybeSingle();
+
     if (!roleRow) return json({ error: "Forbidden: super_admin only" }, 403);
 
-    let body: RequestBody;
-    try { body = await req.json(); } catch { return json({ error: "Invalid JSON body" }, 400); }
-
-    const { action, payment_id } = body;
-    if (!action || !VALID_ACTIONS.includes(action)) {
+    const body = await req.json().catch(() => null) as RequestBody | null;
+    if (!body?.action || !VALID_ACTIONS.includes(body.action)) {
       return json({ error: `Invalid action. Must be one of: ${VALID_ACTIONS.join(", ")}` }, 400);
     }
-    if (!payment_id) return json({ error: "payment_id is required" }, 400);
+    if (!body.payment_id) return json({ error: "payment_id is required" }, 400);
 
-    const { data: payment, error: fetchErr } = await admin
+    const { data: payment, error: paymentError } = await admin
       .from("payment_requests")
       .select("id, restaurant_id, plan, billing_cycle, status, user_id")
-      .eq("id", payment_id)
+      .eq("id", body.payment_id)
       .single();
-    if (fetchErr || !payment) return json({ error: "Payment request not found" }, 404);
+
+    if (paymentError || !payment) return json({ error: "Payment request not found" }, 404);
 
     const now = new Date().toISOString();
 
-    // ── APPROVE ─────────────────────────────────────────────────────────────
-    if (action === "approve") {
+    if (body.action === "approve") {
       const plan = body.plan ?? payment.plan;
-      if (!VALID_PLANS.includes(plan as typeof VALID_PLANS[number])) {
+      if (!VALID_PLANS.includes(plan as (typeof VALID_PLANS)[number])) {
         return json({ error: `Invalid plan: ${plan}` }, 400);
       }
 
       const expiryDate = getExpiryDate(body.billing_cycle ?? payment.billing_cycle);
-      const tier = resolveTier(plan); // ✅ correctly resolves enterprise
+      const tier = resolveTier(plan);
 
-      const { error: payErr } = await admin
+      const { error: paymentUpdateError } = await admin
         .from("payment_requests")
         .update({ status: "approved", admin_notes: body.admin_notes ?? null, updated_at: now })
-        .eq("id", payment_id);
-      if (payErr) return json({ error: "Internal server error" }, 500);
+        .eq("id", body.payment_id);
 
-      const { error: restErr } = await admin
+      if (paymentUpdateError) return json({ error: paymentUpdateError.message }, 500);
+
+      const { error: restaurantUpdateError } = await admin
         .from("restaurants")
         .update({
           status: "active_paid",
           subscription_status: "active",
           plan,
-          tier, // ✅ now correctly 'high_smart_enterprise'
+          tier,
           trial_ends_at: expiryDate,
           trial_end_date: expiryDate,
+          subscription_end_date: expiryDate,
           updated_at: now,
         })
         .eq("id", payment.restaurant_id);
-      if (restErr) return json({ error: "Internal server error" }, 500);
 
-      // ✅ Assign group_owner role for high_smart and enterprise
-      await assignGroupOwnerRole(admin, payment.restaurant_id, plan);
+      if (restaurantUpdateError) return json({ error: restaurantUpdateError.message }, 500);
 
-      const planLabel =
-        tier === "high_smart_enterprise" ? "হাই স্মার্ট এন্টারপ্রাইজ" :
-        tier === "high_smart" ? "হাই স্মার্ট" : "মিডিয়াম স্মার্ট";
+      await bootstrapEnterpriseIfNeeded(admin, payment.restaurant_id, plan);
 
       await notifyRestaurantAdmins(
-        admin, payment.restaurant_id,
-        "পেমেন্ট অনুমোদিত হয়েছে",
-        `আপনার ${planLabel} প্ল্যান সক্রিয় হয়েছে। এখন সব ফিচার ব্যবহার করতে পারবেন।`,
+        admin,
+        payment.restaurant_id,
+        "à¦ªà§‡à¦®à§‡à¦¨à§à¦Ÿ à¦…à¦¨à§à¦®à§‹à¦¦à¦¿à¦¤ à¦¹à¦¯à¦¼à§‡à¦›à§‡",
+        "Your subscription is now active.",
         "success",
       );
 
-      console.log(`[process-payment] APPROVE payment=${payment_id} plan=${plan} tier=${tier}`);
       return json({ success: true, action: "approve", tier });
     }
 
-    // ── REJECT ──────────────────────────────────────────────────────────────
-    if (action === "reject") {
+    if (body.action === "reject") {
       const { error } = await admin
         .from("payment_requests")
         .update({ status: "rejected", admin_notes: body.admin_notes ?? null, updated_at: now })
-        .eq("id", payment_id);
-      if (error) return json({ error: "Internal server error" }, 500);
+        .eq("id", body.payment_id);
+
+      if (error) return json({ error: error.message }, 500);
 
       if (payment.status === "approved") {
-        const otherApproved = await hasOtherApprovedPayment(admin, payment.restaurant_id, payment_id);
+        const otherApproved = await hasOtherApprovedPayment(admin, payment.restaurant_id, body.payment_id);
         if (!otherApproved) {
-          await admin.from("restaurants")
+          await admin
+            .from("restaurants")
             .update({ status: "inactive", subscription_status: "expired", updated_at: now })
             .eq("id", payment.restaurant_id);
         }
       }
 
       await notifyRestaurantAdmins(
-        admin, payment.restaurant_id,
-        "পেমেন্ট প্রত্যাখ্যান হয়েছে",
-        "আপনার পেমেন্ট রিকোয়েস্ট প্রত্যাখ্যান হয়েছে। বিস্তারিত জানতে সাপোর্টে যোগাযোগ করুন।",
+        admin,
+        payment.restaurant_id,
+        "à¦ªà§‡à¦®à§‡à¦¨à§à¦Ÿ à¦ªà§à¦°à¦¤à§à¦¯à¦¾à¦–à§à¦¯à¦¾à¦¨ à¦¹à¦¯à¦¼à§‡à¦›à§‡",
+        "Your payment request was rejected.",
         "error",
       );
 
       return json({ success: true, action: "reject" });
     }
 
-    // ── UPDATE ──────────────────────────────────────────────────────────────
-    if (action === "update") {
-      const newStatus = body.status ?? payment.status;
-      const newPlan   = body.plan   ?? payment.plan;
+    if (body.action === "update") {
+      const nextStatus = body.status ?? payment.status;
+      const nextPlan = body.plan ?? payment.plan;
 
-      if (!["pending", "approved", "rejected"].includes(newStatus as string)) {
+      if (!["pending", "approved", "rejected"].includes(nextStatus)) {
         return json({ error: "Invalid status value" }, 400);
       }
-      if (!VALID_PLANS.includes(newPlan as typeof VALID_PLANS[number])) {
-        return json({ error: `Invalid plan: ${newPlan}` }, 400);
+      if (!VALID_PLANS.includes(nextPlan as (typeof VALID_PLANS)[number])) {
+        return json({ error: `Invalid plan: ${nextPlan}` }, 400);
       }
 
-      const { error: payErr } = await admin
+      const { error: paymentUpdateError } = await admin
         .from("payment_requests")
         .update({
-          plan: newPlan,
+          plan: nextPlan,
           amount: body.amount,
-          status: newStatus,
+          status: nextStatus,
           admin_notes: body.admin_notes ?? null,
           updated_at: now,
         })
-        .eq("id", payment_id);
-      if (payErr) return json({ error: "Internal server error" }, 500);
+        .eq("id", body.payment_id);
 
-      if (newStatus === "approved") {
+      if (paymentUpdateError) return json({ error: paymentUpdateError.message }, 500);
+
+      if (nextStatus === "approved") {
         const expiryDate = getExpiryDate(payment.billing_cycle);
-        const tier = resolveTier(newPlan); // ✅
-        await admin.from("restaurants")
+        const tier = resolveTier(nextPlan);
+
+        await admin
+          .from("restaurants")
           .update({
             status: "active_paid",
             subscription_status: "active",
-            plan: newPlan,
+            plan: nextPlan,
             tier,
             trial_ends_at: expiryDate,
             trial_end_date: expiryDate,
+            subscription_end_date: expiryDate,
             updated_at: now,
           })
           .eq("id", payment.restaurant_id);
 
-        // ✅ Assign group_owner role
-        await assignGroupOwnerRole(admin, payment.restaurant_id, newPlan);
-
-      } else if (payment.status === "approved" && newStatus !== "approved") {
-        const otherApproved = await hasOtherApprovedPayment(admin, payment.restaurant_id, payment_id);
+        await bootstrapEnterpriseIfNeeded(admin, payment.restaurant_id, nextPlan);
+      } else if (payment.status === "approved") {
+        const otherApproved = await hasOtherApprovedPayment(admin, payment.restaurant_id, body.payment_id);
         if (!otherApproved) {
-          await admin.from("restaurants")
+          await admin
+            .from("restaurants")
             .update({ status: "inactive", subscription_status: "expired", updated_at: now })
             .eq("id", payment.restaurant_id);
         }
@@ -295,43 +282,47 @@ Deno.serve(async (req) => {
       return json({ success: true, action: "update" });
     }
 
-    // ── REOPEN ──────────────────────────────────────────────────────────────
-    if (action === "reopen") {
+    if (body.action === "reopen") {
       const { error } = await admin
         .from("payment_requests")
         .update({ status: "pending", updated_at: now })
-        .eq("id", payment_id);
-      if (error) return json({ error: "Internal server error" }, 500);
+        .eq("id", body.payment_id);
+
+      if (error) return json({ error: error.message }, 500);
 
       if (payment.status === "approved") {
-        const otherApproved = await hasOtherApprovedPayment(admin, payment.restaurant_id, payment_id);
+        const otherApproved = await hasOtherApprovedPayment(admin, payment.restaurant_id, body.payment_id);
         if (!otherApproved) {
-          await admin.from("restaurants")
+          await admin
+            .from("restaurants")
             .update({ status: "inactive", subscription_status: "expired", updated_at: now })
             .eq("id", payment.restaurant_id);
         }
       }
+
       return json({ success: true, action: "reopen" });
     }
 
-    // ── DELETE ──────────────────────────────────────────────────────────────
-    if (action === "delete") {
-      if (payment.status === "approved") {
-        const otherApproved = await hasOtherApprovedPayment(admin, payment.restaurant_id, payment_id);
-        if (!otherApproved) {
-          await admin.from("restaurants")
-            .update({ status: "inactive", subscription_status: "expired", updated_at: now })
-            .eq("id", payment.restaurant_id);
-        }
+    if (payment.status === "approved") {
+      const otherApproved = await hasOtherApprovedPayment(admin, payment.restaurant_id, body.payment_id);
+      if (!otherApproved) {
+        await admin
+          .from("restaurants")
+          .update({ status: "inactive", subscription_status: "expired", updated_at: now })
+          .eq("id", payment.restaurant_id);
       }
-      const { error } = await admin.from("payment_requests").delete().eq("id", payment_id);
-      if (error) return json({ error: "Internal server error" }, 500);
-      return json({ success: true, action: "delete" });
     }
 
-    return json({ error: "Unhandled action" }, 400);
-  } catch (err) {
-    console.error("[process-payment] error:", err);
-    return json({ error: String(err) }, 500);
+    const { error: deleteError } = await admin
+      .from("payment_requests")
+      .delete()
+      .eq("id", body.payment_id);
+
+    if (deleteError) return json({ error: deleteError.message }, 500);
+
+    return json({ success: true, action: "delete" });
+  } catch (error) {
+    console.error("[process-payment]", error);
+    return json({ error: error instanceof Error ? error.message : "Unexpected error" }, 500);
   }
 });

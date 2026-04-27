@@ -244,7 +244,7 @@ const CustomerMenu = () => {
   }, [myOrders, orderHistory]);
 
   // ── Branding (custom colors/logo from DB — High Smart only) ───────────
-  const isHighSmart    = restaurant?.tier === 'high_smart';
+  const isHighSmart    = restaurant?.tier === 'high_smart' || restaurant?.tier === 'high_smart_enterprise';
   const brandPrimary   = isHighSmart ? (restaurant?.brand_primary   || null) : null;
   const brandSecondary = isHighSmart ? (restaurant?.brand_secondary || null) : null;
   const brandFont      = isHighSmart ? (restaurant?.brand_font      || 'default') : 'default';

@@ -98,7 +98,7 @@ const AdminSetup = () => {
     try {
       // Double-check role assignment (edge fn should have done this already)
       await supabase.from("user_roles" as any).upsert(
-        { user_id: user.id, role: "admin" },
+        { user_id: user.id, role: "admin", restaurant_id: branchRestaurantId },
         { onConflict: "user_id,role" }
       );
 
@@ -106,6 +106,11 @@ const AdminSetup = () => {
       await supabase.from("profiles" as any).upsert(
         { id: user.id, restaurant_id: branchRestaurantId },
         { onConflict: "id" }
+      );
+
+      await supabase.from("staff_restaurants" as any).upsert(
+        { user_id: user.id, restaurant_id: branchRestaurantId, role: "admin" },
+        { onConflict: "user_id,restaurant_id" }
       );
 
       // Mark branch invitation as accepted now that user has confirmed

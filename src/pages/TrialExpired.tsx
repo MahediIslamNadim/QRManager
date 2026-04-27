@@ -10,16 +10,36 @@ import { AlertTriangle, Crown, LogOut, CheckCircle, Loader2, Smartphone, Zap, Gi
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { FREE_TRIAL_DAYS } from "@/constants/app";
-import { PLANS_LIST } from "@/constants/pricing";
+import { TIERS, formatPrice } from "@/constants/tiers";
 
-const paidPlans = PLANS_LIST.map(p => ({
-  id: p.id,
-  name: p.name,
-  price: p.monthlyPrice,
-  priceText: p.priceText,
-  features: p.features.slice(0, 4),
-  popular: 'popular' in p ? (p as any).popular : false,
-}));
+const paidPlans = [
+  {
+    id: "medium_smart",
+    name: TIERS.medium_smart.name_bn,
+    price: TIERS.medium_smart.price_monthly,
+    priceText: `${formatPrice(TIERS.medium_smart.price_monthly)}/মাস`,
+    features: [
+      "২০টি টেবিল, ৫ জন স্টাফ",
+      "QR অর্ডারিং ও মেনু ম্যানেজমেন্ট",
+      "অ্যানালিটিক্স ড্যাশবোর্ড",
+      "WhatsApp ও Email নোটিফিকেশন",
+    ],
+    popular: false,
+  },
+  {
+    id: "high_smart",
+    name: TIERS.high_smart.name_bn,
+    price: TIERS.high_smart.price_monthly,
+    priceText: `${formatPrice(TIERS.high_smart.price_monthly)}/মাস`,
+    features: [
+      "আনলিমিটেড টেবিল ও স্টাফ",
+      "AI সুপারিশ ও অ্যাডভান্সড অ্যানালিটিক্স",
+      "কাস্টম ব্র্যান্ডিং (লোগো ও রঙ)",
+      "প্রায়োরিটি সাপোর্ট",
+    ],
+    popular: true,
+  },
+];
 
 const BKASH_NUMBER = import.meta.env.VITE_BKASH_NUMBER || "01786130439";
 const NAGAD_NUMBER = import.meta.env.VITE_NAGAD_NUMBER || import.meta.env.VITE_BKASH_NUMBER || "01786130439";
@@ -42,9 +62,6 @@ const TrialExpired = () => {
     if (!user || !restaurantId) return;
     setActivatingTrial(true);
     try {
-      // Call backend edge function to enforce one-trial-per-restaurant rule.
-      // Direct client-side writes to restaurants table are intentionally removed
-      // to prevent unlimited trial re-activation bypasses.
       const { data: { session } } = await supabase.auth.getSession();
       const res = await supabase.functions.invoke("activate-trial", {
         body: { restaurant_id: restaurantId },
@@ -116,7 +133,7 @@ const TrialExpired = () => {
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="max-w-4xl w-full space-y-8 animate-fade-up">
+      <div className="max-w-3xl w-full space-y-8 animate-fade-up">
         <div className="text-center space-y-3">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-warning/10 mx-auto">
             <AlertTriangle className="w-8 h-8 text-warning" />
@@ -140,7 +157,10 @@ const TrialExpired = () => {
             </div>
             <div className="flex-1 text-center sm:text-left space-y-1">
               <h3 className="text-xl font-display font-bold text-foreground">ফ্রি ট্রায়াল — {FREE_TRIAL_DAYS} দিন</h3>
-              <p className="text-muted-foreground text-sm">কোনো পেমেন্ট ছাড়াই Basic ফিচার ব্যবহার করুন। মেনু, QR কোড, অর্ডার ম্যানেজমেন্ট সব ফ্রি!</p>
+              <p className="text-muted-foreground text-sm">
+                কোনো পেমেন্ট ছাড়াই Medium Smart ফিচার ব্যবহার করুন।
+                মেনু, QR কোড, অর্ডার ম্যানেজমেন্ট সব ফ্রি!
+              </p>
               <p className="text-xs text-success font-medium">✦ কোনো টাকা লাগবে না • স্বয়ংক্রিয়ভাবে সক্রিয় হবে</p>
             </div>
             <Button
@@ -163,14 +183,17 @@ const TrialExpired = () => {
           <div className="flex-1 h-px bg-border" />
         </div>
 
-        {/* Paid Plans */}
-        <div className="grid sm:grid-cols-3 gap-4">
+        {/* Paid Plans — Medium Smart & High Smart only */}
+        <div className="grid sm:grid-cols-2 gap-4">
           {paidPlans.map((plan) => (
             <Card
               key={plan.id}
               className={`relative cursor-pointer transition-all ${
-                selectedPlan === plan.id ? "border-primary shadow-lg ring-2 ring-primary/20" :
-                plan.popular ? "border-primary/50" : ""
+                selectedPlan === plan.id
+                  ? "border-primary shadow-lg ring-2 ring-primary/20"
+                  : plan.popular
+                  ? "border-primary/50"
+                  : ""
               }`}
               onClick={() => setSelectedPlan(plan.id)}
             >
@@ -211,13 +234,17 @@ const TrialExpired = () => {
           <Card className="animate-fade-up">
             <CardHeader>
               <CardTitle className="text-lg font-display flex items-center gap-2">
-                <Smartphone className="w-5 h-5" /> পেমেন্ট করুন — {selectedPlanData?.name} ({selectedPlanData?.priceText})
+                <Smartphone className="w-5 h-5" />
+                পেমেন্ট করুন — {selectedPlanData?.name} ({selectedPlanData?.priceText})
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="bg-accent/50 rounded-lg p-4 space-y-2 text-sm">
                 <p className="font-medium text-foreground">পেমেন্ট নির্দেশনা:</p>
-                <p className="text-muted-foreground">১. নিচের যেকোনো একটি নম্বরে <strong className="text-primary">{selectedPlanData?.priceText}</strong> পাঠান</p>
+                <p className="text-muted-foreground">
+                  ১. নিচের যেকোনো একটি নম্বরে{" "}
+                  <strong className="text-primary">{selectedPlanData?.priceText}</strong> পাঠান
+                </p>
                 <div className="grid grid-cols-2 gap-3 my-2">
                   <div className="bg-background rounded-md p-3 text-center border border-border">
                     <p className="font-bold text-primary">bKash</p>
@@ -231,6 +258,9 @@ const TrialExpired = () => {
                   </div>
                 </div>
                 <p className="text-muted-foreground">২. Transaction ID নিচে দিন</p>
+                <p className="text-xs text-muted-foreground">
+                  ✦ পেমেন্ট যাচাই হলে ১-২ ঘণ্টার মধ্যে অ্যাকাউন্ট সক্রিয় হবে।
+                </p>
               </div>
 
               <div className="grid sm:grid-cols-2 gap-4">
@@ -246,12 +276,18 @@ const TrialExpired = () => {
                 </div>
                 <div className="space-y-2">
                   <Label>আপনার মোবাইল নম্বর</Label>
-                  <Input placeholder="01XXXXXXXXX" value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)} />
+                  <Input
+                    placeholder="01XXXXXXXXX"
+                    value={phoneNumber}
+                    onChange={e => setPhoneNumber(e.target.value)}
+                  />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label>Transaction ID <span className="text-destructive">*</span></Label>
+                <Label>
+                  Transaction ID <span className="text-destructive">*</span>
+                </Label>
                 <Input
                   placeholder="যেমন: TXN12345ABC"
                   value={transactionId}

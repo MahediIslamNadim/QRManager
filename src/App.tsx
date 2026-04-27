@@ -46,6 +46,14 @@ import AdminSupport from "./pages/AdminSupport";
 import PaymentResultPage from "./pages/PaymentResultPage";
 import EnterpriseSetup from "./pages/EnterpriseSetup";
 import EnterpriseDashboard from "./pages/EnterpriseDashboard";
+import EnterpriseRestaurants from "./pages/EnterpriseRestaurants";
+import EnterpriseRestaurantDetails from "./pages/EnterpriseRestaurantDetails";
+import EnterpriseAnalytics from "./pages/EnterpriseAnalytics";
+import EnterpriseTopSelling from "./pages/EnterpriseTopSelling";
+import EnterpriseMenus from "./pages/EnterpriseMenus";
+import EnterpriseAddRestaurant from "./pages/EnterpriseAddRestaurant";
+import EnterpriseNotices from "./pages/EnterpriseNotices";
+import EnterpriseSettings from "./pages/EnterpriseSettings";
 import GroupDashboard from "./pages/GroupDashboard";
 import GroupSetup from "./pages/GroupSetup";
 
@@ -152,24 +160,32 @@ const App = () => (
               {/* ── Enterprise (group_owner) ── */}
               <Route path="/enterprise/setup" element={<ProtectedRoute allowedRoles={["group_owner", "super_admin"]}><EnterpriseSetup /></ProtectedRoute>} />
               <Route path="/enterprise/dashboard" element={<ProtectedRoute allowedRoles={["group_owner", "super_admin"]}><EnterpriseDashboard /></ProtectedRoute>} />
+              <Route path="/enterprise/restaurants" element={<ProtectedRoute allowedRoles={["group_owner", "super_admin"]}><EnterpriseRestaurants /></ProtectedRoute>} />
+              <Route path="/enterprise/restaurants/new" element={<ProtectedRoute allowedRoles={["group_owner", "super_admin"]}><EnterpriseAddRestaurant /></ProtectedRoute>} />
+              <Route path="/enterprise/restaurants/:restaurantId" element={<ProtectedRoute allowedRoles={["group_owner", "super_admin"]}><EnterpriseRestaurantDetails /></ProtectedRoute>} />
+              <Route path="/enterprise/analytics" element={<ProtectedRoute allowedRoles={["group_owner", "super_admin"]}><EnterpriseAnalytics /></ProtectedRoute>} />
+              <Route path="/enterprise/top-selling" element={<ProtectedRoute allowedRoles={["group_owner", "super_admin"]}><EnterpriseTopSelling /></ProtectedRoute>} />
+              <Route path="/enterprise/menus" element={<ProtectedRoute allowedRoles={["group_owner", "super_admin"]}><EnterpriseMenus /></ProtectedRoute>} />
+              <Route path="/enterprise/notices" element={<ProtectedRoute allowedRoles={["group_owner", "super_admin"]}><EnterpriseNotices /></ProtectedRoute>} />
+              <Route path="/enterprise/settings" element={<ProtectedRoute allowedRoles={["group_owner", "super_admin"]}><EnterpriseSettings /></ProtectedRoute>} />
 
               {/* ── Group (Multi-Location) ── */}
-              <Route path="/group/setup" element={<ProtectedRoute allowedRoles={["admin", "group_owner", "super_admin"]}><GroupSetup /></ProtectedRoute>} />
-              <Route path="/group/:groupId" element={<ProtectedRoute allowedRoles={["admin", "group_owner", "super_admin"]}><GroupDashboard /></ProtectedRoute>} />
+              <Route path="/group/setup" element={<ProtectedRoute allowedRoles={["super_admin"]}><GroupSetup /></ProtectedRoute>} />
+              <Route path="/group/:groupId" element={<ProtectedRoute allowedRoles={["super_admin"]}><GroupDashboard /></ProtectedRoute>} />
 
               {/* ── Admin ── */}
-              <Route path="/admin" element={<ProtectedRoute allowedRoles={["admin", "super_admin", "group_owner"]}><AdminDashboard /></ProtectedRoute>} />
-              <Route path="/admin/menu" element={<ProtectedRoute allowedRoles={["admin", "super_admin", "group_owner"]}><AdminMenu /></ProtectedRoute>} />
-              <Route path="/admin/tables" element={<ProtectedRoute allowedRoles={["admin", "super_admin", "group_owner"]}><AdminTables /></ProtectedRoute>} />
-              <Route path="/admin/orders" element={<ProtectedRoute allowedRoles={["admin", "super_admin", "group_owner"]}><AdminOrders /></ProtectedRoute>} />
-              <Route path="/admin/staff" element={<ProtectedRoute allowedRoles={["admin", "super_admin", "group_owner"]}><AdminStaff /></ProtectedRoute>} />
-              <Route path="/admin/analytics" element={<ProtectedRoute allowedRoles={["admin", "super_admin", "group_owner"]}><AdminAnalytics /></ProtectedRoute>} />
-              <Route path="/admin/settings" element={<ProtectedRoute allowedRoles={["admin", "super_admin", "group_owner"]}><AdminSettings /></ProtectedRoute>} />
-              <Route path="/admin/kitchen" element={<ProtectedRoute allowedRoles={["admin", "super_admin", "waiter", "kitchen", "group_owner"]}><KitchenDisplay /></ProtectedRoute>} />
-              <Route path="/admin/ai-insights" element={<ProtectedRoute allowedRoles={["admin", "super_admin", "group_owner"]}><AIInsights /></ProtectedRoute>} />
-              <Route path="/admin/reports" element={<ProtectedRoute allowedRoles={["admin", "super_admin", "group_owner"]}><AdminReports /></ProtectedRoute>} />
-              <Route path="/admin/feedback" element={<ProtectedRoute allowedRoles={["admin", "super_admin", "group_owner"]}><AdminFeedback /></ProtectedRoute>} />
-              <Route path="/admin/support" element={<ProtectedRoute allowedRoles={["admin", "super_admin", "group_owner"]}><AdminSupport /></ProtectedRoute>} />
+              <Route path="/admin" element={<ProtectedRoute allowedRoles={["admin", "super_admin"]}><AdminDashboard /></ProtectedRoute>} />
+              <Route path="/admin/menu" element={<ProtectedRoute allowedRoles={["admin", "super_admin"]}><AdminMenu /></ProtectedRoute>} />
+              <Route path="/admin/tables" element={<ProtectedRoute allowedRoles={["admin", "super_admin"]}><AdminTables /></ProtectedRoute>} />
+              <Route path="/admin/orders" element={<ProtectedRoute allowedRoles={["admin", "super_admin"]}><AdminOrders /></ProtectedRoute>} />
+              <Route path="/admin/staff" element={<ProtectedRoute allowedRoles={["admin", "super_admin"]}><AdminStaff /></ProtectedRoute>} />
+              <Route path="/admin/analytics" element={<ProtectedRoute allowedRoles={["admin", "super_admin"]}><AdminAnalytics /></ProtectedRoute>} />
+              <Route path="/admin/settings" element={<ProtectedRoute allowedRoles={["admin", "super_admin"]}><AdminSettings /></ProtectedRoute>} />
+              <Route path="/admin/kitchen" element={<ProtectedRoute allowedRoles={["admin", "super_admin", "waiter", "kitchen"]}><KitchenDisplay /></ProtectedRoute>} />
+              <Route path="/admin/ai-insights" element={<ProtectedRoute allowedRoles={["admin", "super_admin"]}><AIInsights /></ProtectedRoute>} />
+              <Route path="/admin/reports" element={<ProtectedRoute allowedRoles={["admin", "super_admin"]}><AdminReports /></ProtectedRoute>} />
+              <Route path="/admin/feedback" element={<ProtectedRoute allowedRoles={["admin", "super_admin"]}><AdminFeedback /></ProtectedRoute>} />
+              <Route path="/admin/support" element={<ProtectedRoute allowedRoles={["admin", "super_admin"]}><AdminSupport /></ProtectedRoute>} />
 
               {/* ── Billing / Upgrade ── */}
               <Route path="/upgrade" element={<ProtectedRoute allowedRoles={["admin", "super_admin", "group_owner"]}><UpgradePage /></ProtectedRoute>} />

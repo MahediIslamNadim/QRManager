@@ -50,9 +50,11 @@ export function useRestaurantGroup(groupId: string | null) {
           .from('restaurants')
           .select('id, name, branch_code, status, address, phone, subscription_status, group_id, is_branch')
           .eq('group_id', groupId)
+          .eq('is_branch', true)
           .order('name'),
       ]);
       if (groupRes.error) throw groupRes.error;
+      if (branchRes.error) throw branchRes.error;
       return {
         ...(groupRes.data as RestaurantGroup),
         branches: (branchRes.data ?? []) as BranchInfo[],

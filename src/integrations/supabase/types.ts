@@ -7,8 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.4"
   }
@@ -179,12 +177,12 @@ export type Database = {
           image_url: string | null
           name: string
           prep_time_minutes: number | null
-            price: number
-            restaurant_id: string
-            shared_menu_item_id: string | null
-            sort_order: number
-            stock_quantity: number | null
-            updated_at: string
+          price: number
+          restaurant_id: string
+          shared_menu_item_id: string | null
+          sort_order: number
+          stock_quantity: number | null
+          updated_at: string
         }
         Insert: {
           available?: boolean
@@ -195,12 +193,12 @@ export type Database = {
           image_url?: string | null
           name: string
           prep_time_minutes?: number | null
-            price?: number
-            restaurant_id: string
-            shared_menu_item_id?: string | null
-            sort_order?: number
-            stock_quantity?: number | null
-            updated_at?: string
+          price?: number
+          restaurant_id: string
+          shared_menu_item_id?: string | null
+          sort_order?: number
+          stock_quantity?: number | null
+          updated_at?: string
         }
         Update: {
           available?: boolean
@@ -211,24 +209,24 @@ export type Database = {
           image_url?: string | null
           name?: string
           prep_time_minutes?: number | null
-            price?: number
-            restaurant_id?: string
-            shared_menu_item_id?: string | null
-            sort_order?: number
-            stock_quantity?: number | null
-            updated_at?: string
+          price?: number
+          restaurant_id?: string
+          shared_menu_item_id?: string | null
+          sort_order?: number
+          stock_quantity?: number | null
+          updated_at?: string
         }
-          Relationships: [
-            {
-              foreignKeyName: "menu_items_shared_menu_item_id_fkey"
-              columns: ["shared_menu_item_id"]
-              isOneToOne: false
-              referencedRelation: "group_shared_menus"
-              referencedColumns: ["id"]
-            },
-            {
-              foreignKeyName: "menu_items_restaurant_id_fkey"
-              columns: ["restaurant_id"]
+        Relationships: [
+          {
+            foreignKeyName: "menu_items_shared_menu_item_id_fkey"
+            columns: ["shared_menu_item_id"]
+            isOneToOne: false
+            referencedRelation: "group_shared_menus"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "menu_items_restaurant_id_fkey"
+            columns: ["restaurant_id"]
             isOneToOne: false
             referencedRelation: "restaurants"
             referencedColumns: ["id"]
@@ -237,39 +235,39 @@ export type Database = {
       }
       support_tickets: {
         Row: {
-          id: string
-          restaurant_id: string
-          subject: string
-          description: string
-          category: string
-          priority: string
-          status: string
           admin_reply: string | null
+          category: string
           created_at: string
+          description: string
+          id: string
+          priority: string
+          restaurant_id: string
+          status: string
+          subject: string
           updated_at: string
         }
         Insert: {
-          id?: string
-          restaurant_id: string
-          subject: string
-          description: string
-          category?: string
-          priority?: string
-          status?: string
           admin_reply?: string | null
+          category?: string
           created_at?: string
+          description: string
+          id?: string
+          priority?: string
+          restaurant_id: string
+          status?: string
+          subject: string
           updated_at?: string
         }
         Update: {
-          id?: string
-          restaurant_id?: string
-          subject?: string
-          description?: string
-          category?: string
-          priority?: string
-          status?: string
           admin_reply?: string | null
+          category?: string
           created_at?: string
+          description?: string
+          id?: string
+          priority?: string
+          restaurant_id?: string
+          status?: string
+          subject?: string
           updated_at?: string
         }
         Relationships: [
@@ -588,10 +586,10 @@ export type Database = {
       restaurants: {
         Row: {
           address: string | null
+          billing_cycle: string | null
           brand_font: string | null
           brand_primary: string | null
           brand_secondary: string | null
-          billing_cycle: string | null
           branch_code: string | null
           created_at: string
           group_id: string | null
@@ -600,7 +598,9 @@ export type Database = {
           logo_url: string | null
           name: string
           next_billing_date: string | null
+          notification_email: string | null
           notify_daily_report: boolean | null
+          notify_email: boolean
           notify_new_order: boolean | null
           owner_id: string | null
           phone: string | null
@@ -619,10 +619,10 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          billing_cycle?: string | null
           brand_font?: string | null
           brand_primary?: string | null
           brand_secondary?: string | null
-          billing_cycle?: string | null
           branch_code?: string | null
           created_at?: string
           group_id?: string | null
@@ -631,7 +631,9 @@ export type Database = {
           logo_url?: string | null
           name: string
           next_billing_date?: string | null
+          notification_email?: string | null
           notify_daily_report?: boolean | null
+          notify_email?: boolean
           notify_new_order?: boolean | null
           owner_id?: string | null
           phone?: string | null
@@ -650,10 +652,10 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          billing_cycle?: string | null
           brand_font?: string | null
           brand_primary?: string | null
           brand_secondary?: string | null
-          billing_cycle?: string | null
           branch_code?: string | null
           created_at?: string
           group_id?: string | null
@@ -662,7 +664,9 @@ export type Database = {
           logo_url?: string | null
           name?: string
           next_billing_date?: string | null
+          notification_email?: string | null
           notify_daily_report?: boolean | null
+          notify_email?: boolean
           notify_new_order?: boolean | null
           owner_id?: string | null
           phone?: string | null
@@ -902,53 +906,53 @@ export type Database = {
         Row: {
           id: string
           role: Database["public"]["Enums"]["app_role"]
-          user_id: string
           restaurant_id: string | null
+          user_id: string
         }
         Insert: {
           id?: string
           role: Database["public"]["Enums"]["app_role"]
-          user_id: string
           restaurant_id?: string | null
+          user_id: string
         }
         Update: {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
-          user_id?: string
           restaurant_id?: string | null
+          user_id?: string
         }
         Relationships: []
       }
       branch_invitations: {
         Row: {
-          id: string
-          group_id: string
-          restaurant_id: string
-          invited_email: string
-          invited_by: string | null
-          status: 'pending' | 'accepted' | 'expired'
-          created_at: string
           accepted_at: string | null
+          created_at: string
+          group_id: string
+          id: string
+          invited_by: string | null
+          invited_email: string
+          restaurant_id: string
+          status: 'pending' | 'accepted' | 'expired'
         }
         Insert: {
-          id?: string
-          group_id: string
-          restaurant_id: string
-          invited_email: string
-          invited_by?: string | null
-          status?: 'pending' | 'accepted' | 'expired'
-          created_at?: string
           accepted_at?: string | null
+          created_at?: string
+          group_id: string
+          id?: string
+          invited_by?: string | null
+          invited_email: string
+          restaurant_id: string
+          status?: 'pending' | 'accepted' | 'expired'
         }
         Update: {
-          id?: string
-          group_id?: string
-          restaurant_id?: string
-          invited_email?: string
-          invited_by?: string | null
-          status?: 'pending' | 'accepted' | 'expired'
-          created_at?: string
           accepted_at?: string | null
+          created_at?: string
+          group_id?: string
+          id?: string
+          invited_by?: string | null
+          invited_email?: string
+          restaurant_id?: string
+          status?: 'pending' | 'accepted' | 'expired'
         }
         Relationships: [
           {
@@ -971,35 +975,80 @@ export type Database = {
     Views: {
       [_ in never]: never
     }
-      Functions: {
-        get_group_analytics: { Args: { p_group_id: string }; Returns: Json }
-        get_restaurant_staff: { Args: { _restaurant_id: string }; Returns: Json }
-        get_user_restaurant_id: { Args: { _user_id: string }; Returns: string }
-        has_role: {
-          Args: {
-            _role: Database["public"]["Enums"]["app_role"]
-            _user_id: string
-          }
-          Returns: boolean
-        }
-        is_group_owner: { Args: { p_group_id: string }; Returns: boolean }
-        is_restaurant_admin: {
-          Args: { _restaurant_id: string; _user_id: string }
-          Returns: boolean
-        }
-        sync_shared_menu_item_to_branches: {
-          Args: { p_shared_menu_item_id: string }
-          Returns: undefined
-        }
-        sync_shared_menu_to_branch: {
-          Args: { p_restaurant_id: string }
-          Returns: undefined
-        }
-        validate_table_token: { Args: { _token: string }; Returns: boolean }
+    Functions: {
+      can_manage_enterprise_group: {
+        Args: { p_group_id: string; p_user_id?: string }
+        Returns: boolean
       }
-      Enums: {
-        app_role: "super_admin" | "admin" | "waiter" | "kitchen" | "group_owner"
+      ensure_enterprise_group: {
+        Args: { p_restaurant_id: string; p_group_name?: string }
+        Returns: string
       }
+      get_enterprise_analytics: {
+        Args: { p_group_id: string; p_restaurant_id?: string }
+        Returns: Json
+      }
+      get_enterprise_dashboard_summary: {
+        Args: { p_group_id: string }
+        Returns: Json
+      }
+      get_enterprise_restaurant_list: {
+        Args: { p_group_id: string }
+        Returns: {
+          restaurant_id: string
+          name: string
+          address: string | null
+          phone: string | null
+          status: string
+          branch_code: string | null
+          subscription_status: string | null
+          created_at: string
+          today_orders: number
+          today_revenue: number
+          total_orders: number
+          total_revenue: number
+          menu_items_count: number
+          staff_count: number
+        }[]
+      }
+      get_enterprise_top_selling: {
+        Args: { p_group_id: string }
+        Returns: {
+          restaurant_id: string
+          restaurant_name: string
+          item_name: string
+          quantity: number
+          revenue: number
+        }[]
+      }
+      get_group_analytics: { Args: { p_group_id: string }; Returns: Json }
+      get_restaurant_staff: { Args: { _restaurant_id: string }; Returns: Json }
+      get_user_restaurant_id: { Args: { _user_id: string }; Returns: string }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      is_group_owner: { Args: { p_group_id: string }; Returns: boolean }
+      is_restaurant_admin: {
+        Args: { _restaurant_id: string; _user_id: string }
+        Returns: boolean
+      }
+      sync_shared_menu_item_to_branches: {
+        Args: { p_shared_menu_item_id: string }
+        Returns: undefined
+      }
+      sync_shared_menu_to_branch: {
+        Args: { p_restaurant_id: string }
+        Returns: undefined
+      }
+      validate_table_token: { Args: { _token: string }; Returns: boolean }
+    }
+    Enums: {
+      app_role: "super_admin" | "admin" | "waiter" | "kitchen" | "group_owner"
+    }
     CompositeTypes: {
       [_ in never]: never
     }
@@ -1125,8 +1174,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-      Enums: {
-        app_role: ["super_admin", "admin", "waiter", "kitchen", "group_owner"],
-      },
+    Enums: {
+      app_role: ["super_admin", "admin", "waiter", "kitchen", "group_owner"],
+    },
   },
 } as const

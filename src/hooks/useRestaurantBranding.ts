@@ -25,7 +25,7 @@ export function useRestaurantBranding(restaurantId: string | null | undefined): 
     staleTime: 5 * 60 * 1000,
   });
 
-  const isHighSmart = data?.tier === "high_smart";
+  const isHighSmart = data?.tier === "high_smart" || data?.tier === "high_smart_enterprise";
   return {
     logoUrl: isHighSmart ? (data?.logo_url || null) : null,
     brandPrimary: isHighSmart ? (data?.brand_primary || null) : null,

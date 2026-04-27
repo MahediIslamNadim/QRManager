@@ -117,6 +117,10 @@ const SuperAdminRestaurants = () => {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
+      if (!editingId && formPlan === "high_smart_enterprise") {
+        throw new Error("Use the dedicated Enterprise create flow for a brand new enterprise account.");
+      }
+
       if (editingId) {
         const { error } = await supabase
           .from("restaurants")
@@ -126,14 +130,28 @@ const SuperAdminRestaurants = () => {
           })
           .eq("id", editingId);
         if (error) throw error;
+        if (formPlan === "high_smart_enterprise") {
+          const { error: bootstrapError } = await supabase.functions.invoke("bootstrap-enterprise-restaurant", {
+            body: { restaurant_id: editingId, group_name: formName },
+          });
+          if (bootstrapError) throw new Error(bootstrapError.message);
+        }
       } else {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from("restaurants")
           .insert({
             name: formName, address: formAddress, phone: formPhone,
             status: formStatus, tier: formPlan, subscription_status: "trial",
-          });
+          })
+          .select("id")
+          .single();
         if (error) throw error;
+        if (formPlan === "high_smart_enterprise" && data?.id) {
+          const { error: bootstrapError } = await supabase.functions.invoke("bootstrap-enterprise-restaurant", {
+            body: { restaurant_id: data.id, group_name: formName },
+          });
+          if (bootstrapError) throw new Error(bootstrapError.message);
+        }
       }
     },
     onSuccess: () => {
