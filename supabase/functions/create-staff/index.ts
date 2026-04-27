@@ -35,16 +35,14 @@ Deno.serve(async (req) => {
       });
     }
 
-    // ✅ group_owner যোগ করা হয়েছে
+    // Check caller has admin or super_admin role
     const { data: callerRoles } = await callerClient
       .from("user_roles")
       .select("role")
       .eq("user_id", caller.id);
 
-    const isAuthorized = callerRoles?.some(
-      r => r.role === "admin" || r.role === "super_admin" || r.role === "group_owner"
-    );
-    if (!isAuthorized) {
+    const isAdmin = callerRoles?.some(r => r.role === "admin" || r.role === "super_admin");
+    if (!isAdmin) {
       return new Response(JSON.stringify({ error: "Permission denied" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -71,6 +69,7 @@ Deno.serve(async (req) => {
     const { action, email, password, full_name, role, restaurant_id, user_id } = parsed;
     const requestedAction = action === "remove" ? "remove" : "add";
     const allowedRoles = ["admin", "waiter", "kitchen"] as const;
+
 
     if (requestedAction === "remove" && typeof user_id !== "string") {
       return new Response(JSON.stringify({ error: "User ID is required" }), {
@@ -105,86 +104,35 @@ Deno.serve(async (req) => {
       ? role as (typeof allowedRoles)[number]
       : null;
 
-    // ✅ group_owner-এর restaurant_id তার owned restaurant থেকে নেওয়া হবে
+    // Resolve caller's own restaurant_id
+    const { data: callerRest } = await callerClient
+      .from("restaurants")
+      .select("id")
+      .eq("owner_id", caller.id)
+      .limit(1)
+      .single();
+
+    // super_admin may pass any restaurant_id; admin must own theirs
     const isSuperAdmin = callerRoles?.some(r => r.role === "super_admin");
-    const requestedRestaurantId = typeof restaurant_id === "string" ? restaurant_id : undefined;
     let restId: string | undefined;
 
-    const loadRestaurant = async (targetId: string) => {
-      const { data, error } = await callerClient
+    if (isSuperAdmin && restaurant_id) {
+      // Verify the target restaurant actually exists
+      const { data: targetRest } = await callerClient
         .from("restaurants")
-        .select("id, owner_id, group_id")
-        .eq("id", targetId)
-        .maybeSingle();
-      if (error) throw error;
-      return data as { id: string; owner_id: string | null; group_id: string | null } | null;
-    };
-
-    if (requestedRestaurantId) {
-      // super_admin বা group_owner: provided restaurant_id use করতে পারবে
-      const targetRest = await loadRestaurant(requestedRestaurantId);
+        .select("id")
+        .eq("id", restaurant_id)
+        .single();
       if (!targetRest) {
         return new Response(JSON.stringify({ error: "Restaurant not found" }), {
           status: 404,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      const { data: callerStaffLink, error: callerStaffLinkError } = await callerClient
-        .from("staff_restaurants")
-        .select("role")
-        .eq("user_id", caller.id)
-        .eq("restaurant_id", requestedRestaurantId)
-        .maybeSingle();
-
-      if (callerStaffLinkError) throw callerStaffLinkError;
-
-      let isTargetGroupOwner = false;
-      if (targetRest.group_id) {
-        const { data: ownedGroup, error: groupError } = await callerClient
-          .from("restaurant_groups")
-          .select("id")
-          .eq("id", targetRest.group_id)
-          .eq("owner_id", caller.id)
-          .maybeSingle();
-        if (groupError) throw groupError;
-        isTargetGroupOwner = Boolean(ownedGroup);
-      }
-
-      const isTargetOwner = targetRest.owner_id === caller.id;
-      const isTargetStaffAdmin = callerStaffLink?.role === "admin";
-
-      if (!isSuperAdmin && !isTargetOwner && !isTargetGroupOwner && !isTargetStaffAdmin) {
-        return new Response(JSON.stringify({ error: "Permission denied for this restaurant" }), {
-          status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      restId = targetRest.id;
+      restId = restaurant_id;
     } else {
-      // Regular admin: নিজের restaurant ব্যবহার করে
-      const { data: callerRest, error: callerRestError } = await callerClient
-        .from("restaurants")
-        .select("id")
-        .eq("owner_id", caller.id)
-        .limit(1)
-        .maybeSingle();
-
-      if (callerRestError) throw callerRestError;
+      // Regular admin: always use their own restaurant, ignore any provided restaurant_id
       restId = callerRest?.id;
-
-      if (!restId) {
-        const { data: adminLink, error: adminLinkError } = await callerClient
-          .from("staff_restaurants")
-          .select("restaurant_id")
-          .eq("user_id", caller.id)
-          .eq("role", "admin")
-          .limit(1)
-          .maybeSingle();
-
-        if (adminLinkError) throw adminLinkError;
-        restId = adminLink?.restaurant_id;
-      }
     }
 
     if (!restId) {
@@ -257,12 +205,6 @@ Deno.serve(async (req) => {
 
         if (insertRoleErr) throw insertRoleErr;
       }
-
-      // Update profiles.restaurant_id for this user
-      await callerClient
-        .from("profiles")
-        .update({ restaurant_id: restId })
-        .eq("id", userId);
 
       const linkPayload = { user_id: userId, restaurant_id: restId, role: desiredRole };
       let { error: linkErr } = await callerClient
@@ -392,7 +334,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Create new user
+    // Create user
     const { data: newUser, error: createErr } = await callerClient.auth.admin.createUser({
       email: normalizedEmail,
       password,

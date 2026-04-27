@@ -107,14 +107,14 @@ const CustomerMenu = () => {
   });
 
   // ── Sanitize user text input ──────────────────────────────────────────────
-  const stripControlCharacters = (value: string): string =>
-    Array.from(value).filter((char) => {
-      const code = char.charCodeAt(0);
-      return code === 9 || code === 10 || code === 13 || (code >= 32 && code !== 127);
-    }).join("");
-
   const sanitize = (text: string, maxLen = 500): string =>
-    stripControlCharacters(text.trim().replace(/<[^>]*>/g, "")).slice(0, maxLen);
+    Array.from(text.trim().replace(/<[^>]*>/g, ""))
+      .filter((char) => {
+        const code = char.charCodeAt(0);
+        return code > 31 && code !== 127;
+      })
+      .join("")
+      .slice(0, maxLen);
 
   // ── Item ratings from reviews table (with realtime) ───────────────────────
   const [itemRatings, setItemRatings] = useState<Record<string, { avg: number; count: number }>>({});
@@ -244,7 +244,7 @@ const CustomerMenu = () => {
   }, [myOrders, orderHistory]);
 
   // ── Branding (custom colors/logo from DB — High Smart only) ───────────
-  const isHighSmart    = restaurant?.tier === 'high_smart' || restaurant?.tier === 'high_smart_enterprise';
+  const isHighSmart    = restaurant?.tier === 'high_smart';
   const brandPrimary   = isHighSmart ? (restaurant?.brand_primary   || null) : null;
   const brandSecondary = isHighSmart ? (restaurant?.brand_secondary || null) : null;
   const brandFont      = isHighSmart ? (restaurant?.brand_font      || 'default') : 'default';

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -17,11 +18,7 @@ const BillingPage = () => {
   const queryClient = useQueryClient();
   const [confirmCancel, setConfirmCancel] = useState(false);
 
-  const layoutRole = (
-    role === 'group_owner' ? 'group_owner' :
-    role === 'super_admin' ? 'super_admin' : 'admin'
-  ) as any;
-
+  // Fetch current subscription from restaurants table (only columns that exist)
   const { data: subscription, isLoading: subLoading } = useQuery({
     queryKey: ['subscription', restaurantId],
     queryFn: async () => {
@@ -37,6 +34,7 @@ const BillingPage = () => {
     enabled: !!restaurantId,
   });
 
+  // Fetch payment history from payment_requests table (the table that actually exists)
   const { data: payments = [], isLoading: paymentsLoading } = useQuery({
     queryKey: ['payment-requests', restaurantId],
     queryFn: async () => {
@@ -63,7 +61,7 @@ const BillingPage = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['subscription', restaurantId] });
-      toast.success('সাবস্ক্রিপশন বাতিল হয়েছে।');
+      toast.success('সাবস্ক্রিপশন বাতিল হয়েছে। বিলিং পিরিয়ড শেষ হওয়া পর্যন্ত অ্যাক্সেস থাকবে।');
       setConfirmCancel(false);
     },
     onError: (err: any) => toast.error(err.message),
@@ -86,7 +84,9 @@ const BillingPage = () => {
     if (!dateStr) return '—';
     try {
       return new Date(dateStr).toLocaleDateString('bn-BD', { day: '2-digit', month: 'long', year: 'numeric' });
-    } catch { return '—'; }
+    } catch {
+      return '—';
+    }
   };
 
   const formatAmount = (amount: number) => `৳${Number(amount).toLocaleString('bn-BD')}`;
@@ -99,7 +99,7 @@ const BillingPage = () => {
 
   if (subLoading) {
     return (
-      <DashboardLayout role={layoutRole} title="প্ল্যান ও বিলিং">
+      <DashboardLayout role={(role === 'group_owner' ? 'group_owner' : role === 'super_admin' ? 'super_admin' : 'admin') as any} title="প্ল্যান ও বিলিং">
         <div className="flex items-center justify-center py-16 text-muted-foreground gap-2">
           <RefreshCw className="w-4 h-4 animate-spin" /> লোড হচ্ছে...
         </div>
@@ -108,9 +108,10 @@ const BillingPage = () => {
   }
 
   return (
-    <DashboardLayout role={layoutRole} title="প্ল্যান ও বিলিং">
+    <DashboardLayout role="admin" title="প্ল্যান ও বিলিং">
       <div className="max-w-4xl mx-auto space-y-6 animate-fade-up">
 
+        {/* Current Subscription */}
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between flex-wrap gap-3">
@@ -142,26 +143,33 @@ const BillingPage = () => {
               )}
             </div>
 
+            {/* Trial warning */}
             {status === 'trial' && (
               <div className="flex items-start gap-3 p-4 rounded-xl bg-warning/10 border border-warning/20">
                 <AlertTriangle className="w-5 h-5 text-warning flex-shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-semibold text-warning">ট্রায়াল পিরিয়ড চলছে</p>
-                  <p className="text-xs text-muted-foreground mt-1">সব ফিচার ব্যবহার করতে পেইড প্ল্যানে আপগ্রেড করুন।</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    সব ফিচার ব্যবহার করতে পেইড প্ল্যানে আপগ্রেড করুন।
+                  </p>
                 </div>
               </div>
             )}
 
+            {/* Cancelled warning */}
             {status === 'cancelled' && (
               <div className="flex items-start gap-3 p-4 rounded-xl bg-destructive/10 border border-destructive/20">
                 <XCircle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-semibold text-destructive">সাবস্ক্রিপশন বাতিল</p>
-                  <p className="text-xs text-muted-foreground mt-1">যেকোনো সময় পুনরায় সক্রিয় করতে পারবেন।</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    আপনার সাবস্ক্রিপশন বাতিল হয়েছে। যেকোনো সময় পুনরায় সক্রিয় করতে পারবেন।
+                  </p>
                 </div>
               </div>
             )}
 
+            {/* Actions */}
             <div className="flex gap-3 flex-wrap pt-2">
               <Button variant="outline" onClick={() => window.location.href = '/upgrade'} className="gap-2">
                 <ExternalLink className="w-4 h-4" /> প্ল্যান পরিবর্তন করুন
@@ -174,7 +182,7 @@ const BillingPage = () => {
               )}
               {confirmCancel && (
                 <div className="flex items-center gap-2 p-3 rounded-xl bg-destructive/10 border border-destructive/20 w-full">
-                  <p className="text-sm flex-1">আপনি কি নিশ্চিত?</p>
+                  <p className="text-sm flex-1">আপনি কি নিশ্চিত? বিলিং পিরিয়ড শেষ পর্যন্ত অ্যাক্সেস থাকবে।</p>
                   <Button size="sm" variant="destructive" onClick={() => cancelMutation.mutate()} disabled={cancelMutation.isPending}>
                     {cancelMutation.isPending ? 'বাতিল হচ্ছে...' : 'হ্যাঁ, বাতিল করুন'}
                   </Button>
@@ -185,6 +193,7 @@ const BillingPage = () => {
           </CardContent>
         </Card>
 
+        {/* Payment History */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -222,7 +231,7 @@ const BillingPage = () => {
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
-                        <span className="text-sm font-bold">{formatAmount(p.amount)}</span>
+                        <span className={`text-sm font-bold`}>{formatAmount(p.amount)}</span>
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${pStatus.className}`}>
                           {pStatus.label}
                         </span>
@@ -235,6 +244,7 @@ const BillingPage = () => {
           </CardContent>
         </Card>
 
+        {/* Help */}
         <Card className="border-primary/10 bg-primary/3">
           <CardContent className="p-5 flex items-start gap-3">
             <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
@@ -243,12 +253,13 @@ const BillingPage = () => {
             <div className="text-sm space-y-1">
               <p className="font-semibold">সাহায্য দরকার?</p>
               <p className="text-muted-foreground">
-                বিলিং সম্পর্কে প্রশ্ন থাকলে{' '}
-                <a href="https://wa.me/8801786130439" className="text-primary underline">WhatsApp</a>-এ যোগাযোগ করুন।
+                বিলিং সম্পর্কে প্রশ্ন থাকলে সাপোর্ট টিকেট খুলুন অথবা{' '}
+                <a href="mailto:support@nexcore.app" className="text-primary underline">support@nexcore.app</a>-এ যোগাযোগ করুন।
               </p>
             </div>
           </CardContent>
         </Card>
+
       </div>
     </DashboardLayout>
   );

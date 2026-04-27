@@ -49,10 +49,8 @@ export default function GroupSetup() {
   const canUseMultiLocation =
     role === 'group_owner' ||
     role === 'super_admin' ||
-    restaurantPlan === 'high_smart_enterprise';
-
-  const isEnterprise = restaurantPlan === 'high_smart_enterprise';
-
+    restaurantPlan === 'high_smart' ||
+    restaurantPlan === 'enterprise';
   const { data: existingGroups = [], isLoading: groupsLoading } = useUserGroups();
 
   const handleCreateGroup = async () => {
@@ -109,9 +107,9 @@ export default function GroupSetup() {
       <DashboardLayout role="group_owner" title="মাল্টি-লোকেশন">
         <div className="max-w-xl mx-auto py-12 text-center space-y-4">
           <Building2 className="w-12 h-12 mx-auto text-muted-foreground/30" />
-          <h2 className="text-xl font-bold">High Smart Enterprise প্যাকেজ প্রয়োজন</h2>
+          <h2 className="text-xl font-bold">High Smart প্যাকেজ প্রয়োজন</h2>
           <p className="text-sm text-muted-foreground">
-            মাল্টি-লোকেশন ফিচার শুধুমাত্র High Smart Enterprise প্যাকেজে পাওয়া যায়।
+            মাল্টি-লোকেশন ফিচার শুধুমাত্র High Smart প্যাকেজে পাওয়া যায়।
             আপগ্রেড করুন এবং একাধিক শাখা পরিচালনা করুন।
           </p>
           <Button onClick={() => navigate('/upgrade')} className="gap-2">
@@ -146,13 +144,6 @@ export default function GroupSetup() {
             </div>
           ))}
         </div>
-
-        {/* Enterprise badge */}
-        {isEnterprise && (
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-600 font-medium">
-            🏢 Enterprise — আনলিমিটেড গ্রুপ ও শাখা তৈরি করুন
-          </div>
-        )}
 
         {/* Existing groups (if any) */}
         {step === 1 && existingGroups.length > 0 && (

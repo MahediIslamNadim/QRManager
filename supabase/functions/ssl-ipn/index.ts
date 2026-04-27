@@ -33,20 +33,15 @@ async function activateSubscription(
   const expiryDate = d.toISOString();
   const now = new Date().toISOString();
 
-  const { error: restaurantUpdateError } = await admin.from("restaurants").update({
+  await admin.from("restaurants").update({
     status: "active_paid",
     subscription_status: "active",
     plan: txn.plan,
     tier: txn.plan,
-    billing_cycle: txn.billing_cycle,
     trial_ends_at: expiryDate,
     trial_end_date: expiryDate,
-    subscription_start_date: now,
-    subscription_end_date: expiryDate,
-    next_billing_date: expiryDate,
     updated_at: now,
   }).eq("id", txn.restaurant_id);
-  if (restaurantUpdateError) throw restaurantUpdateError;
 
   const { data: roles } = await admin
     .from("user_roles")

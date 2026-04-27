@@ -149,7 +149,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           }
         }
 
-        const resolvedRole = bestRole;
+        setRole(bestRole);
         authDebug("useAuth", "Resolved app role from user_roles", {
           resolvedRole: bestRole,
           roles,
@@ -268,9 +268,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           }
         }
 
-        // ── restaurant পাওয়া না গেলে ──────────────────────────────────────────
-        // NOTE: group_owner role এখানে downgrade করা হচ্ছে না।
-        // ProtectedRoute-ই plan check করে সঠিক জায়গায় redirect করবে।
         if (!foundRestaurantId) {
           setRestaurantId(null);
           setRestaurantPlan("basic");
@@ -311,11 +308,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           }
 
           if (restaurant) {
-            const activePlan = restaurant.tier || restaurant.plan || "basic";
-            setRestaurantPlan(activePlan);
+            setRestaurantPlan(restaurant.tier || restaurant.plan || "basic");
 
-            // Trial expiry শুধু regular admin এর জন্য চেক করা হয়
-            if (resolvedRole === "admin") {
+            if (bestRole === "admin") {
               const subStatus = restaurant.subscription_status || "trial";
               const trialEnded = subStatus === "expired" || subStatus === "cancelled" ||
                 (restaurant.trial_ends_at
@@ -331,8 +326,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         } else {
           setTrialExpired(false);
         }
-
-        setRole(resolvedRole);
       } catch (error) {
         console.error("fetchUserData error:", error);
       } finally {

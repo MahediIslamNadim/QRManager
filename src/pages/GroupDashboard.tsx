@@ -11,29 +11,25 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import {
-  BarChart, Bar, XAxis, YAxis,
-  CartesianGrid, Tooltip, ResponsiveContainer,
+  BarChart, Bar, AreaChart, Area, XAxis, YAxis,
+  CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 import {
-  Building2, TrendingUp, ShoppingCart, RefreshCw,
-  Plus, Edit2, Trash2, Star, Power, PowerOff,
+  Building2, TrendingUp, ShoppingCart, Users, RefreshCw,
+  Plus, Edit2, Trash2, Eye, EyeOff, ChevronRight, Star,
   AlertTriangle, CheckCircle2, Clock, ArrowRight,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { useAuth } from '@/hooks/useAuth';
 import {
   useRestaurantGroup,
   useGroupAnalytics,
   useGroupOrders,
   useSharedMenu,
-  useBranchManagement,
   type BranchInfo,
-  type BranchPayload,
   type LiveOrder,
   type SharedMenuItem,
 } from '@/hooks/useRestaurantGroup';
 import BranchSelector from '@/components/group/BranchSelector';
-import BranchAdminInvite from '@/components/group/BranchAdminInvite';
 
 // ─── helpers ───────────────────────────────────────────────
 const fmt = (n: number) => `৳${n.toLocaleString('bn-BD')}`;
@@ -46,14 +42,6 @@ const ORDER_STATUS: Record<string, { label: string; color: string }> = {
   ready:      { label: 'প্রস্তুত',     color: 'bg-primary/15 text-primary border-primary/30' },
   delivered:  { label: 'ডেলিভারি',    color: 'bg-success/15 text-success border-success/30' },
   cancelled:  { label: 'বাতিল',        color: 'bg-destructive/15 text-destructive border-destructive/30' },
-};
-
-const EMPTY_BRANCH: BranchPayload = {
-  name: '',
-  address: null,
-  branch_code: '',
-  phone: null,
-  status: 'active',
 };
 
 const EMPTY_ITEM: Omit<SharedMenuItem, 'id' | 'created_at' | 'updated_at'> = {
@@ -90,73 +78,58 @@ function KpiCard({
 }
 
 function OrderCard({ order, branchFilter }: { order: LiveOrder; branchFilter: string | null }) {
-  const statusInfo = ORDER_STATUS[order.status] ?? { label: order.status, color: 'bg-secondary text-secondary-foreground border-border' };
+  if (branchFilter && order.restaurant_id !== branchFilter) return null;
+  const st = ORDER_STATUS[order.status] ?? ORDER_STATUS.pending;
+  const ago = Math.round((Date.now() - new Date(order.created_at).getTime()) / 60000);
+
   return (
-    <div className="flex items-center gap-3 p-3 rounded-xl border border-border/60 hover:bg-secondary/20 transition-colors">
+    <div className="flex items-center gap-3 py-3 px-4 hover:bg-secondary/30 transition-colors">
+      <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+        <ShoppingCart className="w-4 h-4 text-primary" />
+      </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          {!branchFilter && (
-            <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">
-              {order.restaurant_name}
-            </Badge>
-          )}
-          {order.table_id && (
-            <span className="text-xs text-muted-foreground">টেবিল #{order.table_id.slice(-4)}</span>
-          )}
+          <span className="text-sm font-semibold">{fmt(order.total)}</span>
+          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border ${st.color}`}>
+            {st.label}
+          </span>
+          <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-normal">
+            {order.restaurant_name}
+          </Badge>
         </div>
-        <p className="text-sm font-semibold mt-0.5">{fmt(order.total)}</p>
-        {order.notes && <p className="text-xs text-muted-foreground truncate">{order.notes}</p>}
+        <p className="text-xs text-muted-foreground mt-0.5">
+          {ago === 0 ? 'এইমাত্র' : `${fmtNum(ago)} মিনিট আগে`}
+          {order.notes ? ` · ${order.notes}` : ''}
+        </p>
       </div>
-      <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border ${statusInfo.color}`}>
-        {statusInfo.label}
-      </span>
     </div>
   );
 }
 
-// ─── main component ────────────────────────────────────────
+// ─── main component ─────────────────────────────────────────
 
 export default function GroupDashboard() {
   const { groupId } = useParams<{ groupId: string }>();
   const navigate = useNavigate();
-  const { role, restaurantPlan } = useAuth();
-
   const [branchFilter, setBranchFilter] = useState<string | null>(null);
   const [menuDialog, setMenuDialog] = useState<'create' | 'edit' | null>(null);
   const [editingItem, setEditingItem] = useState<SharedMenuItem | null>(null);
-  const [itemForm, setItemForm] = useState<Omit<SharedMenuItem, 'id' | 'created_at' | 'updated_at'>>(EMPTY_ITEM);
-  const [branchDialog, setBranchDialog] = useState<'create' | 'edit' | null>(null);
-  const [editingBranch, setEditingBranch] = useState<BranchInfo | null>(null);
-  const [branchForm, setBranchForm] = useState<BranchPayload>(EMPTY_BRANCH);
+  const [itemForm, setItemForm] = useState(EMPTY_ITEM);
 
-  const { data: group, isLoading: groupLoading } = useRestaurantGroup(groupId ?? null);
+  const { data: group, isLoading: groupLoading, refetch: refetchGroup } = useRestaurantGroup(groupId ?? null);
   const { data: analytics, isLoading: analyticsLoading } = useGroupAnalytics(groupId ?? null);
-  const branchIds = useMemo(() => group?.branches.map(b => b.id) ?? [], [group]);
+
+  const branchIds = useMemo(() => group?.branches.map((b) => b.id) ?? [], [group]);
   const { data: liveOrders = [], isLoading: ordersLoading } = useGroupOrders(groupId ?? null, branchIds);
   const {
-    data: sharedMenu = [],
-    isLoading: menuLoading,
-    createItem,
-    updateItem,
-    deleteItem,
+    data: sharedMenu = [], isLoading: menuLoading,
+    createItem, updateItem, deleteItem,
   } = useSharedMenu(groupId ?? null);
-  const { createBranch, updateBranch, setBranchStatus } = useBranchManagement(groupId ?? null);
 
-  const activeBranches = group?.branches.filter((branch) => branch.status === 'active') ?? [];
-  const canAddBranch =
-    role === 'super_admin' ||
-    role === 'group_owner' ||
-    restaurantPlan === 'high_smart_enterprise' ||
-    activeBranches.length < 5;
-
-  const filteredOrders = useMemo(
-    () => branchFilter ? liveOrders.filter(o => o.restaurant_id === branchFilter) : liveOrders,
-    [liveOrders, branchFilter]
-  );
-
+  // ── menu CRUD helpers ─────────────────────────────────
   const openCreate = () => {
-    setEditingItem(null);
     setItemForm({ ...EMPTY_ITEM, group_id: groupId ?? '' });
+    setEditingItem(null);
     setMenuDialog('create');
   };
 
@@ -175,13 +148,14 @@ export default function GroupDashboard() {
   };
 
   const handleMenuSave = async () => {
+    if (!itemForm.name.trim()) { toast.error('নাম দেওয়া আবশ্যক'); return; }
     try {
       if (menuDialog === 'create') {
         await createItem.mutateAsync(itemForm);
-        toast.success('আইটেম যোগ হয়েছে');
-      } else if (menuDialog === 'edit' && editingItem) {
+        toast.success('মেনু আইটেম যোগ হয়েছে');
+      } else if (editingItem) {
         await updateItem.mutateAsync({ id: editingItem.id, ...itemForm });
-        toast.success('আইটেম আপডেট হয়েছে');
+        toast.success('মেনু আইটেম আপডেট হয়েছে');
       }
       setMenuDialog(null);
     } catch (e: unknown) {
@@ -190,90 +164,35 @@ export default function GroupDashboard() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('এই আইটেম মুছে ফেলবেন?')) return;
     try {
       await deleteItem.mutateAsync(id);
-      toast.success('মুছে ফেলা হয়েছে');
+      toast.success('মেনু আইটেম মুছে ফেলা হয়েছে');
     } catch (e: unknown) {
       toast.error((e as Error).message);
     }
   };
 
-  const openBranchCreate = () => {
-    if (!canAddBranch) {
-      toast.error('Branch limit reached for this plan.');
-      return;
-    }
-    const nextNumber = String((group?.branches.length ?? 0) + 1).padStart(2, '0');
-    setEditingBranch(null);
-    setBranchForm({ ...EMPTY_BRANCH, branch_code: `BR-${nextNumber}` });
-    setBranchDialog('create');
-  };
+  // ── chart data ────────────────────────────────────────
+  const barData = useMemo(
+    () =>
+      (analytics?.per_branch ?? []).map((b) => ({
+        name: b.branch_code || b.name.slice(0, 10),
+        রাজস্ব: b.revenue,
+        অর্ডার: b.orders,
+      })),
+    [analytics],
+  );
 
-  const openBranchEdit = (branch: BranchInfo) => {
-    setEditingBranch(branch);
-    setBranchForm({
-      name: branch.name,
-      address: branch.address,
-      branch_code: branch.branch_code,
-      phone: branch.phone,
-      status: branch.status || 'active',
-    });
-    setBranchDialog('edit');
-  };
-
-  const handleBranchSave = async () => {
-    const payload: BranchPayload = {
-      name: branchForm.name.trim(),
-      address: branchForm.address?.trim() || null,
-      branch_code: branchForm.branch_code?.trim() || null,
-      phone: branchForm.phone?.trim() || null,
-      status: branchForm.status || 'active',
-    };
-
-    if (!payload.name || payload.name.length < 2) {
-      toast.error('Branch name is required.');
-      return;
-    }
-
-    try {
-      if (branchDialog === 'create') {
-        await createBranch.mutateAsync({ ...payload, owner_id: null });
-        toast.success('Branch added.');
-      } else if (branchDialog === 'edit' && editingBranch) {
-        await updateBranch.mutateAsync({ id: editingBranch.id, ...payload });
-        toast.success('Branch updated.');
-      }
-      setBranchDialog(null);
-      setEditingBranch(null);
-    } catch (e: unknown) {
-      toast.error((e as Error).message);
-    }
-  };
-
-  const handleBranchStatusToggle = async (branch: BranchInfo) => {
-    const nextStatus = branch.status === 'active' ? 'inactive' : 'active';
-    if (
-      nextStatus === 'inactive' &&
-      !window.confirm('Deactivate this branch? Old orders and reports will stay preserved.')
-    ) {
-      return;
-    }
-
-    try {
-      await setBranchStatus.mutateAsync({ id: branch.id, status: nextStatus });
-      if (branchFilter === branch.id && nextStatus !== 'active') setBranchFilter(null);
-      toast.success(nextStatus === 'active' ? 'Branch reactivated.' : 'Branch deactivated.');
-    } catch (e: unknown) {
-      toast.error((e as Error).message);
-    }
-  };
+  const bestBranch = useMemo(
+    () => analytics?.per_branch?.[0] ?? null,
+    [analytics],
+  );
 
   if (groupLoading) {
     return (
       <DashboardLayout role="group_owner" title="গ্রুপ ড্যাশবোর্ড">
-        <div className="flex items-center justify-center py-16">
-          <RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" />
+        <div className="flex items-center justify-center py-20 text-muted-foreground gap-2">
+          <RefreshCw className="w-4 h-4 animate-spin" /> লোড হচ্ছে...
         </div>
       </DashboardLayout>
     );
@@ -282,148 +201,254 @@ export default function GroupDashboard() {
   if (!group) {
     return (
       <DashboardLayout role="group_owner" title="গ্রুপ ড্যাশবোর্ড">
-        <div className="py-16 text-center space-y-3">
-          <AlertTriangle className="w-10 h-10 mx-auto text-warning" />
+        <div className="py-20 text-center space-y-3">
+          <AlertTriangle className="w-12 h-12 mx-auto text-muted-foreground/30" />
           <p className="text-sm text-muted-foreground">গ্রুপ পাওয়া যায়নি</p>
-          <Button size="sm" onClick={() => navigate('/group/setup')}>গ্রুপ সেটআপ করুন</Button>
+          <Button variant="outline" onClick={() => navigate('/group/setup')}>
+            নতুন গ্রুপ তৈরি করুন
+          </Button>
         </div>
       </DashboardLayout>
     );
   }
 
-  const totalRevenue = analytics?.total_revenue ?? 0;
-  const totalOrders  = analytics?.total_orders  ?? 0;
-  const liveCount    = liveOrders.length;
-
   return (
     <DashboardLayout role="group_owner" title={group.name}>
-      <div className="space-y-6 animate-fade-up">
+      <div className="space-y-6 animate-fade-up max-w-6xl">
 
-        {/* ── Branch selector ───────────────────────── */}
-        <BranchSelector
-          group={group}
-          selectedBranchId={branchFilter}
-          onSelect={setBranchFilter}
-        />
-
-        {/* ── KPI row ───────────────────────────────── */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <KpiCard title="মোট রাজস্ব (আজ)" value={fmt(totalRevenue)}
-            icon={TrendingUp} accent="bg-success/10" />
-          <KpiCard title="মোট অর্ডার" value={fmtNum(totalOrders)}
-            icon={ShoppingCart} accent="bg-primary/10" />
-          <KpiCard title="লাইভ অর্ডার" value={fmtNum(liveCount)}
-            sub="এখন চলছে" icon={Star} accent="bg-warning/10" />
-          <KpiCard title="শাখার সংখ্যা" value={fmtNum(group.branches.length)}
-            icon={Building2} accent="bg-blue-500/10" />
+        {/* Header */}
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+              <Building2 className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold">{group.name}</h1>
+              <p className="text-xs text-muted-foreground">{fmtNum(group.branches.length)} টি শাখা</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <BranchSelector group={group} selectedBranchId={branchFilter} onSelect={setBranchFilter} />
+            <Button size="sm" variant="outline" onClick={() => { refetchGroup(); }} className="gap-1.5">
+              <RefreshCw className={`w-3.5 h-3.5 ${groupLoading ? 'animate-spin' : ''}`} />
+              রিফ্রেশ
+            </Button>
+          </div>
         </div>
 
-        {/* ── Tabs ──────────────────────────────────── */}
         <Tabs defaultValue="overview">
-          <TabsList className="w-full grid grid-cols-4">
+          <TabsList className="flex-wrap h-auto gap-1">
             <TabsTrigger value="overview">ওভারভিউ</TabsTrigger>
             <TabsTrigger value="orders">
               লাইভ অর্ডার
-              {liveCount > 0 && (
-                <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-warning text-warning-foreground text-[10px] font-bold">
-                  {liveCount}
+              {liveOrders.length > 0 && (
+                <span className="ml-1.5 bg-destructive text-destructive-foreground text-[10px] rounded-full px-1.5 py-0.5">
+                  {fmtNum(liveOrders.length)}
                 </span>
               )}
             </TabsTrigger>
+            <TabsTrigger value="analytics">অ্যানালিটিক্স</TabsTrigger>
             <TabsTrigger value="menu">শেয়ার্ড মেনু</TabsTrigger>
             <TabsTrigger value="branches">শাখাসমূহ</TabsTrigger>
           </TabsList>
 
           {/* ── TAB: Overview ─────────────────────────── */}
-          <TabsContent value="overview" className="space-y-6 pt-4">
-            {analyticsLoading ? (
-              <div className="flex items-center justify-center py-10 text-muted-foreground gap-2 text-sm">
-                <RefreshCw className="w-4 h-4 animate-spin" /> লোড হচ্ছে...
-              </div>
-            ) : analytics && analytics.per_branch.length > 0 ? (
-              <>
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <TrendingUp className="w-4 h-4 text-success" /> শাখাভিত্তিক রাজস্ব
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={220}>
-                      <BarChart data={analytics.per_branch} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                        <XAxis dataKey="name" fontSize={12} stroke="hsl(var(--muted-foreground))" />
-                        <YAxis fontSize={11} stroke="hsl(var(--muted-foreground))" tickFormatter={v => `৳${v}`} />
-                        <Tooltip
-                          contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }}
-                          formatter={(v: number) => [`৳${v.toLocaleString()}`, 'রাজস্ব']}
-                        />
-                        <Bar dataKey="revenue" fill="hsl(var(--primary))" radius={[5, 5, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
+          <TabsContent value="overview" className="space-y-5 pt-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <KpiCard
+                title="আজকের মোট রাজস্ব"
+                value={analyticsLoading ? '...' : fmt(analytics?.total_revenue ?? 0)}
+                sub="সকল শাখা মিলিয়ে"
+                icon={TrendingUp}
+                accent="bg-success/10"
+              />
+              <KpiCard
+                title="মোট অ্যাক্টিভ অর্ডার"
+                value={ordersLoading ? '...' : fmtNum(liveOrders.length)}
+                sub="এই মুহূর্তে"
+                icon={ShoppingCart}
+              />
+              <KpiCard
+                title="সেরা শাখা (আজ)"
+                value={bestBranch ? (bestBranch.branch_code || bestBranch.name.slice(0, 8)) : '—'}
+                sub={bestBranch ? fmt(bestBranch.revenue) : ''}
+                icon={Star}
+                accent="bg-warning/10"
+              />
+              <KpiCard
+                title="মোট শাখা"
+                value={fmtNum(group.branches.length)}
+                sub="নিবন্ধিত"
+                icon={Building2}
+              />
+            </div>
 
-                <div className="grid gap-3">
-                  {analytics.per_branch.map(b => (
-                    <div key={b.restaurant_id} className="flex items-center gap-3 p-3 rounded-xl border border-border/60 hover:bg-secondary/20 transition-colors">
-                      <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                        <Building2 className="w-4 h-4 text-primary" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold">{b.name}</p>
-                        <p className="text-xs text-muted-foreground">{fmtNum(b.orders)} অর্ডার · গড় {fmt(b.avg_order_value)}</p>
-                      </div>
-                      <p className="text-sm font-bold shrink-0">{fmt(b.revenue)}</p>
-                    </div>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <div className="py-12 text-center text-sm text-muted-foreground">
-                আজ কোনো অর্ডার নেই
-              </div>
+            {/* Mini area chart */}
+            {barData.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">শাখাভিত্তিক রাজস্ব (আজ)</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={180}>
+                    <BarChart data={barData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} />
+                      <Tooltip
+                        formatter={(v: number, n: string) => [n === 'রাজস্ব' ? fmt(v) : fmtNum(v), n]}
+                        contentStyle={{ fontSize: 12 }}
+                      />
+                      <Bar dataKey="রাজস্ব" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
             )}
+
+            {/* Recent orders */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-primary" /> সাম্প্রতিক অর্ডার
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                {liveOrders.slice(0, 5).length === 0 ? (
+                  <p className="text-center py-8 text-sm text-muted-foreground">কোনো অ্যাক্টিভ অর্ডার নেই</p>
+                ) : (
+                  <div className="divide-y divide-border/40">
+                    {liveOrders.slice(0, 5).map((o) => (
+                      <OrderCard key={o.id} order={o} branchFilter={null} />
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* ── TAB: Live Orders ──────────────────────── */}
-          <TabsContent value="orders" className="space-y-4 pt-4">
-            {branchFilter && (
-              <div className="flex items-center gap-2">
-                <Badge variant="outline" className="text-xs gap-1">
-                  ফিল্টার: {group.branches.find(b => b.id === branchFilter)?.name}
-                </Badge>
-                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setBranchFilter(null)}>
-                  সরান ✕
-                </Button>
-              </div>
-            )}
+          <TabsContent value="orders" className="pt-4">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <ShoppingCart className="w-4 h-4 text-primary" />
+                    লাইভ অর্ডার ফিড
+                  </CardTitle>
+                  <BranchSelector group={group} selectedBranchId={branchFilter} onSelect={setBranchFilter} />
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                {ordersLoading ? (
+                  <div className="py-12 text-center text-muted-foreground text-sm">লোড হচ্ছে...</div>
+                ) : liveOrders.length === 0 ? (
+                  <div className="py-12 text-center space-y-2">
+                    <ShoppingCart className="w-12 h-12 mx-auto text-muted-foreground/20" />
+                    <p className="text-sm text-muted-foreground">কোনো অ্যাক্টিভ অর্ডার নেই</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-border/40">
+                    {liveOrders
+                      .filter((o) => !branchFilter || o.restaurant_id === branchFilter)
+                      .map((o) => (
+                        <OrderCard key={o.id} order={o} branchFilter={null} />
+                      ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-            {ordersLoading ? (
-              <div className="flex items-center justify-center py-10 text-muted-foreground gap-2 text-sm">
-                <RefreshCw className="w-4 h-4 animate-spin" /> লোড হচ্ছে...
-              </div>
-            ) : filteredOrders.length === 0 ? (
-              <div className="py-12 text-center text-sm text-muted-foreground">
-                কোনো লাইভ অর্ডার নেই
-              </div>
+          {/* ── TAB: Analytics ─────────────────────────── */}
+          <TabsContent value="analytics" className="space-y-5 pt-4">
+            {analyticsLoading ? (
+              <div className="py-12 text-center text-muted-foreground text-sm">লোড হচ্ছে...</div>
             ) : (
-              <div className="space-y-2">
-                {filteredOrders.map(order => (
-                  <OrderCard key={order.id} order={order} branchFilter={branchFilter} />
-                ))}
-              </div>
+              <>
+                {/* Bar chart: revenue per branch */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm">শাখাভিত্তিক রাজস্ব তুলনা</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {barData.length === 0 ? (
+                      <p className="text-center py-8 text-sm text-muted-foreground">ডেটা নেই</p>
+                    ) : (
+                      <ResponsiveContainer width="100%" height={220}>
+                        <BarChart data={barData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                          <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                          <YAxis tick={{ fontSize: 11 }} />
+                          <Tooltip
+                            formatter={(v: number, n: string) => [n === 'রাজস্ব' ? fmt(v) : fmtNum(v), n]}
+                            contentStyle={{ fontSize: 12 }}
+                          />
+                          <Legend wrapperStyle={{ fontSize: 12 }} />
+                          <Bar dataKey="রাজস্ব" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="অর্ডার" fill="hsl(var(--primary) / 0.35)" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Branch comparison table */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm">শাখা তুলনা সারণি</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-border/60 text-xs text-muted-foreground">
+                            <th className="text-left px-4 py-3 font-medium">শাখা</th>
+                            <th className="text-right px-4 py-3 font-medium">রাজস্ব</th>
+                            <th className="text-right px-4 py-3 font-medium">অর্ডার</th>
+                            <th className="text-right px-4 py-3 font-medium">গড় অর্ডার</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border/40">
+                          {analytics?.per_branch.map((b) => (
+                            <tr key={b.restaurant_id} className="hover:bg-secondary/20 transition-colors">
+                              <td className="px-4 py-3 font-medium">
+                                {b.name}
+                                {b.branch_code && (
+                                  <span className="ml-2 text-xs text-muted-foreground">({b.branch_code})</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 text-right tabular-nums">{fmt(b.revenue)}</td>
+                              <td className="px-4 py-3 text-right tabular-nums">{fmtNum(b.orders)}</td>
+                              <td className="px-4 py-3 text-right tabular-nums">{fmt(b.avg_order_value)}</td>
+                            </tr>
+                          ))}
+                          <tr className="border-t-2 border-border font-semibold bg-secondary/30">
+                            <td className="px-4 py-3">মোট</td>
+                            <td className="px-4 py-3 text-right tabular-nums">{fmt(analytics?.total_revenue ?? 0)}</td>
+                            <td className="px-4 py-3 text-right tabular-nums">{fmtNum(analytics?.total_orders ?? 0)}</td>
+                            <td className="px-4 py-3 text-right tabular-nums">
+                              {analytics?.total_orders
+                                ? fmt((analytics.total_revenue) / analytics.total_orders)
+                                : '—'}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
             )}
           </TabsContent>
 
-          {/* ── TAB: Shared Menu ──────────────────────── */}
+          {/* ── TAB: Shared Menu ───────────────────────── */}
           <TabsContent value="menu" className="space-y-4 pt-4">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-semibold">শেয়ার্ড মেনু</p>
-                <p className="text-xs text-muted-foreground">সব শাখায় দেখানো হবে</p>
-              </div>
-              <Button size="sm" variant="outline" onClick={openCreate} className="gap-1.5">
+              <p className="text-sm text-muted-foreground">
+                শেয়ার্ড আইটেম সকল শাখায় একসাথে পুশ হয়
+              </p>
+              <Button size="sm" onClick={openCreate} className="gap-1.5">
                 <Plus className="w-4 h-4" /> নতুন আইটেম
               </Button>
             </div>
@@ -483,7 +508,7 @@ export default function GroupDashboard() {
           <TabsContent value="branches" className="space-y-4 pt-4">
             <div className="flex items-center justify-between">
               <p className="text-sm text-muted-foreground">{fmtNum(group.branches.length)} টি শাখা</p>
-              <Button size="sm" variant="outline" onClick={openBranchCreate} disabled={!canAddBranch} className="gap-1.5">
+              <Button size="sm" variant="outline" onClick={() => navigate('/group/setup')} className="gap-1.5">
                 <Plus className="w-4 h-4" /> শাখা যোগ করুন
               </Button>
             </div>
@@ -504,7 +529,6 @@ export default function GroupDashboard() {
                             )}
                           </div>
                           <p className="text-xs text-muted-foreground mt-0.5">{branch.address ?? 'ঠিকানা নেই'}</p>
-                          {branch.phone && <p className="text-xs text-muted-foreground mt-0.5">{branch.phone}</p>}
                         </div>
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border ${
                           isActive
@@ -514,20 +538,6 @@ export default function GroupDashboard() {
                           {isActive ? <CheckCircle2 className="w-2.5 h-2.5" /> : <Clock className="w-2.5 h-2.5" />}
                           {isActive ? 'সক্রিয়' : 'নিষ্ক্রিয়'}
                         </span>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <Button size="icon" variant="ghost" className="w-8 h-8" onClick={() => openBranchEdit(branch)}>
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="w-8 h-8 text-muted-foreground hover:text-foreground"
-                            onClick={() => handleBranchStatusToggle(branch)}
-                            disabled={setBranchStatus.isPending}
-                          >
-                            {isActive ? <PowerOff className="w-3.5 h-3.5" /> : <Power className="w-3.5 h-3.5" />}
-                          </Button>
-                        </div>
                       </div>
 
                       {branchAnalytics && (
@@ -543,7 +553,6 @@ export default function GroupDashboard() {
                         </div>
                       )}
 
-                      {/* Filter button */}
                       <Button
                         size="sm"
                         variant={branchFilter === branch.id ? "default" : "outline"}
@@ -553,15 +562,6 @@ export default function GroupDashboard() {
                         {branchFilter === branch.id ? "ফিল্টার সরান" : "এই শাখা ফিল্টার করুন"}
                         <ArrowRight className="w-3.5 h-3.5" />
                       </Button>
-
-                      {/* Admin invite button */}
-                      {isActive && (
-                        <BranchAdminInvite
-                          restaurantId={branch.id}
-                          restaurantName={branch.name}
-                          groupId={groupId ?? ''}
-                        />
-                      )}
                     </CardContent>
                   </Card>
                 );
@@ -572,7 +572,7 @@ export default function GroupDashboard() {
               <div className="py-12 text-center space-y-3">
                 <Building2 className="w-12 h-12 mx-auto text-muted-foreground/20" />
                 <p className="text-sm text-muted-foreground">কোনো শাখা নেই</p>
-                <Button size="sm" onClick={openBranchCreate} disabled={!canAddBranch} className="gap-1.5">
+                <Button size="sm" onClick={() => navigate('/group/setup')} className="gap-1.5">
                   <Plus className="w-4 h-4" /> প্রথম শাখা যোগ করুন
                 </Button>
               </div>
@@ -641,69 +641,6 @@ export default function GroupDashboard() {
                 disabled={createItem.isPending || updateItem.isPending}
               >
                 {createItem.isPending || updateItem.isPending ? 'সংরক্ষণ হচ্ছে...' : 'সংরক্ষণ করুন'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* Branch Dialog */}
-        <Dialog open={branchDialog !== null} onOpenChange={() => setBranchDialog(null)}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{branchDialog === 'create' ? 'Add Branch' : 'Edit Branch'}</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 py-2">
-              <div className="space-y-1.5">
-                <Label>Branch name *</Label>
-                <Input
-                  value={branchForm.name}
-                  onChange={(e) => setBranchForm((p) => ({ ...p, name: e.target.value }))}
-                  placeholder="Branch name"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label>Branch code</Label>
-                  <Input
-                    value={branchForm.branch_code ?? ''}
-                    onChange={(e) => setBranchForm((p) => ({ ...p, branch_code: e.target.value || null }))}
-                    placeholder="BR-01"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Phone</Label>
-                  <Input
-                    value={branchForm.phone ?? ''}
-                    onChange={(e) => setBranchForm((p) => ({ ...p, phone: e.target.value || null }))}
-                    placeholder="+880..."
-                  />
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Address</Label>
-                <Textarea
-                  rows={2}
-                  value={branchForm.address ?? ''}
-                  onChange={(e) => setBranchForm((p) => ({ ...p, address: e.target.value || null }))}
-                  placeholder="Branch address"
-                  className="resize-none"
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <Switch
-                  checked={branchForm.status === 'active'}
-                  onCheckedChange={(v) => setBranchForm((p) => ({ ...p, status: v ? 'active' : 'inactive' }))}
-                />
-                <Label>Active</Label>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setBranchDialog(null)}>Cancel</Button>
-              <Button
-                onClick={handleBranchSave}
-                disabled={createBranch.isPending || updateBranch.isPending}
-              >
-                {createBranch.isPending || updateBranch.isPending ? 'Saving...' : 'Save Branch'}
               </Button>
             </DialogFooter>
           </DialogContent>

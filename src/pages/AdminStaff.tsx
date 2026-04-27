@@ -196,22 +196,11 @@ export default function AdminStaff() {
   const updateRole = async (userId: string, newRole: StaffRole) => {
     setUpdatingRole(userId);
     try {
-      if (!restaurantId) throw new Error("No restaurant");
-
       const { error } = await supabase
         .from("user_roles")
-        .update({ role: newRole, restaurant_id: restaurantId } as any)
-        .eq("user_id", userId)
-        .in("role", ["admin", "waiter", "kitchen"]);
+        .update({ role: newRole })
+        .eq("user_id", userId);
       if (error) throw error;
-
-      const { error: linkError } = await supabase
-        .from("staff_restaurants")
-        .update({ role: newRole } as any)
-        .eq("user_id", userId)
-        .eq("restaurant_id", restaurantId);
-      if (linkError) throw linkError;
-
       queryClient.invalidateQueries({ queryKey: ["staff", restaurantId] });
       toast.success("রোল আপডেট হয়েছে।");
     } catch (err: any) {

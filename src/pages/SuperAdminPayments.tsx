@@ -52,16 +52,18 @@ const SuperAdminPayments = () => {
   const [activeTab, setActiveTab] = useState<"manual" | "ssl">("manual");
   const [selectedPayment, setSelectedPayment] = useState<PaymentRequest | null>(null);
   const [adminNotes, setAdminNotes] = useState("");
-  const [editPlan, setEditPlan] = useState<"medium_smart" | "high_smart" | "high_smart_enterprise">("medium_smart");
+  const [editPlan, setEditPlan] = useState<"medium_smart" | "high_smart">("medium_smart");
   const [editAmount, setEditAmount] = useState(0);
   const [editStatus, setEditStatus] = useState<"pending" | "approved" | "rejected">("pending");
   const [dialogOpen, setDialogOpen] = useState(false);
 
+  // Debounce search
   useEffect(() => {
     const t = setTimeout(() => setSearch(searchInput.trim()), 400);
     return () => clearTimeout(t);
   }, [searchInput]);
 
+  // Reset page when filters change
   useEffect(() => { setPage(1); }, [statusFilter, search]);
 
   const { data, isLoading } = useQuery({
@@ -103,6 +105,8 @@ const SuperAdminPayments = () => {
   const totalCount = data?.count ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
+  // Pending count — separate lightweight query so the badge stays accurate even
+  // when the user has a non-"pending" filter active.
   const { data: pendingCount = 0 } = useQuery({
     queryKey: ["payments-pending-count"],
     queryFn: async () => {
@@ -118,6 +122,7 @@ const SuperAdminPayments = () => {
     queryClient.invalidateQueries({ queryKey: ["payments-pending-count"] });
   };
 
+  // SSL transactions
   const { data: sslTxns = [], isLoading: sslLoading } = useQuery({
     queryKey: ["ssl-transactions"],
     queryFn: async () => {
@@ -140,8 +145,14 @@ const SuperAdminPayments = () => {
   const closeDialog = () => { setDialogOpen(false); setSelectedPayment(null); setAdminNotes(""); };
 
   const approveMutation = useMutation({
-    mutationFn: async ({ paymentId, plan, billingCycle }: { paymentId: string; plan: string; billingCycle?: string }) => {
+    mutationFn: async ({ paymentId, plan, billingCycle, userId }: { paymentId: string; plan: string; billingCycle?: string; userId?: string }) => {
       await invokePayment({ action: "approve", payment_id: paymentId, plan, billing_cycle: billingCycle, admin_notes: adminNotes || null });
+      if (plan === "high_smart" && userId) {
+        await supabase.from("user_roles").upsert(
+          { user_id: userId, role: "group_owner" },
+          { onConflict: "user_id,role" },
+        );
+      }
     },
     onSuccess: () => { toast.success("✅ পেমেন্ট অনুমোদিত! রেস্টুরেন্ট সক্রিয় করা হয়েছে।"); closeDialog(); invalidate(); },
     onError: (err: any) => toast.error(err.message),
@@ -178,7 +189,7 @@ const SuperAdminPayments = () => {
   const openReview = (p: PaymentRequest) => {
     setSelectedPayment(p);
     setAdminNotes(p.admin_notes || "");
-    setEditPlan((p.plan as "medium_smart" | "high_smart" | "high_smart_enterprise") || "medium_smart");
+    setEditPlan((p.plan as "medium_smart" | "high_smart") || "medium_smart");
     setEditAmount(Number(p.amount) || 0);
     setEditStatus((p.status as "pending" | "approved" | "rejected") || "pending");
     setDialogOpen(true);
@@ -206,7 +217,7 @@ const SuperAdminPayments = () => {
     <DashboardLayout role="super_admin" title="পেমেন্ট ম্যানেজমেন্ট">
       <div className="space-y-5 animate-fade-up">
 
-        {/* Tab switcher */}
+        {/* ── Tab switcher ── */}
         <div className="flex gap-2">
           <Button size="sm" variant={activeTab === "manual" ? "default" : "outline"} onClick={() => setActiveTab("manual")}>
             ম্যানুয়াল (bKash/Nagad)
@@ -219,7 +230,7 @@ const SuperAdminPayments = () => {
           </Button>
         </div>
 
-        {/* SSL Transactions tab */}
+        {/* ── SSL Transactions tab ── */}
         {activeTab === "ssl" && (
           <div className="space-y-3">
             {sslLoading ? (
@@ -264,8 +275,9 @@ const SuperAdminPayments = () => {
         )}
 
         {activeTab === "manual" && <>
-        {/* Filters row */}
+        {/* ── Filters row ── */}
         <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+          {/* Status filter tabs */}
           <div className="flex gap-1.5 flex-wrap">
             {STATUS_OPTIONS.map(s => (
               <Button
@@ -284,6 +296,8 @@ const SuperAdminPayments = () => {
               </Button>
             ))}
           </div>
+
+          {/* Search */}
           <div className="relative sm:ml-auto sm:w-64">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
             <Input
@@ -295,6 +309,7 @@ const SuperAdminPayments = () => {
           </div>
         </div>
 
+        {/* ── Count indicator ── */}
         <p className="text-sm text-muted-foreground">
           {isLoading ? "লোড হচ্ছে..." : `মোট ${totalCount} টি রিকোয়েস্ট`}
           {totalPages > 1 && ` · পেজ ${page}/${totalPages}`}
@@ -306,7 +321,7 @@ const SuperAdminPayments = () => {
           </div>
         )}
 
-        {/* Table */}
+        {/* ── Table ── */}
         <Card>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
@@ -340,13 +355,7 @@ const SuperAdminPayments = () => {
                         </div>
                       </td>
                       <td className="p-4">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
-                          p.plan === 'high_smart_enterprise'
-                            ? 'bg-amber-500/10 text-amber-600'
-                            : 'bg-primary/10 text-primary'
-                        }`}>
-                          {p.plan === 'high_smart_enterprise' ? '🏢 Enterprise' : p.plan}
-                        </span>
+                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary capitalize">{p.plan}</span>
                         <span className="text-xs text-muted-foreground ml-1">{getBillingLabel(p.billing_cycle)}</span>
                       </td>
                       <td className="p-4 text-muted-foreground text-sm capitalize hidden sm:table-cell">{p.payment_method}</td>
@@ -413,7 +422,7 @@ const SuperAdminPayments = () => {
           </CardContent>
         </Card>
 
-        {/* Pagination */}
+        {/* ── Pagination ── */}
         {totalPages > 1 && (
           <div className="flex items-center justify-center gap-2">
             <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1 || isLoading}>
@@ -440,7 +449,7 @@ const SuperAdminPayments = () => {
           </div>
         )}
 
-      {/* Review Dialog */}
+      {/* ── Review Dialog ── */}
       <Dialog open={dialogOpen} onOpenChange={v => { setDialogOpen(v); if (!v) setSelectedPayment(null); }}>
         <DialogContent className="max-w-md mx-4 sm:mx-auto">
           <DialogHeader><DialogTitle className="font-display">পেমেন্ট রিভিউ</DialogTitle></DialogHeader>
@@ -483,7 +492,6 @@ const SuperAdminPayments = () => {
                     <SelectContent>
                       <SelectItem value="medium_smart">⚡ মিডিয়াম স্মার্ট</SelectItem>
                       <SelectItem value="high_smart">👑 হাই স্মার্ট</SelectItem>
-                      <SelectItem value="high_smart_enterprise">🏢 হাই স্মার্ট এন্টারপ্রাইজ</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -514,7 +522,7 @@ const SuperAdminPayments = () => {
               {selectedPayment.status === "pending" && (
                 <div className="grid grid-cols-2 gap-3">
                   <Button variant="hero" className="h-10"
-                    onClick={() => approveMutation.mutate({ paymentId: selectedPayment.id, plan: editPlan, billingCycle: selectedPayment.billing_cycle })}
+                    onClick={() => approveMutation.mutate({ paymentId: selectedPayment.id, plan: editPlan, billingCycle: selectedPayment.billing_cycle, userId: selectedPayment.user_id })}
                     disabled={approveMutation.isPending}>
                     {approveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
                     <span className="ml-1">অনুমোদন</span>
@@ -564,4 +572,3 @@ const SuperAdminPayments = () => {
 };
 
 export default SuperAdminPayments;
-

@@ -21,11 +21,8 @@ const DashboardLayout = ({ children, role, title }: DashboardLayoutProps) => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const { restaurantId, restaurantPlan } = useAuth();
+  const { restaurantId } = useAuth();
   
-  // If an admin has the enterprise plan, they are effectively a group_owner
-  const effectiveRole = role === "admin" && restaurantPlan === "high_smart_enterprise" ? "group_owner" : role;
-
   // Trial status check
   const {
     isExpired,
@@ -54,7 +51,6 @@ const DashboardLayout = ({ children, role, title }: DashboardLayoutProps) => {
       path: location.pathname,
       pendingRedirect,
       resolvedRole: role,
-      effectiveRole,
       restaurantId,
       title,
     });
@@ -66,7 +62,7 @@ const DashboardLayout = ({ children, role, title }: DashboardLayoutProps) => {
       });
       clearPendingLoginRedirect();
     }
-  }, [location.pathname, restaurantId, role, effectiveRole, title]);
+  }, [location.pathname, restaurantId, role, title]);
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -88,7 +84,7 @@ const DashboardLayout = ({ children, role, title }: DashboardLayoutProps) => {
         onLogoutClick={handleLogout}
       />
       <DashboardSidebar
-        role={effectiveRole}
+        role={role}
         mobileOpen={mobileOpen}
         onMobileClose={() => setMobileOpen(false)}
       />

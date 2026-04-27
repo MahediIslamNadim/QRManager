@@ -7,24 +7,23 @@ interface ProtectedRouteProps {
   allowedRoles?: string[];
 }
 
-// Enterprise plan — শুধু এই plan-এ /enterprise routes accessible
-const ENTERPRISE_PLAN = "high_smart_enterprise";
-
-// group_owner কিন্তু enterprise plan নেই → এই prefixes-এ যেতে পারবে না
-const ENTERPRISE_ONLY_PREFIXES = ["/enterprise"];
-
-// যেসব route সবসময় accessible (billing, upgrade, setup)
-const ALWAYS_ALLOWED = ["/billing", "/upgrade", "/admin-setup"];
-
 const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
-  const { user, role, loading, trialExpired, restaurantId, restaurantPlan } = useAuth();
+  const { user, role, loading, trialExpired, restaurantId } = useAuth();
   const location = useLocation();
 
   if (loading) {
+    authDebug("ProtectedRoute", "Holding route while auth context is loading", {
+      allowedRoles,
+      path: location.pathname,
+      restaurantId,
+      role,
+      userId: user?.id ?? null,
+    });
+
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
-          <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
           <p className="text-muted-foreground">লোড হচ্ছে...</p>
         </div>
       </div>
@@ -32,87 +31,66 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
   }
 
   if (!user) {
+    authDebug("ProtectedRoute", "Redirecting to /login because no authenticated user exists", {
+      allowedRoles,
+      path: location.pathname,
+    });
     return <Navigate to="/login" replace />;
   }
 
-  const searchParams = new URLSearchParams(window.location.search);
-  const isBranchInvite = Boolean(searchParams.get("branch_restaurant_id"));
-  const isAlwaysAllowed = ALWAYS_ALLOWED.some((p) => location.pathname.startsWith(p));
-  const hasEnterprisePlan = restaurantPlan === ENTERPRISE_PLAN;
-
-  const isEnterpriseRoute = ENTERPRISE_ONLY_PREFIXES.some((prefix) =>
-    location.pathname.startsWith(prefix),
-  );
-
-  // ── group_owner OR admin with enterprise plan routing ─────────────────────
-  // If an admin upgrades to High Smart Enterprise, they MUST use the enterprise dashboard.
-  if ((role === "group_owner" || (role === "admin" && hasEnterprisePlan)) && !isAlwaysAllowed) {
-    if (hasEnterprisePlan) {
-      // Enterprise plan আছে → enterprise routes-এ থাকতে পারবে
-      // admin routes-এ গেলে enterprise dashboard-এ redirect
-      if (!isEnterpriseRoute && !location.pathname.startsWith("/admin-setup")) {
-        authDebug("ProtectedRoute", "Enterprise plan user redirected to enterprise dashboard", {
-          path: location.pathname,
-          role,
-        });
-        return <Navigate to="/enterprise/dashboard" replace />;
-      }
-    } else if (role === "group_owner") {
-      // group_owner কিন্তু Enterprise plan নেই → /enterprise routes blocked
-      if (isEnterpriseRoute) {
-        authDebug("ProtectedRoute", "group_owner without enterprise blocked from /enterprise", {
-          restaurantPlan,
-          path: location.pathname,
-        });
-        return restaurantId
-          ? <Navigate to="/admin" replace />
-          : <Navigate to="/upgrade" replace />;
-      }
-    }
-  }
-
-  // ── Admin — restaurant নেই এবং branch invite নয় → setup ──────────────────
-  if (role === "admin" && !restaurantId && !isBranchInvite && !hasEnterprisePlan) {
+  if (role === "admin" && !restaurantId) {
+    authDebug("ProtectedRoute", "Redirecting admin to /admin-setup because restaurantId is missing", {
+      allowedRoles,
+      path: location.pathname,
+      role,
+      userId: user.id,
+    });
     return <Navigate to="/admin-setup" replace />;
   }
 
-  // ── Trial শেষ → expired page ───────────────────────────────────────────────
   if (trialExpired && role === "admin") {
+    authDebug("ProtectedRoute", "Redirecting admin to /trial-expired because trialExpired is true", {
+      path: location.pathname,
+      restaurantId,
+      userId: user.id,
+    });
     return <Navigate to="/trial-expired" replace />;
   }
 
-  // ── Role-based access check ────────────────────────────────────────────────
   if (allowedRoles) {
     if (!role) {
+      authDebug("ProtectedRoute", "Redirecting to /login because authenticated user has no resolved role", {
+        allowedRoles,
+        path: location.pathname,
+        restaurantId,
+        userId: user.id,
+      });
       return <Navigate to="/login" replace />;
     }
 
-    // If an admin has the enterprise plan, they are effectively a group_owner for route access
-    const effectiveRole = role === "admin" && hasEnterprisePlan ? "group_owner" : role;
-
-    if (!allowedRoles.includes(effectiveRole)) {
-      authDebug("ProtectedRoute", "Redirecting — resolved role not allowed on this route", {
+    if (!allowedRoles.includes(role)) {
+      authDebug("ProtectedRoute", "Redirecting because resolved role is not allowed on this route", {
         allowedRoles,
         path: location.pathname,
         redirectedRole: role,
-        effectiveRole,
         restaurantId,
-        restaurantPlan,
         userId: user.id,
       });
 
-      if (effectiveRole === "super_admin") return <Navigate to="/super-admin" replace />;
-      if (effectiveRole === "group_owner") {
-        return restaurantPlan === ENTERPRISE_PLAN
-          ? <Navigate to="/enterprise/dashboard" replace />
-          : restaurantId
-            ? <Navigate to="/admin" replace />
-            : <Navigate to="/upgrade" replace />;
-      }
-      if (effectiveRole === "waiter") return <Navigate to="/waiter" replace />;
+      if (role === "super_admin") return <Navigate to="/super-admin" replace />;
+      if (role === "group_owner") return <Navigate to="/group/setup" replace />;
+      if (role === "waiter") return <Navigate to="/waiter" replace />;
       return <Navigate to="/admin" replace />;
     }
   }
+
+  authDebug("ProtectedRoute", "Route access granted", {
+    allowedRoles,
+    path: location.pathname,
+    restaurantId,
+    role,
+    userId: user.id,
+  });
 
   return <>{children}</>;
 };

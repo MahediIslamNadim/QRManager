@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { UtensilsCrossed, ArrowRight, Loader2, Building2 } from "lucide-react";
+import { UtensilsCrossed, ArrowRight, Loader2 } from "lucide-react";
 import { FREE_TRIAL_DAYS } from "@/constants/app";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,64 +12,24 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const AdminSetup = () => {
   const navigate = useNavigate();
-  const { user, role, loading, refetchUserData } = useAuth();
+  const { user, role, loading } = useAuth();
   const [searchParams] = useSearchParams();
-
-  // Normal invite (old flow)
   const inviteId = searchParams.get("invite");
-  // Branch admin invite (new flow) — restaurant already exists in DB
-  const branchRestaurantId = searchParams.get("branch_restaurant_id");
-  const groupId = searchParams.get("group_id");
-
-  const isBranchInvite = !!branchRestaurantId;
-
+  
   const [restaurantName, setRestaurantName] = useState("");
   const [address, setAddress] = useState("");
   const [phone, setPhone] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [checking, setChecking] = useState(true);
-  const [branchInfo, setBranchInfo] = useState<{ name: string; address: string | null } | null>(null);
-
-  // If this is a branch invite, load the branch restaurant info
-  useEffect(() => {
-    if (isBranchInvite && branchRestaurantId) {
-      supabase
-        .from("restaurants")
-        .select("name, address")
-        .eq("id", branchRestaurantId)
-        .single()
-        .then(({ data }) => {
-          if (data) setBranchInfo({ name: data.name, address: data.address });
-        });
-    }
-  }, [isBranchInvite, branchRestaurantId]);
 
   useEffect(() => {
-    if (loading) return;
-
-    if (!user) {
-      navigate("/login", { replace: true });
-      return;
-    }
-
-    if (role === "super_admin") {
-      navigate("/super-admin", { replace: true });
-      return;
-    }
-
-    if (role === "group_owner") {
-      navigate("/enterprise/dashboard", { replace: true });
-      return;
-    }
-
-    // FIX: Branch invite এ আসলে role=admin হলেও redirect করো না।
-    // Branch invite page-ই দেখাতে হবে যাতে user confirm করতে পারে।
-    if (role === "admin" && !isBranchInvite) {
+    // If user already has a restaurant, redirect
+    if (!loading && user && role === "admin") {
       supabase.rpc("get_user_restaurant_id", { _user_id: user.id })
         .then(async ({ data, error }) => {
           if (error) { console.warn("RPC error:", error); setChecking(false); return; }
           if (data) {
-            // Already fully set up — accept old-style invite if present, then redirect
+            // User already has a restaurant — accept invite (if present) then redirect
             if (inviteId) {
               await supabase
                 .from("admin_invites" as any)
@@ -81,68 +41,29 @@ const AdminSetup = () => {
             setChecking(false);
           }
         })
-        .catch((err: any) => {
+        .then(undefined, (err: any) => {
           console.warn("Restaurant ID check failed:", err);
           setChecking(false);
         });
-    } else {
+    } else if (!loading && !user) {
+      navigate("/login", { replace: true });
+    } else if (!loading && role === "super_admin") {
+      navigate("/super-admin", { replace: true });
+    } else if (!loading) {
       setChecking(false);
     }
-  }, [user, role, loading, navigate, inviteId, isBranchInvite]);
+  }, [user, role, loading, navigate]);
 
-  // Branch invite flow: edge function already assigned role + restaurant.
-  // User just needs to confirm — we finalise here and mark invitation accepted.
-  const handleBranchSetupComplete = async () => {
-    if (!user || !branchRestaurantId) return;
-    setSubmitting(true);
-    try {
-      // Double-check role assignment (edge fn should have done this already)
-      await supabase.from("user_roles" as any).upsert(
-        { user_id: user.id, role: "admin", restaurant_id: branchRestaurantId },
-        { onConflict: "user_id,role" }
-      );
-
-      // Double-check restaurant link in profiles
-      await supabase.from("profiles" as any).upsert(
-        { id: user.id, restaurant_id: branchRestaurantId },
-        { onConflict: "id" }
-      );
-
-      await supabase.from("staff_restaurants" as any).upsert(
-        { user_id: user.id, restaurant_id: branchRestaurantId, role: "admin" },
-        { onConflict: "user_id,restaurant_id" }
-      );
-
-      // Mark branch invitation as accepted now that user has confirmed
-      try {
-        await (supabase.from("branch_invitations") as any)
-          .update({ status: "accepted", accepted_at: new Date().toISOString() })
-          .eq("restaurant_id", branchRestaurantId)
-          .eq("invited_email", user.email);
-      } catch {
-        // Ignore if table not yet present
-      }
-
-      // Refetch auth context so new role takes effect immediately
-      await refetchUserData(user.id);
-
-      toast.success("সেটআপ সম্পন্ন! আপনার Branch Dashboard-এ যাচ্ছেন...");
-      navigate("/admin", { replace: true });
-    } catch (err: any) {
-      toast.error(err.message || "সেটআপ করতে সমস্যা হয়েছে");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  // Normal setup flow (new restaurant)
   const handleSetup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!restaurantName.trim() || !user) return;
     setSubmitting(true);
 
     try {
-      const { error: setupError } = await supabase.rpc(
+      // Use the same server-side RPC as the normal signup path.
+      // This atomically creates the restaurant AND assigns the admin role,
+      // preventing a roleless user from ending up with a restaurant but no role.
+      const { data: setupData, error: setupError } = await supabase.rpc(
         "complete_admin_signup" as any,
         {
           p_restaurant_name: restaurantName.trim(),
@@ -151,19 +72,20 @@ const AdminSetup = () => {
           p_trial_days: FREE_TRIAL_DAYS,
         } as any,
       );
-
+      // already_setup means the user somehow already has a role (e.g. double-submit).
+      // Treat it as success — the restaurant exists, just navigate forward.
       if (setupError && !setupError.message.includes("already_setup")) {
         throw new Error("সেটআপ ব্যর্থ: " + setupError.message);
       }
 
-      // Mark old-style invite accepted if present
+      // Mark invite accepted if this setup came from an invite link
       if (inviteId) {
         await supabase
           .from("admin_invites" as any)
           .update({ status: "accepted", accepted_at: new Date().toISOString(), restaurant_name: restaurantName.trim() } as any)
           .eq("id", inviteId)
-          .eq("email", user.email)
-          .eq("status", "pending");
+          .eq("email", user.email)   // only mark invites belonging to the signed-in user's email
+          .eq("status", "pending");  // only mark invites that haven't already been accepted/revoked
       }
 
       toast.success("রেস্টুরেন্ট সেটআপ সম্পন্ন!");
@@ -183,52 +105,6 @@ const AdminSetup = () => {
     );
   }
 
-  // ── Branch invite UI ──────────────────────────────────────────
-  if (isBranchInvite) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="w-full max-w-md animate-fade-up">
-          <CardHeader className="text-center">
-            <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
-              <Building2 className="w-8 h-8 text-primary" />
-            </div>
-            <CardTitle className="text-2xl">Branch Admin হিসেবে যোগ দিন</CardTitle>
-            <p className="text-sm text-muted-foreground mt-2">
-              আপনাকে একটি শাখার Admin হিসেবে আমন্ত্রণ জানানো হয়েছে
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {branchInfo && (
-              <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 space-y-1">
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">আপনার শাখা</p>
-                <p className="font-semibold text-lg">{branchInfo.name}</p>
-                {branchInfo.address && (
-                  <p className="text-sm text-muted-foreground">{branchInfo.address}</p>
-                )}
-              </div>
-            )}
-
-            <div className="p-3 rounded-lg bg-success/10 border border-success/30 text-sm text-success">
-              ✦ আপনার account তৈরি হয়ে গেছে। নিচের বাটনে ক্লিক করলেই Dashboard দেখতে পাবেন।
-            </div>
-
-            <Button
-              onClick={handleBranchSetupComplete}
-              className="w-full gap-2"
-              disabled={submitting}
-            >
-              {submitting
-                ? <><Loader2 className="w-4 h-4 animate-spin" /> সেটআপ হচ্ছে...</>
-                : <>Branch Dashboard-এ যান <ArrowRight className="w-4 h-4" /></>
-              }
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // ── Normal new restaurant setup UI ───────────────────────────
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-md animate-fade-up">
