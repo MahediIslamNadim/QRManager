@@ -13,7 +13,7 @@ import { authDebug, clearPendingLoginRedirect, getPendingLoginRedirect } from "@
 
 interface DashboardLayoutProps {
   children: ReactNode;
-  role: "super_admin" | "admin" | "waiter" | "group_owner";
+  role: "super_admin" | "admin" | "waiter";
   title: string;
 }
 

@@ -235,7 +235,7 @@ export default function AdminReports() {
         }
       });
 
-      let data = Object.entries(map).map(([label, v]) => ({
+      const data = Object.entries(map).map(([label, v]) => ({
         label,
         revenue:      Math.round(v.revenue),
         order_count:  v.order_count,

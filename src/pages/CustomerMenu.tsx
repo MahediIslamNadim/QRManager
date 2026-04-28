@@ -108,10 +108,12 @@ const CustomerMenu = () => {
 
   // ── Sanitize user text input ──────────────────────────────────────────────
   const sanitize = (text: string, maxLen = 500): string =>
-    text
-      .trim()
-      .replace(/<[^>]*>/g, "")
-      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "")
+    Array.from(text.trim().replace(/<[^>]*>/g, ""))
+      .filter((char) => {
+        const code = char.charCodeAt(0);
+        return code > 31 && code !== 127;
+      })
+      .join("")
       .slice(0, maxLen);
 
   // ── Item ratings from reviews table (with realtime) ───────────────────────

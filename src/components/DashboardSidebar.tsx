@@ -3,16 +3,14 @@ import { APP_NAME } from "@/constants/app";
 import {
   LayoutDashboard, UtensilsCrossed, Store, Users, BarChart3,
   CreditCard, Menu, QrCode, ShoppingCart, UserCheck, Bell,
-  Settings, LogOut, ChevronLeft, X, ChefHat, Sparkles, Receipt, FileText, MessageSquare, Headphones,
-  Building2, GitBranch, MapPin,
+  Settings, LogOut, ChevronLeft, X, ChefHat, Sparkles, Receipt, FileText, MessageSquare, Headphones
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
-import { useUserGroups } from "@/hooks/useGroupOwner";
 
-type Role = "super_admin" | "admin" | "waiter" | "group_owner";
+type Role = "super_admin" | "admin" | "waiter";
 interface SidebarProps {
   role: Role;
   mobileOpen?: boolean;
@@ -41,17 +39,6 @@ const navItems: Record<Role, { title: string; href: string; icon: any }[]> = {
     { title: "কাস্টম রিপোর্ট", href: "/admin/reports", icon: FileText },
     { title: "কাস্টমার ফিডব্যাক", href: "/admin/feedback", icon: MessageSquare },
     { title: "প্রায়োরিটি সাপোর্ট", href: "/admin/support", icon: Headphones },
-    { title: "চেইন সেটআপ", href: "/group/setup", icon: GitBranch },
-    { title: "প্ল্যান ও বিলিং", href: "/billing", icon: Receipt },
-    { title: "সেটিংস", href: "/admin/settings", icon: Settings },
-  ],
-  group_owner: [
-    { title: "Enterprise Dashboard", href: "/enterprise/dashboard", icon: LayoutDashboard },
-    { title: "গ্রুপ সেটআপ", href: "/group/setup", icon: GitBranch },
-    { title: "রেস্টুরেন্ট Dashboard", href: "/admin", icon: Store },
-    { title: "মেনু ম্যানেজমেন্ট", href: "/admin/menu", icon: Menu },
-    { title: "অর্ডারসমূহ", href: "/admin/orders", icon: ShoppingCart },
-    { title: "অ্যানালিটিক্স", href: "/admin/analytics", icon: BarChart3 },
     { title: "প্ল্যান ও বিলিং", href: "/billing", icon: Receipt },
     { title: "সেটিংস", href: "/admin/settings", icon: Settings },
   ],
@@ -74,9 +61,7 @@ const SidebarContent = ({
 }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const items = navItems[role] ?? navItems.admin;
-  const isGroupOwner = role === "group_owner" || role === "super_admin";
-  const { data: userGroups = [] } = useUserGroups();
+  const items = navItems[role];
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -127,35 +112,6 @@ const SidebarContent = ({
             </NavLink>
           );
         })}
-
-        {/* Dynamic group links for group_owner */}
-        {isGroupOwner && userGroups.length > 0 && (
-          <>
-            {(!collapsed || isMobile) && (
-              <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
-                আমার গ্রুপসমূহ
-              </p>
-            )}
-            {userGroups.map((g) => {
-              const href = `/group/${g.id}`;
-              const isActive = location.pathname.startsWith(href);
-              return (
-                <NavLink
-                  key={g.id}
-                  to={href}
-                  onClick={handleNavClick}
-                  className={cn("sidebar-nav-item", isActive && "active")}
-                  title={g.name}
-                >
-                  <MapPin className="w-5 h-5 flex-shrink-0" />
-                  {(!collapsed || isMobile) && (
-                    <span className="font-body text-sm truncate">{g.name}</span>
-                  )}
-                </NavLink>
-              );
-            })}
-          </>
-        )}
       </nav>
 
       {/* Logout */}
@@ -177,7 +133,7 @@ const DashboardSidebar = ({ role, mobileOpen, onMobileClose }: SidebarProps) => 
 
   return (
     <>
-      {/* MOBILE: Overlay + slide-in drawer */}
+      {/* ✅ MOBILE: Overlay + slide-in drawer */}
       {mobileOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
           {/* Backdrop */}
@@ -198,7 +154,7 @@ const DashboardSidebar = ({ role, mobileOpen, onMobileClose }: SidebarProps) => 
         </div>
       )}
 
-      {/* DESKTOP: Sticky sidebar */}
+      {/* ✅ DESKTOP: Sticky sidebar */}
       <aside
         className={cn(
           "hidden md:flex h-screen sticky top-0 flex-col bg-sidebar border-r border-sidebar-border transition-all duration-300",

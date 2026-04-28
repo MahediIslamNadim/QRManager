@@ -118,7 +118,7 @@ export default function AdminStaff() {
         supabase.from("user_roles").select("user_id, role").in("user_id", userIds),
       ]);
 
-      let rpcEmailMap: Record<string, string> = {};
+      const rpcEmailMap: Record<string, string> = {};
       try {
         const { data: rpcRows } = await (supabase as any).rpc("get_restaurant_staff", { _restaurant_id: restaurantId });
         if (rpcRows) rpcRows.forEach((row: any) => { if (row.email) rpcEmailMap[row.user_id] = row.email; });
