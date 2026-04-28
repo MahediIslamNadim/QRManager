@@ -1,4 +1,5 @@
 {
+  "name": "qr-manager",
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ]

@@ -44,7 +44,7 @@ const navItems: Record<Role, { title: string; href: string; icon: any }[]> = {
   waiter: [
     { title: "অ্যাক্টিভ অর্ডার", href: "/waiter", icon: ShoppingCart },
     { title: "সিট রিকোয়েস্ট", href: "/waiter/seats", icon: UserCheck },
-    { title: "কিচেন ডিসপ্লে", href: "/waiter/kitchen", icon: ChefHat },
+    { title: "কিচেন ডিসপ্লে", href: "/admin/kitchen", icon: ChefHat },     
     { title: "নোটিফিকেশন", href: "/waiter/notifications", icon: Bell },
   ],
 };

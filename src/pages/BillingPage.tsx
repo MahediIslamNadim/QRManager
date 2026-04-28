@@ -159,14 +159,13 @@ const BillingPage = () => {
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Subscription started:</span>
                   <span className="font-medium">
-                    {format(new Date(subscription.subscription_start_date), 'MMM dd, yyyy')}
+                   {subscription.subscription_start_date ? format(new Date(subscription.subscription_start_date), 'MMM dd, yyyy') : 'N/A'} 
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Next billing date:</span>
                   <span className="font-medium">
-                    {format(new Date(subscription.next_billing_date), 'MMM dd, yyyy')}
-                  </span>
+                    {subscription.next_billing_date ? format(new Date(subscription.next_billing_date), 'MMM dd, yyyy') : 'N/A'}                  </span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Renewal amount:</span>

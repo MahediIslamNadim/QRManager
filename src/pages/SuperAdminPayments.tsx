@@ -52,7 +52,8 @@ const SuperAdminPayments = () => {
   const [activeTab, setActiveTab] = useState<"manual" | "ssl">("manual");
   const [selectedPayment, setSelectedPayment] = useState<PaymentRequest | null>(null);
   const [adminNotes, setAdminNotes] = useState("");
-  const [editPlan, setEditPlan] = useState<"medium_smart" | "high_smart">("medium_smart");
+  setEditPlan((p.plan as "medium_smart" | "high_smart") || "medium_smart");
+
   const [editAmount, setEditAmount] = useState(0);
   const [editStatus, setEditStatus] = useState<"pending" | "approved" | "rejected">("pending");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -515,7 +516,7 @@ const SuperAdminPayments = () => {
               {selectedPayment.status === "pending" && (
                 <div className="grid grid-cols-2 gap-3">
                   <Button variant="hero" className="h-10"
-                    onClick={() => approveMutation.mutate({ paymentId: selectedPayment.id, plan: editPlan, billingCycle: selectedPayment.billing_cycle })}
+onClick={() => approveMutation.mutate({ paymentId: selectedPayment.id, plan: editPlan || selectedPayment.plan, billingCycle: selectedPayment.billing_cycle })}                    
                     disabled={approveMutation.isPending}>
                     {approveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
                     <span className="ml-1">অনুমোদন</span>

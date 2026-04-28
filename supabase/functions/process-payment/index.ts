@@ -22,7 +22,8 @@ interface RequestBody {
   status?: string;
 }
 
-const VALID_PLANS = ["basic", "premium", "enterprise", "medium_smart", "high_smart"] as const;
+const VALID_PLANS = ["medium_smart", "high_smart"] as const;
+
 const VALID_ACTIONS: Action[] = ["approve", "reject", "update", "reopen", "delete"];
 
 function getExpiryDate(billingCycle?: string): string {
