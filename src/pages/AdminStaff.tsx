@@ -87,6 +87,7 @@ export default function AdminStaff() {
     upgradeMessage,
     loading: limitLoading,
     checkBeforeInvite,
+    refetch: refetchStaffLimit,
   } = useCanInviteStaff(restaurantId);
 
   const [showInviteDialog, setShowInviteDialog] = useState(false);
@@ -159,6 +160,7 @@ export default function AdminStaff() {
     },
     onSuccess: result => {
       queryClient.invalidateQueries({ queryKey: ["staff", restaurantId] });
+      refetchStaffLimit();
       if (result?.already_exists)  toast.success("\u098f\u0987 \u09b8\u09cd\u099f\u09be\u09ab \u0987\u09a4\u09bf\u09ae\u09a7\u09cd\u09af\u09c7\u0987 \u09af\u09c1\u0995\u09cd\u09a4 \u0986\u099b\u09c7\u09a8\u0964");
       else if (result?.role_updated) toast.success("\u09b8\u09cd\u099f\u09be\u09ab\u09c7\u09b0 \u09b0\u09cb\u09b2 \u0986\u09aa\u09a1\u09c7\u099f \u09b9\u09af\u09bc\u09c7\u099b\u09c7\u0964");
       else toast.success("\u09b8\u09cd\u099f\u09be\u09ab \u09b8\u09ab\u09b2\u09ad\u09be\u09ac\u09c7 \u09af\u09cb\u0997 \u09b9\u09af\u09bc\u09c7\u099b\u09c7\u0964");
@@ -181,6 +183,7 @@ export default function AdminStaff() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["staff", restaurantId] });
+      refetchStaffLimit();
       toast.success("\u09b8\u09cd\u099f\u09be\u09ab \u09b8\u09b0\u09be\u09a8\u09cb \u09b9\u09af\u09bc\u09c7\u099b\u09c7\u0964");
     },
     onError: (err: Error) => toast.error(err.message),
@@ -198,6 +201,7 @@ export default function AdminStaff() {
       if (error) throw error;
 
       queryClient.invalidateQueries({ queryKey: ["staff", restaurantId] });
+      refetchStaffLimit();
       toast.success("\u09b0\u09cb\u09b2 \u0986\u09aa\u09a1\u09c7\u099f \u09b9\u09af\u09bc\u09c7\u099b\u09c7\u0964");
     } catch (err: any) {
       toast.error(err.message || "\u09b0\u09cb\u09b2 \u0986\u09aa\u09a1\u09c7\u099f \u0995\u09b0\u09a4\u09c7 \u09b8\u09ae\u09b8\u09cd\u09af\u09be \u09b9\u09af\u09bc\u09c7\u099b\u09c7\u0964");

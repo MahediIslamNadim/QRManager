@@ -35,6 +35,7 @@ export const useStaffLimit = (restaurantId: string | undefined) => {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshIndex, setRefreshIndex] = useState(0);
 
   useEffect(() => {
     if (!restaurantId) {
@@ -98,9 +99,11 @@ export const useStaffLimit = (restaurantId: string | undefined) => {
     };
 
     fetchStaffLimit();
-  }, [restaurantId]);
+  }, [restaurantId, refreshIndex]);
 
-  return { ...result, loading, error };
+  const refetch = () => setRefreshIndex((current) => current + 1);
+
+  return { ...result, loading, error, refetch };
 };
 
 // Helper hook to check before inviting staff
@@ -122,6 +125,7 @@ export const useCanInviteStaff = (restaurantId: string | undefined) => {
 
   return {
     ...limit,
-    checkBeforeInvite
+    checkBeforeInvite,
+    refetch: limit.refetch,
   };
 };
