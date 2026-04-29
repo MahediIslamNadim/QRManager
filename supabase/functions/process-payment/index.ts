@@ -253,13 +253,11 @@ Deno.serve(async (req) => {
     if (authErr || !caller) return json({ error: "Unauthorized" }, 401);
 
     const admin = createClient(supabaseUrl, serviceKey);
-    const { data: roleRow } = await admin
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", caller.id)
-      .eq("role", "super_admin")
-      .maybeSingle();
-    if (!roleRow) return json({ error: "Forbidden: super_admin only" }, 403);
+    const { data: isSuperAdmin, error: roleErr } = await admin.rpc("has_role", {
+      _user_id: caller.id,
+      _role: "super_admin",
+    });
+    if (roleErr || !isSuperAdmin) return json({ error: "Forbidden: super_admin only" }, 403);
 
     let body: RequestBody;
     try { body = await req.json(); } catch { return json({ error: "Invalid JSON body" }, 400); }
@@ -283,11 +281,12 @@ Deno.serve(async (req) => {
     if (action === "approve") {
       const plan = getSafePlan(body.plan ?? payment.plan);
       const billingCycle = getSafeBillingCycle(body.billing_cycle ?? payment.billing_cycle);
+      const amount = typeof body.amount === "number" && Number.isFinite(body.amount) ? body.amount : payment.amount;
       const tier = plan;
 
       const { error: payErr } = await admin
         .from("payment_requests")
-        .update({ status: "approved", plan, billing_cycle: billingCycle, admin_notes: body.admin_notes ?? null, updated_at: now })
+        .update({ status: "approved", plan, billing_cycle: billingCycle, amount, admin_notes: body.admin_notes ?? null, updated_at: now })
         .eq("id", payment_id);
       if (payErr) return json({ error: "Internal server error" }, 500);
 
@@ -295,6 +294,7 @@ Deno.serve(async (req) => {
         ...payment,
         plan,
         billing_cycle: billingCycle,
+        amount,
         admin_notes: body.admin_notes ?? null,
       });
 
@@ -336,6 +336,7 @@ Deno.serve(async (req) => {
     if (action === "update") {
       const newStatus = body.status ?? payment.status;
       const newPlan = getSafePlan(body.plan ?? payment.plan);
+      const newBillingCycle = getSafeBillingCycle(body.billing_cycle ?? payment.billing_cycle);
 
       if (!["pending", "approved", "rejected"].includes(newStatus as string)) {
         return json({ error: "Invalid status value" }, 400);
@@ -343,6 +344,7 @@ Deno.serve(async (req) => {
 
       const paymentUpdatePayload: Record<string, unknown> = {
         plan: newPlan,
+        billing_cycle: newBillingCycle,
         status: newStatus,
         admin_notes: body.admin_notes ?? null,
         updated_at: now,
@@ -361,6 +363,7 @@ Deno.serve(async (req) => {
         await syncRestaurantSubscription(admin, payment.restaurant_id, {
           ...payment,
           plan: newPlan,
+          billing_cycle: newBillingCycle,
           amount: typeof body.amount === "number" ? body.amount : payment.amount,
           admin_notes: body.admin_notes ?? null,
         });

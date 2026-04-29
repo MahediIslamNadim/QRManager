@@ -31,6 +31,7 @@ interface PaymentRequest {
 }
 
 type PaymentPlan = "medium_smart" | "high_smart";
+type BillingCycle = "monthly" | "yearly";
 
 const invokePayment = async (body: Record<string, unknown>) => {
   const { data, error } = await supabase.functions.invoke("process-payment", { body });
@@ -42,6 +43,8 @@ const invokePayment = async (body: Record<string, unknown>) => {
 const PAGE_SIZE = 20;
 const STATUS_OPTIONS = ["all", "pending", "approved", "rejected"] as const;
 type StatusFilter = typeof STATUS_OPTIONS[number];
+
+const normalizeSearch = (value: string) => value.replace(/[,%]/g, " ").trim();
 
 const SuperAdminPayments = () => {
   const queryClient = useQueryClient();
@@ -55,6 +58,7 @@ const SuperAdminPayments = () => {
   const [selectedPayment, setSelectedPayment] = useState<PaymentRequest | null>(null);
   const [adminNotes, setAdminNotes] = useState("");
   const [editPlan, setEditPlan] = useState<PaymentPlan>("medium_smart");
+  const [editBillingCycle, setEditBillingCycle] = useState<BillingCycle>("monthly");
   const [editAmount, setEditAmount] = useState(0);
   const [editStatus, setEditStatus] = useState<"pending" | "approved" | "rejected">("pending");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -68,7 +72,7 @@ const SuperAdminPayments = () => {
   // Reset page when filters change
   useEffect(() => { setPage(1); }, [statusFilter, search]);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error: manualError } = useQuery({
     queryKey: ["all-payments", statusFilter, page, search],
     queryFn: async () => {
       const from = (page - 1) * PAGE_SIZE;
@@ -80,7 +84,10 @@ const SuperAdminPayments = () => {
         .range(from, to);
 
       if (statusFilter !== "all") q = q.eq("status", statusFilter);
-      if (search) q = q.or(`transaction_id.ilike.%${search}%,phone_number.ilike.%${search}%`);
+      if (search) {
+        const safeSearch = normalizeSearch(search);
+        if (safeSearch) q = q.or(`transaction_id.ilike.%${safeSearch}%,phone_number.ilike.%${safeSearch}%`);
+      }
 
       const { data: rows, error, count } = await q;
       if (error) throw error;
@@ -125,7 +132,7 @@ const SuperAdminPayments = () => {
   };
 
   // SSL transactions
-  const { data: sslTxns = [], isLoading: sslLoading } = useQuery({
+  const { data: sslTxns = [], isLoading: sslLoading, error: sslError } = useQuery({
     queryKey: ["ssl-transactions"],
     queryFn: async () => {
       const { data, error } = await (supabase.from("ssl_transactions" as any) as any)
@@ -149,13 +156,14 @@ const SuperAdminPayments = () => {
     setSelectedPayment(null);
     setAdminNotes("");
     setEditPlan("medium_smart");
+    setEditBillingCycle("monthly");
     setEditAmount(0);
     setEditStatus("pending");
   };
 
   const approveMutation = useMutation({
-    mutationFn: ({ paymentId, plan, billingCycle }: { paymentId: string; plan: string; billingCycle?: string }) =>
-      invokePayment({ action: "approve", payment_id: paymentId, plan, billing_cycle: billingCycle, admin_notes: adminNotes || null }),
+    mutationFn: ({ paymentId, plan, billingCycle, amount }: { paymentId: string; plan: string; billingCycle?: string; amount: number }) =>
+      invokePayment({ action: "approve", payment_id: paymentId, plan, billing_cycle: billingCycle, amount, admin_notes: adminNotes || null }),
     onSuccess: () => { toast.success("✅ পেমেন্ট অনুমোদিত! রেস্টুরেন্ট সক্রিয় করা হয়েছে।"); closeDialog(); invalidate(); },
     onError: (err: any) => toast.error(err.message),
   });
@@ -170,7 +178,15 @@ const SuperAdminPayments = () => {
   const updatePaymentMutation = useMutation({
     mutationFn: () => {
       if (!selectedPayment) return Promise.resolve();
-      return invokePayment({ action: "update", payment_id: selectedPayment.id, plan: editPlan, amount: editAmount, status: editStatus, admin_notes: adminNotes || null });
+      return invokePayment({
+        action: "update",
+        payment_id: selectedPayment.id,
+        plan: editPlan,
+        billing_cycle: editBillingCycle,
+        amount: editAmount,
+        status: editStatus,
+        admin_notes: adminNotes || null,
+      });
     },
     onSuccess: () => { toast.success("পেমেন্ট আপডেট হয়েছে"); closeDialog(); invalidate(); },
     onError: (err: any) => toast.error(err.message || "আপডেট করতে সমস্যা হয়েছে"),
@@ -192,6 +208,7 @@ const SuperAdminPayments = () => {
     setSelectedPayment(p);
     setAdminNotes(p.admin_notes || "");
     setEditPlan(p.plan === "high_smart" ? "high_smart" : "medium_smart");
+    setEditBillingCycle(p.billing_cycle === "yearly" ? "yearly" : "monthly");
     setEditAmount(Number(p.amount) || 0);
     setEditStatus((p.status as "pending" | "approved" | "rejected") || "pending");
     setDialogOpen(true);
@@ -235,7 +252,11 @@ const SuperAdminPayments = () => {
         {/* ── SSL Transactions tab ── */}
         {activeTab === "ssl" && (
           <div className="space-y-3">
-            {sslLoading ? (
+            {sslError ? (
+              <p className="text-sm text-destructive text-center py-8">
+                SSLCommerz transaction লোড করা যাচ্ছে না: {(sslError as Error).message}
+              </p>
+            ) : sslLoading ? (
               <p className="text-sm text-muted-foreground text-center py-8">লোড হচ্ছে...</p>
             ) : sslTxns.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">কোনো SSLCommerz ট্র্যানজেকশন নেই</p>
@@ -316,6 +337,12 @@ const SuperAdminPayments = () => {
           {isLoading ? "লোড হচ্ছে..." : `মোট ${totalCount} টি রিকোয়েস্ট`}
           {totalPages > 1 && ` · পেজ ${page}/${totalPages}`}
         </p>
+
+        {manualError && (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+            পেমেন্ট রিকোয়েস্ট লোড করা যাচ্ছে না: {(manualError as Error).message}
+          </div>
+        )}
 
         {isLoading && (
           <div className="text-center py-10">
@@ -486,7 +513,7 @@ const SuperAdminPayments = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="space-y-1.5">
                   <Label className="text-xs text-muted-foreground">টিয়ার</Label>
                   <Select value={editPlan} onValueChange={v => setEditPlan(v as any)}>
@@ -494,6 +521,16 @@ const SuperAdminPayments = () => {
                     <SelectContent>
                       <SelectItem value="medium_smart">⚡ মিডিয়াম স্মার্ট</SelectItem>
                       <SelectItem value="high_smart">👑 হাই স্মার্ট</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">বিলিং</Label>
+                  <Select value={editBillingCycle} onValueChange={v => setEditBillingCycle(v as BillingCycle)}>
+                    <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="monthly">মাসিক</SelectItem>
+                      <SelectItem value="yearly">বার্ষিক</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -524,7 +561,12 @@ const SuperAdminPayments = () => {
               {selectedPayment.status === "pending" && (
                 <div className="grid grid-cols-2 gap-3">
                   <Button variant="hero" className="h-10"
-onClick={() => approveMutation.mutate({ paymentId: selectedPayment.id, plan: editPlan || selectedPayment.plan, billingCycle: selectedPayment.billing_cycle })}                    
+                    onClick={() => approveMutation.mutate({
+                      paymentId: selectedPayment.id,
+                      plan: editPlan || selectedPayment.plan,
+                      billingCycle: editBillingCycle,
+                      amount: editAmount,
+                    })}
                     disabled={approveMutation.isPending}>
                     {approveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
                     <span className="ml-1">অনুমোদন</span>
