@@ -1,4 +1,3 @@
-
 -- Staff-restaurant linkage table
 CREATE TABLE public.staff_restaurants (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -7,9 +6,7 @@ CREATE TABLE public.staff_restaurants (
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   UNIQUE(user_id, restaurant_id)
 );
-
 ALTER TABLE public.staff_restaurants ENABLE ROW LEVEL SECURITY;
-
 -- Admins can manage their restaurant's staff
 CREATE POLICY "Admins can manage staff_restaurants" ON public.staff_restaurants
   FOR ALL USING (
@@ -20,11 +17,9 @@ CREATE POLICY "Admins can manage staff_restaurants" ON public.staff_restaurants
     (restaurant_id IN (SELECT id FROM restaurants WHERE owner_id = auth.uid()))
     OR has_role(auth.uid(), 'super_admin'::app_role)
   );
-
 -- Users can view their own staff linkage
 CREATE POLICY "Users can view own staff link" ON public.staff_restaurants
   FOR SELECT USING (user_id = auth.uid());
-
 -- Update get_user_restaurant_id to also check staff_restaurants
 CREATE OR REPLACE FUNCTION public.get_user_restaurant_id(_user_id uuid)
 RETURNS uuid

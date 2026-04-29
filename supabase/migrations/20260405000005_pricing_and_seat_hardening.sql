@@ -80,8 +80,6 @@ BEGIN
   RETURN json_build_object('token', v_session.token, 'expires_at', v_session.expires_at);
 END;
 $$;
-
-
 -- ---------------------------------------------------------------------------
 -- 2. Rewrite insert_order_with_token: server-side pricing + seat binding
 --
@@ -176,8 +174,6 @@ BEGIN
   RETURN json_build_object('order_id', v_order_id, 'computed_total', v_total);
 END;
 $$;
-
-
 -- ---------------------------------------------------------------------------
 -- 3. Harden insert_notification_order: verify seat belongs to table + enforce
 --    session seat binding

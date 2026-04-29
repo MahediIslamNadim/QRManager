@@ -1,4 +1,3 @@
-
 CREATE OR REPLACE FUNCTION public.reset_table_on_order_complete()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -29,7 +28,6 @@ BEGIN
   RETURN NEW;
 END;
 $$;
-
 CREATE TRIGGER on_order_complete_reset_table
   AFTER UPDATE ON public.orders
   FOR EACH ROW

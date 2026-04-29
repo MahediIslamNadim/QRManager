@@ -19,15 +19,11 @@ CREATE TABLE IF NOT EXISTS public.service_requests (
   handled_by    uuid,
   created_at    timestamptz NOT NULL DEFAULT now()
 );
-
 CREATE INDEX IF NOT EXISTS service_requests_restaurant_status_created_idx
   ON public.service_requests (restaurant_id, status, created_at DESC);
-
 CREATE INDEX IF NOT EXISTS service_requests_table_created_idx
   ON public.service_requests (table_id, created_at DESC);
-
 ALTER TABLE public.service_requests ENABLE ROW LEVEL SECURITY;
-
 DROP POLICY IF EXISTS "Service requests are visible to restaurant stakeholders" ON public.service_requests;
 CREATE POLICY "Service requests are visible to restaurant stakeholders"
   ON public.service_requests
@@ -37,7 +33,6 @@ CREATE POLICY "Service requests are visible to restaurant stakeholders"
     OR public.has_role(auth.uid(), 'super_admin')
     OR public.is_restaurant_staff(auth.uid(), restaurant_id)
   );
-
 DROP POLICY IF EXISTS "Service requests are manageable by restaurant stakeholders" ON public.service_requests;
 CREATE POLICY "Service requests are manageable by restaurant stakeholders"
   ON public.service_requests
@@ -52,7 +47,6 @@ CREATE POLICY "Service requests are manageable by restaurant stakeholders"
     OR public.has_role(auth.uid(), 'super_admin')
     OR public.is_restaurant_staff(auth.uid(), restaurant_id)
   );
-
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -65,7 +59,6 @@ BEGIN
     ALTER PUBLICATION supabase_realtime ADD TABLE public.service_requests;
   END IF;
 END $$;
-
 CREATE OR REPLACE FUNCTION public.create_service_request(
   p_restaurant_id uuid,
   p_table_id      uuid,
@@ -149,6 +142,5 @@ BEGIN
   RETURN json_build_object('request_id', v_request_id);
 END;
 $$;
-
 GRANT EXECUTE ON FUNCTION public.create_service_request(uuid, uuid, uuid, uuid, text, text)
   TO anon, authenticated;

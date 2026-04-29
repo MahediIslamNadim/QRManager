@@ -104,14 +104,6 @@ Deno.serve(async (req) => {
       ? role as (typeof allowedRoles)[number]
       : null;
 
-    // Resolve caller's own restaurant_id
-    const { data: callerRest } = await callerClient
-      .from("restaurants")
-      .select("id")
-      .eq("owner_id", caller.id)
-      .limit(1)
-      .single();
-
     // super_admin may pass any restaurant_id; admin must own theirs
     const isSuperAdmin = callerRoles?.some(r => r.role === "super_admin");
     let restId: string | undefined;
@@ -131,8 +123,34 @@ Deno.serve(async (req) => {
       }
       restId = restaurant_id;
     } else {
-      // Regular admin: always use their own restaurant, ignore any provided restaurant_id
-      restId = callerRest?.id;
+      // Regular admin: resolve either owned restaurant or assigned admin restaurant
+      const { data: callerRest } = await callerClient
+        .from("restaurants")
+        .select("id")
+        .eq("owner_id", caller.id)
+        .limit(1)
+        .maybeSingle();
+
+      if (callerRest?.id) {
+        restId = callerRest.id;
+      } else {
+        const { data: adminStaffLink, error: adminStaffErr } = await (callerClient
+          .from("staff_restaurants") as any)
+          .select("restaurant_id")
+          .eq("user_id", caller.id)
+          .eq("role", "admin")
+          .limit(1)
+          .maybeSingle();
+
+        if (adminStaffErr) {
+          return new Response(JSON.stringify({ error: adminStaffErr.message }), {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        restId = adminStaffLink?.restaurant_id;
+      }
     }
 
     if (!restId) {

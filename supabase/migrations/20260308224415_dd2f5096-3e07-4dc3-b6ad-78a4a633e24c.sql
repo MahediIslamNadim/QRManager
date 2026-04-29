@@ -1,4 +1,3 @@
-
 CREATE OR REPLACE FUNCTION public.increment_table_customers()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -20,7 +19,6 @@ BEGIN
   RETURN NEW;
 END;
 $$;
-
 CREATE TRIGGER on_new_order_increment_customers
   AFTER INSERT ON public.orders
   FOR EACH ROW

@@ -1,174 +1,273 @@
-# QRManager — ডিজিটাল রেস্টুরেন্ট ম্যানেজমেন্ট SaaS
+# QRManager
 
-> Bangladesh-এর রেস্টুরেন্টের জন্য তৈরি QR-based অর্ডারিং ও ম্যানেজমেন্ট প্ল্যাটফর্ম।
-> Customer QR স্ক্যান করে অর্ডার দেয় — কোনো app download দরকার নেই।
+QRManager is a QR-based restaurant ordering and operations platform built for Bangladesh-based restaurant workflows. Customers scan a table QR code, browse the menu, place orders without installing an app, and staff handle the rest through role-based dashboards.
 
-**Powered by [NexCore Technologies](https://facebook.com/nexcoreltd)**
+The current codebase includes a public landing flow, restaurant admin tools, waiter tools, kitchen display, customer ordering screens, super-admin controls, subscription billing, payment callbacks, and a Supabase-backed serverless backend.
 
----
+Powered by [NexCore Technologies](https://www.facebook.com/min.pikacoo)
 
-## Features
+## What the app includes
 
-### Super Admin
-- Multi-restaurant platform management
-- Platform-wide analytics & revenue tracking
-- User & subscription payment management
+### Public pages
+- Landing page
+- Login and signup
+- Pricing and feature pages
+- Demo menu
+- Reset password
 
-### Restaurant Admin
-- Menu management (items, categories, images, availability)
-- Live order tracking with real-time updates
-- Table & QR code management
-- Staff management with role-based access
-- **Kitchen Display System (KDS)** — tablet-friendly dark screen for kitchen
-- **Bill Print / Receipt** — 80mm thermal printer format
-- **Today vs Yesterday stats** — AdminDashboard comparison
-- **Customer Ratings** — avg star rating from last 30 days
-- **Analytics** — weekly charts, top items, daily report PDF print
-- **WhatsApp Notifications** — new order alerts via CallMeBot (free)
-- **Daily Sales Report** — auto WhatsApp summary every night at 9 PM
+### Super admin
+- Platform dashboard
+- Restaurant management
+- User management
+- Payments review and approval
+- Platform analytics
+- Super admin settings
 
-### Waiter
-- Active orders view with status updates
-- Seat assignment & request management
-- Payment collection (Cash / bKash)
-- Kitchen Display access
+### Restaurant admin
+- Dashboard with restaurant stats
+- Menu management with image upload
+- Table and QR management
+- Orders and payment collection
+- Staff management
+- Analytics
+- Customer feedback
+- Billing and upgrades
+- AI insights
+- Reports
+- Support
+- Restaurant settings and branding
 
-### Customer
-- Scan QR → browse menu → place order (no login needed)
-- Real-time order status tracking
-- **Star rating** after order is served
+### Waiter and kitchen
+- Waiter dashboard
+- Seat request handling
+- Notifications
+- Kitchen display route shared across admin, waiter, and kitchen roles
 
----
+### Customer flow
+- Short-code redirect to restaurant menu
+- Seat selection
+- Menu browsing
+- Order placement
+- Review submission
 
-## Pricing
+## Current route map
 
-| Plan | Price | Features |
-|------|-------|----------|
-| Basic | ৳১৯৯/মাস | 50 menu items, 5 tables, 3 staff |
-| Premium | ৳২৯৯/মাস | 200 menu items, 20 tables, 15 staff |
-| Enterprise | ৳৪৯৯/মাস | Unlimited menu, tables & staff |
+The main routes are defined in [src/App.tsx](/c:/Users/hhnad/OneDrive/Desktop/NexCore/QRManager/src/App.tsx:1).
 
-**১৪ দিন ফ্রি ট্রায়াল** — no credit card required.
+- `/` public landing page
+- `/login`, `/reset-password`, `/pricing`, `/features`, `/demo`
+- `/super-admin/*` super-admin interface
+- `/admin/*` restaurant admin interface
+- `/waiter/*` waiter interface
+- `/admin/kitchen` kitchen display
+- `/menu/:restaurantId` customer menu
+- `/menu/:restaurantId/select-seat` seat selection
+- `/r/:shortCode` short-code redirect
+- `/payment/result` SSLCommerz result screen
 
----
+## Roles and access model
 
-## Tech Stack
+Authentication and role resolution live in [src/hooks/useAuth.tsx](/c:/Users/hhnad/OneDrive/Desktop/NexCore/QRManager/src/hooks/useAuth.tsx:1) and protected routes are enforced in [src/components/ProtectedRoute.tsx](/c:/Users/hhnad/OneDrive/Desktop/NexCore/QRManager/src/components/ProtectedRoute.tsx:1).
 
-| Technology | Usage |
-|------------|-------|
-| React 18 + TypeScript | Frontend |
-| Vite | Build tool |
-| Tailwind CSS + shadcn/ui | Styling & UI components |
-| Supabase | PostgreSQL + Auth + Realtime + Storage |
-| Supabase Edge Functions | WhatsApp notifications, daily report |
-| TanStack Query | Server state management |
-| Recharts | Analytics charts |
-| react-router-dom v6 | Routing |
+Supported roles in the current app:
 
----
+- `super_admin`
+- `admin`
+- `waiter`
+- `kitchen`
 
-## Getting Started
+## Pricing and subscription model
+
+The primary tier system currently used by the app lives in [src/constants/tiers.ts](/c:/Users/hhnad/OneDrive/Desktop/NexCore/QRManager/src/constants/tiers.ts:1).
+
+### Active tiers
+
+| Tier | Monthly | Yearly | Limits | Highlights |
+|------|---------|--------|--------|------------|
+| Medium Smart | `৳999` | `৳9590` | 20 tables, 5 staff | QR ordering, analytics, notifications, payments |
+| High Smart | `৳1999` | `৳19190` | Unlimited tables and staff | All Medium features, AI, predictive analytics, branding, reports, priority support |
+
+### Trial
+
+- Signup flow currently uses `FREE_TRIAL_DAYS = 14` from [src/constants/app.ts](/c:/Users/hhnad/OneDrive/Desktop/NexCore/QRManager/src/constants/app.ts:1)
+- Trial activation and expiry handling also exist in Supabase functions
+
+### Important note
+
+There is also an older simplified plan list in [src/constants/pricing.ts](/c:/Users/hhnad/OneDrive/Desktop/NexCore/QRManager/src/constants/pricing.ts:1) that is still referenced by a few payment and trial-related screens. If you are changing pricing logic, check both files.
+
+## Tech stack
+
+### Frontend
+- React 18
+- TypeScript
+- Vite
+- React Router
+- TanStack Query
+- Tailwind CSS
+- shadcn/ui and Radix UI
+- Recharts
+- Lucide React
+
+### Backend and data
+- Supabase Auth
+- Supabase Postgres
+- Supabase Realtime
+- Supabase Storage
+- Supabase Edge Functions
+
+### AI and payments
+- Google Gemini via `@google/generative-ai`
+- OpenAI client utilities
+- SSLCommerz payment flow
+- Manual payment request handling for bKash and Nagad
+
+### Extra backend
+- Minimal FastAPI stub in [backend/main.py](/c:/Users/hhnad/OneDrive/Desktop/NexCore/QRManager/backend/main.py:1)
+
+## Environment variables
+
+Frontend env usage is spread across `src/integrations`, payment pages, and AI features. The current app expects these values:
+
+```env
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_PUBLISHABLE_KEY=your_supabase_anon_key
+VITE_BKASH_NUMBER=your_bkash_number
+VITE_NAGAD_NUMBER=your_nagad_number
+VITE_GEMINI_API_KEY=your_gemini_api_key
+VITE_OPENAI_API_KEY=your_openai_api_key
+```
+
+Notes:
+
+- `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` are required
+- `VITE_BKASH_NUMBER` and `VITE_NAGAD_NUMBER` are needed for payment flows
+- `VITE_GEMINI_API_KEY` is needed for AI insights
+- `VITE_OPENAI_API_KEY` is only needed if you use the OpenAI-based utilities
+
+## Local development
+
+### Prerequisites
+- Node.js 18+
+- npm
+- A Supabase project
+
+### Install and run
 
 ```bash
-# Clone the repository
-git clone https://github.com/MahediIslamNadim/QRManager.git
-cd QRManager
-
-# Install dependencies
 npm install
-
-# Set up environment variables
-cp .env.example .env
-# Fill in your Supabase credentials
-
-# Start development server
 npm run dev
 ```
 
----
+The Vite dev server is configured in [vite.config.ts](/c:/Users/hhnad/OneDrive/Desktop/NexCore/QRManager/vite.config.ts:1) and runs on:
 
-## Environment Variables
-
-Create a `.env` file:
-
-```env
-VITE_SUPABASE_URL=your_supabase_project_url
-VITE_SUPABASE_PUBLISHABLE_KEY=your_supabase_anon_key
-VITE_SUPABASE_PROJECT_ID=your_project_id
-VITE_BKASH_NUMBER=your_bkash_number
-VITE_NAGAD_NUMBER=your_nagad_number
+```txt
+http://localhost:8080
 ```
 
----
-
-## Database Migrations
-
-Run in Supabase SQL Editor after setup:
-
-```sql
--- Customer ratings on orders
-ALTER TABLE orders
-  ADD COLUMN IF NOT EXISTS rating SMALLINT CHECK (rating BETWEEN 1 AND 5),
-  ADD COLUMN IF NOT EXISTS rating_comment TEXT;
-
--- WhatsApp notification settings
-ALTER TABLE restaurants
-  ADD COLUMN IF NOT EXISTS whatsapp_api_key TEXT,
-  ADD COLUMN IF NOT EXISTS notify_new_order BOOLEAN DEFAULT FALSE,
-  ADD COLUMN IF NOT EXISTS notify_daily_report BOOLEAN DEFAULT FALSE;
-```
-
----
-
-## Edge Functions (WhatsApp Notifications)
-
-Deploy after setting up Supabase:
+### Useful scripts
 
 ```bash
-supabase functions deploy notify-whatsapp   # New order alert
-supabase functions deploy daily-report      # Daily sales summary
+npm run dev
+npm run build
+npm run build:dev
+npm run preview
+npm run typecheck
+npm run lint
+npm run test
+npm run test:watch
 ```
 
-Set up Database Webhook in Supabase Dashboard:
-- **Table:** `orders` | **Event:** `INSERT` | **URL:** `.../functions/v1/notify-whatsapp`
+## Supabase functions in this repo
 
-For daily report cron, configure in Supabase Dashboard → Edge Functions → Schedules:
-- **Schedule:** `0 15 * * *` (9 PM Bangladesh = 3 PM UTC)
+Current functions inside [supabase/functions](/c:/Users/hhnad/OneDrive/Desktop/NexCore/QRManager/supabase/functions:1):
 
----
+### Core staff and account workflows
+- `activate-trial`
+- `create-staff`
+- `manage-user`
+- `expire-trials`
 
-## Project Structure
+### Payments and subscription activation
+- `ssl-init`
+- `ssl-ipn`
+- `ssl-result`
+- `process-payment`
 
-```
+### Notifications and reporting
+- `notify-email`
+- `notify-whatsapp`
+- `daily-report`
+
+### Enterprise and multi-branch support helpers
+- `bootstrap-enterprise-restaurant`
+- `create-enterprise-account`
+- `create-enterprise-group-owner`
+- `create-enterprise-restaurant-admin`
+- `invite-branch-admin`
+- `send-enterprise-notice`
+- `enterprise-ai-analytics`
+
+## Key data areas used by the app
+
+From the frontend and edge-function code, these tables/features are part of the working system:
+
+- `restaurants`
+- `profiles`
+- `user_roles`
+- `staff_restaurants`
+- `menu_items`
+- `restaurant_tables`
+- `table_seats`
+- `orders`
+- `order_items`
+- `notifications`
+- `reviews`
+- `subscriptions`
+- `payment_requests`
+- `ssl_transactions`
+- `support_tickets`
+- `service_requests`
+
+## Project structure
+
+```txt
+backend/
+  main.py
+
+public/
+  favicon.ico
+  placeholder.svg
+  robots.txt
+
 src/
-├── pages/
-│   ├── Admin*          # Restaurant admin dashboard
-│   ├── SuperAdmin*     # Platform admin
-│   ├── Waiter*         # Waiter interface
-│   ├── Customer*       # Customer QR menu
-│   ├── KitchenDisplay  # Kitchen tablet view
-│   └── Index.tsx       # Landing page
-├── components/         # Reusable UI components
-├── hooks/useAuth.tsx   # Auth + restaurant context
-├── constants/          # Pricing, plan limits, app config
-├── utils/              # printReceipt, printDailyReport
-├── integrations/       # Supabase client + types
-└── lib/                # planLimits, utils
+  components/            reusable UI, layout, feature gates, seat management
+  constants/             app config, tiers, pricing
+  hooks/                 auth, limits, feature access, trial status
+  integrations/          Supabase client and generated types
+  lib/                   AI helpers, invoice/email helpers, utilities
+  pages/                 public, customer, admin, waiter, super-admin screens
+  test/                  Vitest setup and sample test
+  utils/                 print and export helpers
+
 supabase/
-├── functions/          # Edge functions (notify-whatsapp, daily-report)
-└── migrations/         # SQL migration files
+  config.toml
+  functions/             edge functions
+  migrations/            SQL migrations
 ```
 
----
+## Developer notes
 
-## Contact & Support
+- The UI text is primarily Bangla, while most code identifiers are English
+- The `@` alias points to `src`
+- Vite HMR overlay is disabled in development
+- Build output is manually chunked for React, Supabase, Query, charts, and UI bundles
+- The FastAPI backend is currently only a placeholder and is not the main production backend for the app
 
-- **WhatsApp:** [+880 1786-130439](https://wa.me/8801786130439)
-- **Facebook:** [NexCore Technologies](https://facebook.com/nexcoreltd)
-- **Location:** Sylhet, Bangladesh
+## Verification status
 
----
+This README was updated against the current source tree, route map, package manifest, Vite config, tier constants, auth flow, payment pages, and the Supabase function directory.
 
 ## License
 
-© 2026 NexCore Technologies. All rights reserved.
+Copyright 2026 NexCore Technologies. All rights reserved.

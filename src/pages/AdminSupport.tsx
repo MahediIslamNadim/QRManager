@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import {
   Headphones, Plus, Clock, CheckCircle2, AlertCircle,
   MessageSquare, RefreshCw, X, ChevronDown, ChevronUp,
-  Mail, Phone, Zap,
+  Mail, Phone, Zap, Crown, Star,
 } from "lucide-react";
 
 type TicketCategory = "technical" | "billing" | "feature" | "general";
@@ -39,32 +39,32 @@ const CATEGORIES: { value: TicketCategory; label: string; icon: string }[] = [
 ];
 
 const PRIORITIES: { value: TicketPriority; label: string; color: string }[] = [
-  { value: "low",    label: "সাধারণ",      color: "bg-secondary text-muted-foreground border-border" },
-  { value: "medium", label: "মাঝারি",      color: "bg-blue-500/15 text-blue-500 border-blue-500/30" },
-  { value: "high",   label: "জরুরি",       color: "bg-warning/15 text-warning border-warning/30" },
+  { value: "low",    label: "সাধারণ",        color: "bg-secondary text-muted-foreground border-border" },
+  { value: "medium", label: "মাঝারি",        color: "bg-blue-500/15 text-blue-500 border-blue-500/30" },
+  { value: "high",   label: "জরুরি",         color: "bg-warning/15 text-warning border-warning/30" },
   { value: "urgent", label: "অত্যন্ত জরুরি", color: "bg-destructive/15 text-destructive border-destructive/30" },
 ];
 
 const STATUS_CONFIG: Record<TicketStatus, { label: string; color: string; icon: any }> = {
-  open:        { label: "খোলা",        color: "bg-blue-500/15 text-blue-500 border-blue-500/30",           icon: Clock },
-  in_progress: { label: "প্রক্রিয়াধীন", color: "bg-warning/15 text-warning border-warning/30",             icon: RefreshCw },
-  resolved:    { label: "সমাধান হয়েছে", color: "bg-success/15 text-success border-success/30",             icon: CheckCircle2 },
-  closed:      { label: "বন্ধ",         color: "bg-secondary text-muted-foreground border-border",         icon: X },
+  open:        { label: "খোলা",         color: "bg-blue-500/15 text-blue-500 border-blue-500/30",  icon: Clock },
+  in_progress: { label: "প্রক্রিয়াধীন", color: "bg-warning/15 text-warning border-warning/30",    icon: RefreshCw },
+  resolved:    { label: "সমাধান হয়েছে", color: "bg-success/15 text-success border-success/30",    icon: CheckCircle2 },
+  closed:      { label: "বন্ধ",          color: "bg-secondary text-muted-foreground border-border", icon: X },
 };
 
 export default function AdminSupport() {
   const { restaurantId } = useAuth();
 
-  const [tickets,      setTickets]      = useState<SupportTicket[]>([]);
-  const [loading,      setLoading]      = useState(false);
-  const [submitting,   setSubmitting]   = useState(false);
-  const [showForm,     setShowForm]     = useState(false);
-  const [expandedId,   setExpandedId]   = useState<string | null>(null);
+  const [tickets,     setTickets]     = useState<SupportTicket[]>([]);
+  const [loading,     setLoading]     = useState(false);
+  const [submitting,  setSubmitting]  = useState(false);
+  const [showForm,    setShowForm]    = useState(false);
+  const [expandedId,  setExpandedId]  = useState<string | null>(null);
 
-  const [subject,      setSubject]      = useState("");
-  const [description,  setDescription]  = useState("");
-  const [category,     setCategory]     = useState<TicketCategory>("technical");
-  const [priority,     setPriority]     = useState<TicketPriority>("medium");
+  const [subject,     setSubject]     = useState("");
+  const [description, setDescription] = useState("");
+  const [category,    setCategory]    = useState<TicketCategory>("technical");
+  const [priority,    setPriority]    = useState<TicketPriority>("medium");
 
   const loadTickets = async () => {
     if (!restaurantId) return;
@@ -77,7 +77,7 @@ export default function AdminSupport() {
         .order("created_at", { ascending: false });
       if (error) throw error;
       setTickets((data || []) as SupportTicket[]);
-    } catch (err: any) {
+    } catch {
       toast.error("টিকেট লোড করতে সমস্যা হয়েছে");
     } finally {
       setLoading(false);
@@ -88,8 +88,8 @@ export default function AdminSupport() {
 
   const submitTicket = async () => {
     if (!restaurantId) return;
-    if (!subject.trim())      { toast.error("বিষয় লিখুন"); return; }
-    if (!description.trim())  { toast.error("বিস্তারিত লিখুন"); return; }
+    if (!subject.trim())     { toast.error("বিষয় লিখুন"); return; }
+    if (!description.trim()) { toast.error("বিস্তারিত লিখুন"); return; }
     setSubmitting(true);
     try {
       const { error } = await supabase.from("support_tickets").insert({
@@ -113,31 +113,64 @@ export default function AdminSupport() {
     }
   };
 
-  const openCount       = tickets.filter(t => t.status === "open" || t.status === "in_progress").length;
-  const resolvedCount   = tickets.filter(t => t.status === "resolved" || t.status === "closed").length;
+  const openCount     = tickets.filter(t => t.status === "open" || t.status === "in_progress").length;
+  const resolvedCount = tickets.filter(t => t.status === "resolved" || t.status === "closed").length;
 
   return (
     <DashboardLayout role="admin" title="প্রায়োরিটি সাপোর্ট ২৪/৭">
       <FeatureGate feature="priority_support">
         <div className="space-y-6 animate-fade-up max-w-4xl">
 
-          {/* Header */}
+          {/* ── Header ── */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h2 className="text-2xl font-bold flex items-center gap-2">
-                <div className="w-9 h-9 rounded-xl bg-primary/15 flex items-center justify-center">
-                  <Headphones className="w-5 h-5 text-primary" />
+              <h2 className="text-2xl font-bold flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-purple-500/15 flex items-center justify-center">
+                  <Headphones className="w-5 h-5 text-purple-500" />
                 </div>
                 প্রায়োরিটি সাপোর্ট ২৪/৭
+                {/* Priority badge */}
+                <Badge className="hidden sm:flex items-center gap-1 bg-gradient-to-r from-purple-600 to-violet-600 text-white border-0 px-3 py-1 text-xs font-bold shadow-md shadow-purple-500/30">
+                  <Crown className="w-3.5 h-3.5" /> High Smart
+                </Badge>
               </h2>
-              <p className="text-sm text-muted-foreground mt-1">High Smart — ডেডিকেটেড সাপোর্ট টিম সর্বদা প্রস্তুত</p>
+              <p className="text-sm text-muted-foreground mt-1 flex items-center gap-2">
+                <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500" />
+                ডেডিকেটেড সাপোর্ট টিম — সর্বোচ্চ অগ্রাধিকার, সর্বদা প্রস্তুত
+              </p>
             </div>
-            <Button onClick={() => setShowForm(v => !v)} className="gap-2" variant="hero">
-              <Plus className="w-4 h-4" /> নতুন টিকেট খুলুন
-            </Button>
+            <div className="flex items-center gap-3">
+              {/* Mobile priority badge */}
+              <Badge className="sm:hidden flex items-center gap-1 bg-gradient-to-r from-purple-600 to-violet-600 text-white border-0 px-3 py-1 text-xs font-bold">
+                <Crown className="w-3 h-3" /> High Smart
+              </Badge>
+              <Button onClick={() => setShowForm(v => !v)} className="gap-2" variant="hero">
+                <Plus className="w-4 h-4" /> নতুন টিকেট
+              </Button>
+            </div>
           </div>
 
-          {/* Contact channels */}
+          {/* ── Priority support banner ── */}
+          <div className="rounded-2xl border border-purple-500/30 bg-gradient-to-r from-purple-500/8 to-violet-500/5 p-4 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-purple-500/30">
+              <Crown className="w-6 h-6 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-sm text-foreground flex items-center gap-2">
+                আপনি প্রায়োরিটি সাপোর্ট প্ল্যানে আছেন
+                <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                আপনার টিকেটগুলো সর্বোচ্চ অগ্রাধিকারে প্রক্রিয়া করা হয় — Urgent টিকেটে ৩০ মিনিটের মধ্যে রেসপন্স
+              </p>
+            </div>
+            <div className="hidden sm:flex items-center gap-1 px-3 py-1.5 rounded-xl bg-success/15 border border-success/30">
+              <span className="w-2 h-2 rounded-full bg-success" />
+              <span className="text-xs font-semibold text-success">সক্রিয়</span>
+            </div>
+          </div>
+
+          {/* ── Contact channels ── */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {[
               {
@@ -173,12 +206,12 @@ export default function AdminSupport() {
             ))}
           </div>
 
-          {/* Stats */}
+          {/* ── Stats ── */}
           <div className="grid grid-cols-3 gap-3">
             {[
-              { label: "মোট টিকেট",    value: tickets.length,  color: "border-border bg-secondary/30" },
-              { label: "খোলা / চলমান", value: openCount,       color: "border-warning/20 bg-warning/5" },
-              { label: "সমাধান হয়েছে", value: resolvedCount,   color: "border-success/20 bg-success/5" },
+              { label: "মোট টিকেট",    value: tickets.length, color: "border-border bg-secondary/30" },
+              { label: "খোলা / চলমান", value: openCount,      color: "border-warning/20 bg-warning/5" },
+              { label: "সমাধান হয়েছে", value: resolvedCount,  color: "border-success/20 bg-success/5" },
             ].map((s, i) => (
               <div key={i} className={`rounded-2xl border px-4 py-3 text-center ${s.color}`}>
                 <p className="text-2xl font-bold">{s.value}</p>
@@ -187,7 +220,7 @@ export default function AdminSupport() {
             ))}
           </div>
 
-          {/* New ticket form */}
+          {/* ── New ticket form ── */}
           {showForm && (
             <Card className="border-primary/20 bg-gradient-to-br from-primary/3 to-transparent">
               <CardHeader className="pb-4">
@@ -220,12 +253,25 @@ export default function AdminSupport() {
                     {PRIORITIES.map(p => (
                       <button key={p.value} onClick={() => setPriority(p.value)}
                         className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                          priority === p.value ? p.color + " border" : "bg-secondary/50 border-border text-muted-foreground hover:text-foreground"
+                          priority === p.value
+                            ? p.color + " border"
+                            : "bg-secondary/50 border-border text-muted-foreground hover:text-foreground"
                         }`}>
                         {p.label}
                       </button>
                     ))}
                   </div>
+                  {/* Priority hint */}
+                  {priority === "urgent" && (
+                    <p className="text-xs text-destructive mt-2 flex items-center gap-1">
+                      <Zap className="w-3.5 h-3.5" /> Urgent টিকেটে ৩০ মিনিটের মধ্যে রেসপন্স দেওয়া হয়
+                    </p>
+                  )}
+                  {priority === "high" && (
+                    <p className="text-xs text-warning mt-2 flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5" /> High টিকেটে ২ ঘণ্টার মধ্যে রেসপন্স দেওয়া হয়
+                    </p>
+                  )}
                 </div>
 
                 {/* Subject */}
@@ -253,7 +299,9 @@ export default function AdminSupport() {
 
                 <div className="flex gap-3">
                   <Button onClick={submitTicket} disabled={submitting} className="gap-2">
-                    {submitting ? <><RefreshCw className="w-4 h-4 animate-spin" /> জমা হচ্ছে...</> : "টিকেট জমা দিন"}
+                    {submitting
+                      ? <><RefreshCw className="w-4 h-4 animate-spin" /> জমা হচ্ছে...</>
+                      : "টিকেট জমা দিন"}
                   </Button>
                   <Button variant="outline" onClick={() => setShowForm(false)}>বাতিল</Button>
                 </div>
@@ -261,7 +309,7 @@ export default function AdminSupport() {
             </Card>
           )}
 
-          {/* Ticket list */}
+          {/* ── Ticket list ── */}
           <Card>
             <CardHeader className="pb-3 flex-row items-center justify-between">
               <CardTitle className="text-base flex items-center gap-2">
@@ -276,16 +324,16 @@ export default function AdminSupport() {
                 <div className="py-16 text-center space-y-3">
                   <Headphones className="w-12 h-12 text-muted-foreground/20 mx-auto" />
                   <p className="text-sm text-muted-foreground">কোনো টিকেট নেই।</p>
-                  <p className="text-xs text-muted-foreground">সমস্যা হলে "নতুন টিকেট খুলুন" বাটনে ক্লিক করুন।</p>
+                  <p className="text-xs text-muted-foreground">সমস্যা হলে "নতুন টিকেট" বাটনে ক্লিক করুন।</p>
                 </div>
               ) : (
                 <div className="divide-y divide-border/40">
                   {tickets.map(ticket => {
-                    const st      = STATUS_CONFIG[ticket.status];
-                    const pr      = PRIORITIES.find(p => p.value === ticket.priority);
-                    const cat     = CATEGORIES.find(c => c.value === ticket.category);
-                    const isOpen  = expandedId === ticket.id;
-                    const StIcon  = st.icon;
+                    const st     = STATUS_CONFIG[ticket.status];
+                    const pr     = PRIORITIES.find(p => p.value === ticket.priority);
+                    const cat    = CATEGORIES.find(c => c.value === ticket.category);
+                    const isOpen = expandedId === ticket.id;
+                    const StIcon = st.icon;
 
                     return (
                       <div key={ticket.id} className="hover:bg-secondary/20 transition-colors">
@@ -300,7 +348,11 @@ export default function AdminSupport() {
                                 <StIcon className="w-3 h-3" /> {st.label}
                               </Badge>
                               {pr && (
-                                <Badge className={`text-[10px] px-1.5 py-0 border ${pr.color}`}>{pr.label}</Badge>
+                                <Badge className={`text-[10px] px-1.5 py-0 border ${pr.color}`}>
+                                  {ticket.priority === "urgent" && "⚡ "}
+                                  {ticket.priority === "high" && "🔴 "}
+                                  {pr.label}
+                                </Badge>
                               )}
                             </div>
                             <div className="flex items-center gap-3 text-xs text-muted-foreground">
@@ -332,7 +384,11 @@ export default function AdminSupport() {
                             {!ticket.admin_reply && (ticket.status === "open" || ticket.status === "in_progress") && (
                               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                 <RefreshCw className="w-3.5 h-3.5 animate-spin text-warning" />
-                                সাপোর্ট টিম শীঘ্রই উত্তর দেবে...
+                                {ticket.priority === "urgent"
+                                  ? "⚡ Urgent টিকেট — ৩০ মিনিটের মধ্যে রেসপন্স আসবে"
+                                  : ticket.priority === "high"
+                                  ? "🔴 High priority — ২ ঘণ্টার মধ্যে রেসপন্স আসবে"
+                                  : "সাপোর্ট টিম শীঘ্রই উত্তর দেবে..."}
                               </div>
                             )}
                             <p className="text-xs text-muted-foreground">
@@ -348,25 +404,43 @@ export default function AdminSupport() {
             </CardContent>
           </Card>
 
-          {/* SLA info */}
-          <Card className="border-primary/10 bg-gradient-to-br from-primary/3 to-transparent">
+          {/* ── SLA guarantee ── */}
+          <Card className="border-purple-500/20 bg-gradient-to-br from-purple-500/5 to-transparent">
             <CardContent className="p-5">
               <div className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-xl bg-primary/15 flex items-center justify-center flex-shrink-0">
-                  <AlertCircle className="w-5 h-5 text-primary" />
+                <div className="w-9 h-9 rounded-xl bg-purple-500/15 flex items-center justify-center flex-shrink-0">
+                  <AlertCircle className="w-5 h-5 text-purple-500" />
                 </div>
                 <div>
-                  <p className="font-semibold text-sm mb-2">High Smart সাপোর্ট গ্যারান্টি</p>
-                  <ul className="space-y-1 text-xs text-muted-foreground">
-                    <li>• <strong>Urgent</strong> টিকেট: ৩০ মিনিটের মধ্যে প্রথম রেসপন্স</li>
-                    <li>• <strong>High</strong> টিকেট: ২ ঘণ্টার মধ্যে রেসপন্স</li>
-                    <li>• <strong>Medium/Low</strong> টিকেট: ২৪ ঘণ্টার মধ্যে রেসপন্স</li>
-                    <li>• সপ্তাহে ৭ দিন, দিনে ২৪ ঘণ্টা সাপোর্ট উপলব্ধ</li>
+                  <p className="font-semibold text-sm mb-2 flex items-center gap-2">
+                    High Smart সাপোর্ট গ্যারান্টি
+                    <Badge className="text-[10px] px-2 py-0 bg-purple-500/15 text-purple-500 border-purple-500/30 border">
+                      প্রায়োরিটি
+                    </Badge>
+                  </p>
+                  <ul className="space-y-1.5 text-xs text-muted-foreground">
+                    <li className="flex items-center gap-2">
+                      <span className="text-destructive font-bold">⚡</span>
+                      <strong className="text-foreground">Urgent</strong> টিকেট: ৩০ মিনিটের মধ্যে প্রথম রেসপন্স
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="text-warning font-bold">🔴</span>
+                      <strong className="text-foreground">High</strong> টিকেট: ২ ঘণ্টার মধ্যে রেসপন্স
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="text-blue-500 font-bold">🔵</span>
+                      <strong className="text-foreground">Medium/Low</strong> টিকেট: ২৪ ঘণ্টার মধ্যে রেসপন্স
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span>🕐</span>
+                      সপ্তাহে ৭ দিন, দিনে ২৪ ঘণ্টা সাপোর্ট উপলব্ধ
+                    </li>
                   </ul>
                 </div>
               </div>
             </CardContent>
           </Card>
+
         </div>
       </FeatureGate>
     </DashboardLayout>

@@ -62,5 +62,4 @@ BEGIN
   ORDER BY sr.created_at DESC;
 END;
 $$;
-
 GRANT EXECUTE ON FUNCTION public.get_restaurant_staff(UUID) TO authenticated;

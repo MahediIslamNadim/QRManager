@@ -45,9 +45,7 @@ BEGIN
   ORDER BY sr.created_at DESC;
 END;
 $$;
-
 GRANT EXECUTE ON FUNCTION public.get_restaurant_staff(UUID) TO authenticated;
-
 -- Also fix the "Admins can view staff profiles" policy (safe to create if missing)
 DO $$
 BEGIN

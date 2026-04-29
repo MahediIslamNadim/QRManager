@@ -49,8 +49,8 @@ export const TIERS: Record<TierType, TierConfig> = {
   high_smart: {
     name: 'High Smart',
     name_bn: 'হাই স্মার্ট',
-    description: 'Premium features with unlimited tables, AI, and multi-location',
-    description_bn: 'প্রিমিয়াম features unlimited tables, AI এবং multi-location সহ',
+    description: 'Premium features with unlimited tables, staff, and AI',
+    description_bn: 'প্রিমিয়াম features unlimited tables, staff এবং AI সহ',
     price_monthly: 1999,
     price_yearly: 19190, // ~20% discount (2 months free)
     maxTables: -1, // unlimited
@@ -59,7 +59,6 @@ export const TIERS: Record<TierType, TierConfig> = {
       'all_medium_features', // Includes all Medium Smart features
       'unlimited_tables',
       'unlimited_staff',
-      'multi_location',
       'ai_recommendations',
       'predictive_analytics',
       'custom_branding',
@@ -93,11 +92,6 @@ export const FEATURE_DESCRIPTIONS: Record<string, { name: string; name_bn: strin
     name: 'Online Payments',
     name_bn: 'Online Payments',
     description: 'bKash and Nagad integration'
-  },
-  multi_location: {
-    name: 'Multi-Location Support',
-    name_bn: 'মাল্টি-লোকেশন সাপোর্ট',
-    description: 'Manage multiple restaurant locations'
   },
   ai_recommendations: {
     name: 'AI Recommendations',

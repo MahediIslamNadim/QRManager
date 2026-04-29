@@ -57,16 +57,11 @@ export const FEATURES = {
   },
   custom_branding: {
     name: 'Custom Branding',
-    tiers: ['medium_smart', 'high_smart'] as TierName[],
-    requiresActiveSub: false
-  },
-  api_access: {
-    name: 'API Access',
     tiers: ['high_smart'] as TierName[],
     requiresActiveSub: true
   },
-  multi_location: {
-    name: 'Multi-Location Support',
+  api_access: {
+    name: 'API Access',
     tiers: ['high_smart'] as TierName[],
     requiresActiveSub: true
   },

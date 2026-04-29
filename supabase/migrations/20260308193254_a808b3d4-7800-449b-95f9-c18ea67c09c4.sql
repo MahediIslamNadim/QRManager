@@ -1,4 +1,3 @@
-
 -- These may already exist from timed-out migration, using IF NOT EXISTS pattern via DO blocks
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can create own role' AND tablename = 'user_roles') THEN

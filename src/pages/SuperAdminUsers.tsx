@@ -22,6 +22,17 @@ interface User {
   created_at: string;
 }
 
+const ROLE_PRIORITY = ["super_admin", "admin", "waiter", "kitchen"] as const;
+const EDITABLE_ROLES = ["admin", "waiter", "kitchen"] as const;
+
+const getRolePriority = (role: string) => {
+  const index = ROLE_PRIORITY.indexOf(role as (typeof ROLE_PRIORITY)[number]);
+  return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+};
+
+const isEditableRole = (role: string): role is (typeof EDITABLE_ROLES)[number] =>
+  EDITABLE_ROLES.includes(role as (typeof EDITABLE_ROLES)[number]);
+
 const SuperAdminUsers = () => {
   const queryClient = useQueryClient();
   const [editUser, setEditUser] = useState<User | null>(null);
@@ -42,9 +53,17 @@ const SuperAdminUsers = () => {
       const { data: roles } = await supabase.from("user_roles").select("user_id, role");
       const { data: profiles } = await supabase.from("profiles").select("id, full_name, email, phone, created_at");
       if (!profiles) return [];
+
+      const roleMap = new Map<string, string>();
+      for (const roleRow of roles || []) {
+        const currentRole = roleMap.get(roleRow.user_id);
+        if (!currentRole || getRolePriority(roleRow.role) < getRolePriority(currentRole)) {
+          roleMap.set(roleRow.user_id, roleRow.role);
+        }
+      }
+
       return profiles.map(p => {
-        const userRole = roles?.find(r => r.user_id === p.id);
-        return { ...p, role: userRole?.role || "user" };
+        return { ...p, role: roleMap.get(p.id) || "user" };
       });
     },
   });
@@ -139,11 +158,20 @@ const SuperAdminUsers = () => {
   const updateMutation = useMutation({
     mutationFn: async () => {
       if (!editUser) return;
+      const updates: Record<string, string> = {
+        full_name: editName,
+        phone: editPhone,
+      };
+
+      if (isEditableRole(editUser.role) && isEditableRole(editRole) && editRole !== editUser.role) {
+        updates.role = editRole;
+      }
+
       const { data, error } = await supabase.functions.invoke("manage-user", {
         body: {
           action: "update",
           user_id: editUser.id,
-          updates: { full_name: editName, phone: editPhone, role: editRole },
+          updates,
         },
       });
       if (error) throw error;

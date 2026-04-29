@@ -15,7 +15,6 @@ AS $$
     WHERE user_id = _user_id AND role = _role::public.app_role
   );
 $$;
-
 -- 2. Fix "Waiters can update tables" — broken by ::text type + allow admin/kitchen too
 DROP POLICY IF EXISTS "Waiters can update tables" ON public.restaurant_tables;
 CREATE POLICY "Waiters can update tables" ON public.restaurant_tables
@@ -37,7 +36,6 @@ CREATE POLICY "Waiters can update tables" ON public.restaurant_tables
       WHERE sr.user_id = auth.uid()
     )
   );
-
 -- 3. Fix orders policies — replace ::text with ::app_role
 DROP POLICY IF EXISTS "Admins can delete orders" ON public.orders;
 CREATE POLICY "Admins can delete orders" ON public.orders
@@ -46,7 +44,6 @@ CREATE POLICY "Admins can delete orders" ON public.orders
     restaurant_id IN (SELECT id FROM public.restaurants WHERE owner_id = auth.uid())
     OR has_role(auth.uid(), 'super_admin'::app_role)
   );
-
 DROP POLICY IF EXISTS "Staff can update own restaurant orders" ON public.orders;
 CREATE POLICY "Staff can update own restaurant orders" ON public.orders
   FOR UPDATE TO authenticated
@@ -60,7 +57,6 @@ CREATE POLICY "Staff can update own restaurant orders" ON public.orders
     OR has_role(auth.uid(), 'super_admin'::app_role)
     OR is_restaurant_staff(auth.uid(), restaurant_id)
   );
-
 -- 4. Fix restaurant_tables admin policy — ::text → ::app_role
 DROP POLICY IF EXISTS "Admins can manage tables" ON public.restaurant_tables;
 CREATE POLICY "Admins can manage tables" ON public.restaurant_tables
@@ -73,7 +69,6 @@ CREATE POLICY "Admins can manage tables" ON public.restaurant_tables
     restaurant_id IN (SELECT id FROM public.restaurants WHERE owner_id = auth.uid())
     OR has_role(auth.uid(), 'super_admin'::app_role)
   );
-
 -- 5. Ensure service_requests INSERT works for customers (public) and staff
 DO $$
 BEGIN
@@ -85,7 +80,6 @@ BEGIN
     $p$;
   END IF;
 END $$;
-
 -- 6. notifications — waiter needs SELECT + UPDATE for own notifications
 DO $$
 BEGIN

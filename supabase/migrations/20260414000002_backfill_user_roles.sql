@@ -14,7 +14,6 @@ WHERE r.owner_id IS NOT NULL
     WHERE ur.user_id = r.owner_id
       AND ur.role = 'admin'::public.app_role
   );
-
 -- 2. Staff members → their role from staff_restaurants
 --    (waiter and kitchen — skip admin since handled above;
 --     also skip if kitchen is not yet in enum, handled gracefully)

@@ -3,7 +3,6 @@
 -- medium_smart or high_smart at registration (both get FREE_TRIAL_DAYS trial).
 
 DROP FUNCTION IF EXISTS public.complete_admin_signup(TEXT, TEXT, TEXT, INTEGER);
-
 CREATE OR REPLACE FUNCTION public.complete_admin_signup(
   p_restaurant_name TEXT,
   p_address         TEXT    DEFAULT NULL,
@@ -97,5 +96,4 @@ EXCEPTION
     RAISE EXCEPTION 'Error in complete_admin_signup: %', SQLERRM;
 END;
 $$;
-
 GRANT EXECUTE ON FUNCTION public.complete_admin_signup(TEXT, TEXT, TEXT, INTEGER, TEXT) TO authenticated;

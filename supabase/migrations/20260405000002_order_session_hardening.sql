@@ -59,8 +59,6 @@ BEGIN
   RETURN json_build_object('token', v_session.token, 'expires_at', v_session.expires_at);
 END;
 $$;
-
-
 -- ---------------------------------------------------------------------------
 -- 2. insert_order_with_token
 --    Single atomic RPC replacing the two-step client INSERT (orders + items).
@@ -155,8 +153,6 @@ BEGIN
   RETURN json_build_object('order_id', v_order_id, 'computed_total', v_total);
 END;
 $$;
-
-
 -- ---------------------------------------------------------------------------
 -- 3. submit_order_rating
 --    Lets a customer rate a completed order without a public UPDATE policy.
@@ -211,8 +207,6 @@ BEGIN
   RETURN true;
 END;
 $$;
-
-
 -- ---------------------------------------------------------------------------
 -- 4. complete_admin_signup
 --    Called by the client immediately after supabase.auth.signUp() succeeds.
@@ -267,16 +261,12 @@ BEGIN
   RETURN json_build_object('restaurant_id', v_restaurant.id);
 END;
 $$;
-
-
 -- ---------------------------------------------------------------------------
 -- 5. Lock down table_sessions: remove public SELECT + public INSERT
 --    All session operations go through validate_and_create_session() above.
 -- ---------------------------------------------------------------------------
 DROP POLICY IF EXISTS "Anyone can view table sessions"   ON public.table_sessions;
 DROP POLICY IF EXISTS "Anyone can create table sessions" ON public.table_sessions;
-
-
 -- ---------------------------------------------------------------------------
 -- 6. Lock down orders + order_items INSERT
 --    All customer order creation goes through insert_order_with_token() above.
@@ -284,7 +274,6 @@ DROP POLICY IF EXISTS "Anyone can create table sessions" ON public.table_session
 -- ---------------------------------------------------------------------------
 DROP POLICY IF EXISTS "Anyone can create orders"      ON public.orders;
 DROP POLICY IF EXISTS "Anyone can create order items" ON public.order_items;
-
 -- Staff can still manually create orders (e.g. walk-in without QR)
 CREATE POLICY "Staff can create orders" ON public.orders
   FOR INSERT TO authenticated
@@ -293,7 +282,6 @@ CREATE POLICY "Staff can create orders" ON public.orders
     OR public.has_role(auth.uid(), 'super_admin')
     OR public.is_restaurant_staff(auth.uid(), restaurant_id)
   );
-
 CREATE POLICY "Staff can create order items" ON public.order_items
   FOR INSERT TO authenticated
   WITH CHECK (

@@ -3,7 +3,6 @@
 -- 0+  = tracked stock; 0 means out of stock
 ALTER TABLE public.menu_items
   ADD COLUMN IF NOT EXISTS stock_quantity integer DEFAULT NULL;
-
 -- Trigger: decrement stock when order items are inserted
 CREATE OR REPLACE FUNCTION public.decrement_menu_item_stock()
 RETURNS TRIGGER
@@ -28,7 +27,6 @@ BEGIN
   RETURN NEW;
 END;
 $$;
-
 DROP TRIGGER IF EXISTS trg_decrement_menu_stock ON public.order_items;
 CREATE TRIGGER trg_decrement_menu_stock
 AFTER INSERT ON public.order_items

@@ -16,8 +16,6 @@
 -- ---------------------------------------------------------------------------
 ALTER TABLE public.table_sessions
   ADD COLUMN IF NOT EXISTS seat_id uuid REFERENCES public.table_seats(id);
-
-
 -- ---------------------------------------------------------------------------
 -- 2. Rewrite validate_and_create_session to accept and store seat_id
 --    - If valid token supplied and caller now has a seat: patch session.
@@ -85,8 +83,6 @@ BEGIN
   RETURN json_build_object('token', v_session.token, 'expires_at', v_session.expires_at);
 END;
 $$;
-
-
 -- ---------------------------------------------------------------------------
 -- 3. Tighten orders SELECT policy: add seat-level check for anon customers
 --    Rule: if the matching session has a seat_id assigned, the customer may
@@ -95,7 +91,6 @@ $$;
 --    full table-level visibility (customer hasn't picked a seat yet).
 -- ---------------------------------------------------------------------------
 DROP POLICY IF EXISTS "Orders are visible to restaurant stakeholders" ON public.orders;
-
 CREATE POLICY "Orders are visible to restaurant stakeholders" ON public.orders
   FOR SELECT
   USING (
@@ -118,8 +113,6 @@ CREATE POLICY "Orders are visible to restaurant stakeholders" ON public.orders
         )
     )
   );
-
-
 -- ---------------------------------------------------------------------------
 -- 4. Fix submit_order_rating: also enforce seat match
 --    Before: checked table token only — any customer at the same table could
@@ -177,8 +170,6 @@ BEGIN
   RETURN true;
 END;
 $$;
-
-
 -- ---------------------------------------------------------------------------
 -- 5. insert_notification_order
 --    Token-validated RPC for "Call Waiter" and "Request Bill" actions.

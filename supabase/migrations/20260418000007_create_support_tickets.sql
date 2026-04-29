@@ -10,15 +10,11 @@ CREATE TABLE IF NOT EXISTS public.support_tickets (
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
-
 ALTER TABLE public.support_tickets ENABLE ROW LEVEL SECURITY;
-
 CREATE POLICY "Owners can view own tickets" ON public.support_tickets
   FOR SELECT TO authenticated
   USING (restaurant_id IN (SELECT id FROM public.restaurants WHERE owner_id = auth.uid()));
-
 CREATE POLICY "Owners can insert tickets" ON public.support_tickets
   FOR INSERT TO authenticated
   WITH CHECK (restaurant_id IN (SELECT id FROM public.restaurants WHERE owner_id = auth.uid()));
-
 GRANT SELECT, INSERT ON public.support_tickets TO authenticated;

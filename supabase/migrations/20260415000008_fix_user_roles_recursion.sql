@@ -8,14 +8,12 @@
 
 -- 1. Drop the self-referencing policy
 DROP POLICY IF EXISTS "user_roles_super_admin_all" ON public.user_roles;
-
 -- 2. Recreate safe super-admin policy using has_role() (SECURITY DEFINER)
 DROP POLICY IF EXISTS "Super admins can manage roles" ON public.user_roles;
 CREATE POLICY "Super admins can manage roles" ON public.user_roles
   FOR ALL TO authenticated
   USING (has_role(auth.uid(), 'super_admin'::app_role))
   WITH CHECK (has_role(auth.uid(), 'super_admin'::app_role));
-
 -- 3. Fix "Users can view own roles" — was passing ::text to has_role which expects app_role
 DROP POLICY IF EXISTS "Users can view own roles" ON public.user_roles;
 CREATE POLICY "Users can view own roles" ON public.user_roles
@@ -24,7 +22,6 @@ CREATE POLICY "Users can view own roles" ON public.user_roles
     user_id = auth.uid()
     OR has_role(auth.uid(), 'super_admin'::app_role)
   );
-
 -- 4. Create missing profiles for any auth user that doesn't have one
 INSERT INTO public.profiles (id, email, full_name)
 SELECT

@@ -11,12 +11,10 @@
 -- 1. Add the column to orders
 ALTER TABLE public.orders
   ADD COLUMN IF NOT EXISTS customer_device_id TEXT;
-
 -- 2. Index so history look-ups are fast
 CREATE INDEX IF NOT EXISTS idx_orders_customer_device_id
   ON public.orders (customer_device_id)
   WHERE customer_device_id IS NOT NULL;
-
 -- 3. Rewrite insert_order_with_token to accept + store the device ID
 CREATE OR REPLACE FUNCTION public.insert_order_with_token(
   p_restaurant_id    uuid,

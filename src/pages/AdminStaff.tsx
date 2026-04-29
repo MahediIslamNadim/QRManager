@@ -24,7 +24,7 @@ type StaffMember = {
   user_id: string;
   restaurant_id: string;
   created_at: string;
-  role: string;
+  role: StaffRole;
   users: { id: string; full_name: string | null; email: string | null } | null;
 };
 
@@ -104,42 +104,34 @@ export default function AdminStaff() {
     queryFn: async () => {
       if (!restaurantId) return [];
 
-      const { data: staffRows, error: staffErr } = await supabase
-        .from("staff_restaurants")
-        .select("id, user_id, restaurant_id, created_at")
+      const { data: staffRows, error: staffErr } = await (supabase
+        .from("staff_restaurants") as any)
+        .select("id, user_id, restaurant_id, created_at, role")
         .eq("restaurant_id", restaurantId)
         .order("created_at", { ascending: false });
 
       if (staffErr) throw staffErr;
       if (!staffRows?.length) return [];
 
-      const userIds = staffRows.map(r => r.user_id);
+      const userIds = staffRows.map((row: { user_id: string }) => row.user_id);
 
-      const [{ data: profiles }, { data: roleRows }] = await Promise.all([
+      const [{ data: profiles }] = await Promise.all([
         supabase.from("profiles").select("id, full_name, email").in("id", userIds),
-        supabase.from("user_roles").select("user_id, role").in("user_id", userIds),
       ]);
 
-      let rpcEmailMap: Record<string, string> = {};
+      const rpcEmailMap: Record<string, string> = {};
       try {
         const { data: rpcRows } = await (supabase as any).rpc("get_restaurant_staff", { _restaurant_id: restaurantId });
         if (rpcRows) rpcRows.forEach((row: any) => { if (row.email) rpcEmailMap[row.user_id] = row.email; });
       } catch { /* best-effort */ }
 
-      const allowedRoles = ["admin", "waiter", "kitchen"] as const;
-      const roleMap = new Map(
-        (roleRows || [])
-          .filter(r => allowedRoles.includes(r.role as any))
-          .map(r => [r.user_id, r.role])
-      );
-
-      return staffRows.map(row => {
+      return staffRows.map((row: any) => {
         const profile  = profiles?.find(p => p.id === row.user_id);
         const email    = profile?.email || rpcEmailMap[row.user_id] || null;
         const fullName = profile?.full_name || null;
         return {
           ...row,
-          role: (roleMap.get(row.user_id) as string) || "waiter",
+          role: (row.role as StaffRole) || "waiter",
           users: email || fullName ? { id: row.user_id, full_name: fullName, email } : null,
         };
       });
@@ -199,27 +191,11 @@ export default function AdminStaff() {
     if (!restaurantId) return;
     setUpdatingRole(userId);
     try {
-      // Step 1: delete existing staff role entries
-      const { error: deleteErr } = await supabase
-        .from("user_roles")
-        .delete()
-        .eq("user_id", userId)
-        .in("role", ["admin", "waiter", "kitchen"]);
-      if (deleteErr) throw deleteErr;
-
-      // Step 2: insert new role with restaurant_id
-      const { error: insertErr } = await (supabase.from("user_roles") as any)
-        .upsert(
-          { user_id: userId, role: newRole, restaurant_id: restaurantId },
-          { onConflict: "user_id,role" }
-        );
-      if (insertErr) throw insertErr;
-
-      // Step 3: sync staff_restaurants table
-      await (supabase.from("staff_restaurants") as any)
+      const { error } = await (supabase.from("staff_restaurants") as any)
         .update({ role: newRole })
         .eq("user_id", userId)
         .eq("restaurant_id", restaurantId);
+      if (error) throw error;
 
       queryClient.invalidateQueries({ queryKey: ["staff", restaurantId] });
       toast.success("\u09b0\u09cb\u09b2 \u0986\u09aa\u09a1\u09c7\u099f \u09b9\u09af\u09bc\u09c7\u099b\u09c7\u0964");
@@ -488,21 +464,24 @@ export default function AdminStaff() {
             {[
               {
                 role: ROLES[0],
+                borderClass: "border-purple-500/20",
                 perms: ["\u09ae\u09c7\u09a8\u09c1 \u0993 \u099f\u09c7\u09ac\u09bf\u09b2 \u09ae\u09cd\u09af\u09be\u09a8\u09c7\u099c\u09ae\u09c7\u09a8\u09cd\u099f", "\u09b8\u09cd\u099f\u09be\u09ab \u09af\u09cb\u0997 \u0993 \u09ac\u09be\u09a6 \u09a6\u09c7\u0993\u09af\u09bc\u09be", "\u0985\u09b0\u09cd\u09a1\u09be\u09b0 \u0993 \u0985\u09cd\u09af\u09be\u09a8\u09be\u09b2\u09bf\u099f\u09bf\u0995\u09cd\u09b8", "\u09ac\u09bf\u09b2\u09bf\u0982 \u0993 \u09b8\u09c7\u099f\u09bf\u0982\u09b8"],
                 blocked: [],
               },
               {
                 role: ROLES[1],
+                borderClass: "border-primary/20",
                 perms: ["\u0985\u09b0\u09cd\u09a1\u09be\u09b0 \u0997\u09cd\u09b0\u09b9\u09a3 \u0993 \u09aa\u09b0\u09bf\u099a\u09be\u09b2\u09a8\u09be", "\u099f\u09c7\u09ac\u09bf\u09b2 \u0993 \u09b8\u09bf\u099f \u09ae\u09cd\u09af\u09be\u09a8\u09c7\u099c\u09ae\u09c7\u09a8\u09cd\u099f", "\u09ac\u09bf\u09b2 \u0993 \u09aa\u09c7\u09ae\u09c7\u09a8\u09cd\u099f \u0997\u09cd\u09b0\u09b9\u09a3", "\u09b8\u09be\u09b0\u09cd\u09ad\u09bf\u09b8 \u09b0\u09bf\u0995\u09cb\u09af\u09bc\u09c7\u09b8\u09cd\u099f \u09a6\u09c7\u0996\u09be"],
                 blocked: ["\u09ae\u09c7\u09a8\u09c1 \u09b8\u09ae\u09cd\u09aa\u09be\u09a6\u09a8\u09be \u09a8\u09c7\u0987"],
               },
               {
                 role: ROLES[2],
+                borderClass: "border-warning/20",
                 perms: ["\u0995\u09bf\u099a\u09c7\u09a8 \u09a1\u09bf\u09b8\u09aa\u09cd\u09b2\u09c7 \u09a6\u09c7\u0996\u09be", "\u0985\u09b0\u09cd\u09a1\u09be\u09b0 \u09b8\u09cd\u099f\u09cd\u09af\u09be\u099f\u09be\u09b8 \u0986\u09aa\u09a1\u09c7\u099f", "\u09b0\u09be\u09a8\u09cd\u09a8\u09be \u09b8\u09ae\u09cd\u09aa\u09a8\u09cd\u09a8 \u09ae\u09be\u09b0\u09cd\u0995 \u0995\u09b0\u09be"],
                 blocked: ["\u09ac\u09bf\u09b2\u09bf\u0982 \u0993 \u09b8\u09cd\u099f\u09be\u09ab \u0985\u09cd\u09af\u09be\u0995\u09cd\u09b8\u09c7\u09b8 \u09a8\u09c7\u0987"],
               },
-            ].map(({ role, perms, blocked }) => (
-              <Card key={role.value} className={`border-${role.value === "admin" ? "purple-500" : role.value === "waiter" ? "primary" : "warning"}/20`}>
+            ].map(({ role, borderClass, perms, blocked }) => (
+              <Card key={role.value} className={borderClass}>
                 <CardHeader className="pb-2 pt-4 px-4">
                   <CardTitle className="text-sm flex items-center gap-2">
                     <div className={`w-7 h-7 rounded-lg ${role.bg.split(" ")[0]} flex items-center justify-center`}>

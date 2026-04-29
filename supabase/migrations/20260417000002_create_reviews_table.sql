@@ -8,20 +8,16 @@ CREATE TABLE IF NOT EXISTS reviews (
   comment TEXT,
   created_at TIMESTAMPTZ DEFAULT now()
 );
-
 -- Index for fast per-item rating queries
 CREATE INDEX IF NOT EXISTS idx_reviews_menu_item_id ON reviews(menu_item_id);
-
 -- Enable RLS
 ALTER TABLE reviews ENABLE ROW LEVEL SECURITY;
-
 -- Anyone can read reviews (public menu shows ratings)
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='reviews' AND policyname='reviews_public_read') THEN
     CREATE POLICY "reviews_public_read" ON reviews FOR SELECT USING (true);
   END IF;
 END $$;
-
 -- Anyone can insert a review (customers submit via menu)
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='reviews' AND policyname='reviews_public_insert') THEN

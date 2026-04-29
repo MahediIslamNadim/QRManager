@@ -22,13 +22,10 @@ CREATE TABLE IF NOT EXISTS public.ssl_transactions (
   created_at    timestamptz NOT NULL DEFAULT now(),
   updated_at    timestamptz NOT NULL DEFAULT now()
 );
-
 CREATE INDEX IF NOT EXISTS idx_ssl_transactions_restaurant_id ON public.ssl_transactions(restaurant_id);
 CREATE INDEX IF NOT EXISTS idx_ssl_transactions_tran_id ON public.ssl_transactions(tran_id);
 CREATE INDEX IF NOT EXISTS idx_ssl_transactions_status ON public.ssl_transactions(status);
-
 ALTER TABLE public.ssl_transactions ENABLE ROW LEVEL SECURITY;
-
 -- Admins can view their own restaurant's transactions
 CREATE POLICY "ssl_transactions_admin_select"
 ON public.ssl_transactions FOR SELECT
@@ -41,5 +38,4 @@ USING (
       AND (restaurant_id = ssl_transactions.restaurant_id OR role = 'super_admin')
   )
 );
-
--- Service role (edge functions) handles all inserts/updates — RLS bypassed for service_role
+-- Service role (edge functions) handles all inserts/updates — RLS bypassed for service_role;

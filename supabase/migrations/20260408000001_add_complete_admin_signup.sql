@@ -6,7 +6,6 @@
 
 -- Drop function if it exists (for clean re-deployment)
 DROP FUNCTION IF EXISTS public.complete_admin_signup(TEXT, TEXT, TEXT, INTEGER);
-
 -- Create the complete_admin_signup function
 -- This function atomically creates a restaurant and assigns admin role
 CREATE OR REPLACE FUNCTION public.complete_admin_signup(
@@ -100,10 +99,8 @@ EXCEPTION
     RAISE EXCEPTION 'Error in complete_admin_signup: %', SQLERRM;
 END;
 $$;
-
 -- Grant execute permission to authenticated users
 GRANT EXECUTE ON FUNCTION public.complete_admin_signup(TEXT, TEXT, TEXT, INTEGER) TO authenticated;
-
 -- Add comment for documentation
 COMMENT ON FUNCTION public.complete_admin_signup IS 
 'Atomically creates a restaurant and assigns admin role during signup. 
@@ -114,7 +111,6 @@ Parameters:
   - p_phone: Restaurant phone (optional)
   - p_trial_days: Free trial duration in days (default: 30)
 Returns: JSON object with restaurant_id, trial_ends_at, etc.';
-
 -- ============================================================================
 -- ADDITIONAL FIX: Update RLS policy for user_roles if needed
 -- ============================================================================
@@ -138,7 +134,6 @@ BEGIN
   -- Note: SECURITY DEFINER functions bypass RLS, so complete_admin_signup
   -- will work even with this restrictive policy
 END $$;
-
 -- ============================================================================
 -- VERIFICATION QUERIES (Run these after deployment to verify)
 -- ============================================================================
@@ -155,4 +150,4 @@ END $$;
 -- WHERE routine_schema = 'public' 
 -- AND routine_name = 'complete_admin_signup';
 
--- ============================================================================
+-- ============================================================================;

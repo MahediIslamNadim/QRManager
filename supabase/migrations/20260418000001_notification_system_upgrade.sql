@@ -6,16 +6,13 @@
 -- 1. Add restaurant_id to notifications (for admin-targeted notifications)
 ALTER TABLE public.notifications
   ADD COLUMN IF NOT EXISTS restaurant_id uuid REFERENCES public.restaurants(id) ON DELETE CASCADE;
-
 CREATE INDEX IF NOT EXISTS idx_notifications_restaurant_id
   ON public.notifications(restaurant_id) WHERE restaurant_id IS NOT NULL;
-
 -- 2. Add subscription_status, tier, trial_end_date to restaurants
 ALTER TABLE public.restaurants
   ADD COLUMN IF NOT EXISTS subscription_status text DEFAULT 'trial',
   ADD COLUMN IF NOT EXISTS tier text DEFAULT 'medium_smart',
   ADD COLUMN IF NOT EXISTS trial_end_date timestamptz;
-
 -- Backfill existing rows: map legacy status to new subscription_status
 UPDATE public.restaurants SET
   subscription_status = CASE
@@ -27,7 +24,6 @@ UPDATE public.restaurants SET
   tier = COALESCE(tier, 'medium_smart'),
   trial_end_date = COALESCE(trial_end_date, trial_ends_at)
 WHERE subscription_status IS NULL OR subscription_status = 'trial';
-
 -- 3. Fix status constraint to allow all used values
 DO $$
 BEGIN
@@ -35,22 +31,18 @@ BEGIN
   ALTER TABLE public.restaurants DROP CONSTRAINT IF EXISTS restaurants_status_check;
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
-
 ALTER TABLE public.restaurants
   ADD CONSTRAINT restaurants_status_check
   CHECK (status IN ('active', 'pending', 'inactive', 'trial', 'active_paid'));
-
 -- 4. Fix plan constraint to allow new tier names as plan values
 DO $$
 BEGIN
   ALTER TABLE public.restaurants DROP CONSTRAINT IF EXISTS restaurants_plan_check;
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
-
 ALTER TABLE public.restaurants
   ADD CONSTRAINT restaurants_plan_check
   CHECK (plan IN ('basic', 'premium', 'enterprise', 'medium_smart', 'high_smart'));
-
 -- 5. Helper function: insert notification for all admins of a restaurant
 CREATE OR REPLACE FUNCTION public.notify_restaurant_admins(
   p_restaurant_id uuid,
@@ -75,7 +67,6 @@ BEGIN
   END LOOP;
 END;
 $$;
-
 -- 6. Trigger function: notify admins on new order or status change
 CREATE OR REPLACE FUNCTION public.trg_order_notification()
 RETURNS trigger
@@ -102,15 +93,12 @@ BEGIN
   RETURN NEW;
 END;
 $$;
-
 DROP TRIGGER IF EXISTS order_notification_trigger ON public.orders;
 CREATE TRIGGER order_notification_trigger
   AFTER INSERT OR UPDATE OF status ON public.orders
   FOR EACH ROW EXECUTE FUNCTION public.trg_order_notification();
-
 -- 7. Replace complete_admin_signup to set all subscription columns correctly
 DROP FUNCTION IF EXISTS public.complete_admin_signup(TEXT, TEXT, TEXT, INTEGER);
-
 CREATE OR REPLACE FUNCTION public.complete_admin_signup(
   p_restaurant_name TEXT,
   p_address         TEXT DEFAULT NULL,
@@ -191,5 +179,4 @@ EXCEPTION
     RAISE EXCEPTION 'Error in complete_admin_signup: %', SQLERRM;
 END;
 $$;
-
 GRANT EXECUTE ON FUNCTION public.complete_admin_signup(TEXT, TEXT, TEXT, INTEGER) TO authenticated;
