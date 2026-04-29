@@ -11,7 +11,7 @@ const SuperAdminDashboard = () => {
     queryFn: async () => {
       const [{ data: restaurants }, { data: orders }, { data: profiles }] = await Promise.all([
         supabase.from("restaurants").select("id, name, status, created_at"),
-        supabase.from("orders").select("id, total, status, restaurant_id, created_at").gte("created_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()).limit(2000),
+        supabase.from("orders").select("id, total, status, restaurant_id, created_at").gte("created_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()),
         supabase.from("profiles").select("id, full_name, email, created_at"),
       ]);
 

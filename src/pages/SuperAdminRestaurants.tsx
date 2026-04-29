@@ -26,6 +26,65 @@ interface Restaurant {
   trial_end_date: string | null;
 }
 
+type RestaurantFormStatus = "trial" | "active_paid" | "pending" | "inactive";
+
+const getRestaurantSubscriptionPayload = (status: RestaurantFormStatus, plan: string) => {
+  const now = new Date();
+  const trialEnd = new Date(now);
+  trialEnd.setDate(trialEnd.getDate() + 30);
+
+  const paidEnd = new Date(now);
+  paidEnd.setMonth(paidEnd.getMonth() + 1);
+
+  if (status === "active_paid") {
+    const startDate = now.toISOString();
+    const endDate = paidEnd.toISOString();
+
+    return {
+      status,
+      subscription_status: "active",
+      plan,
+      tier: plan,
+      billing_cycle: "monthly",
+      trial_ends_at: endDate,
+      trial_end_date: endDate,
+      subscription_start_date: startDate,
+      subscription_end_date: endDate,
+      next_billing_date: endDate,
+    };
+  }
+
+  if (status === "inactive") {
+    return {
+      status,
+      subscription_status: "expired",
+      plan,
+      tier: plan,
+      billing_cycle: null,
+      trial_ends_at: null,
+      trial_end_date: null,
+      subscription_start_date: null,
+      subscription_end_date: null,
+      next_billing_date: null,
+    };
+  }
+
+  const trialDate = status === "trial" ? trialEnd.toISOString() : null;
+
+  return {
+    status,
+    subscription_status: "trial",
+    plan,
+    tier: plan,
+    billing_cycle: null,
+    trial_ends_at: trialDate,
+    trial_end_date: trialDate,
+    subscription_start_date: null,
+    subscription_end_date: null,
+    next_billing_date: null,
+  };
+};
+
 const SuperAdminRestaurants = () => {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
@@ -34,8 +93,8 @@ const SuperAdminRestaurants = () => {
   const [formName, setFormName] = useState("");
   const [formAddress, setFormAddress] = useState("");
   const [formPhone, setFormPhone] = useState("");
-  const [formStatus, setFormStatus] = useState("active");
-  const [formPlan, setFormPlan] = useState("basic");
+  const [formStatus, setFormStatus] = useState<RestaurantFormStatus>("trial");
+  const [formPlan, setFormPlan] = useState("medium_smart");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
   const [tierFilter, setTierFilter] = useState<string>("all");
@@ -63,8 +122,8 @@ const SuperAdminRestaurants = () => {
     setFormName("");
     setFormAddress("");
     setFormPhone("");
-    setFormStatus("active");
-    setFormPlan("basic");
+    setFormStatus("trial");
+    setFormPlan("medium_smart");
     setEditingId(null);
   };
 
@@ -78,23 +137,36 @@ const SuperAdminRestaurants = () => {
     setFormName(r.name);
     setFormAddress(r.address || "");
     setFormPhone(r.phone || "");
-    setFormStatus(r.status);
+    setFormStatus((["trial", "active_paid", "pending", "inactive"].includes(r.status) ? r.status : "trial") as RestaurantFormStatus);
     setFormPlan(r.tier || r.plan || "medium_smart");
     setDialogOpen(true);
   };
 
   const saveMutation = useMutation({
     mutationFn: async () => {
+      const payload = getRestaurantSubscriptionPayload(formStatus, formPlan);
+
       if (editingId) {
         const { error } = await supabase
           .from("restaurants")
-          .update({ name: formName, address: formAddress, phone: formPhone, status: formStatus, tier: formPlan, updated_at: new Date().toISOString() })
+          .update({
+            name: formName,
+            address: formAddress,
+            phone: formPhone,
+            ...payload,
+            updated_at: new Date().toISOString(),
+          })
           .eq("id", editingId);
         if (error) throw error;
       } else {
         const { error } = await supabase
           .from("restaurants")
-          .insert({ name: formName, address: formAddress, phone: formPhone, status: formStatus, tier: formPlan, subscription_status: "trial" });
+          .insert({
+            name: formName,
+            address: formAddress,
+            phone: formPhone,
+            ...payload,
+          });
         if (error) throw error;
       }
     },
@@ -109,6 +181,25 @@ const SuperAdminRestaurants = () => {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
+      const [{ data: restaurant, error: restaurantError }, { count: orderCount, error: ordersError }, { count: staffCount, error: staffError }, { count: paymentCount, error: paymentError }] = await Promise.all([
+        supabase.from("restaurants").select("owner_id").eq("id", id).maybeSingle(),
+        supabase.from("orders").select("id", { count: "exact", head: true }).eq("restaurant_id", id),
+        (supabase.from("staff_restaurants" as any) as any).select("user_id", { count: "exact", head: true }).eq("restaurant_id", id),
+        (supabase.from("payment_requests" as any) as any).select("id", { count: "exact", head: true }).eq("restaurant_id", id),
+      ]);
+
+      if (restaurantError || ordersError || staffError || paymentError) {
+        throw restaurantError || ordersError || staffError || paymentError;
+      }
+
+      if (restaurant?.owner_id) {
+        throw new Error("This restaurant still has an owner account. Transfer or remove ownership before deleting it.");
+      }
+
+      if ((orderCount ?? 0) > 0 || (staffCount ?? 0) > 0 || (paymentCount ?? 0) > 0) {
+        throw new Error("This restaurant already has live data. Mark it inactive instead of deleting it.");
+      }
+
       const { error } = await supabase.from("restaurants").delete().eq("id", id);
       if (error) throw error;
     },
@@ -252,7 +343,7 @@ const SuperAdminRestaurants = () => {
               <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>স্ট্যাটাস</Label>
-                <Select value={formStatus} onValueChange={setFormStatus}>
+                <Select value={formStatus} onValueChange={(value) => setFormStatus(value as RestaurantFormStatus)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="active">সক্রিয় (ট্রায়াল)</SelectItem>

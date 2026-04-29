@@ -23,30 +23,37 @@ interface RequestBody {
 }
 
 const VALID_PLANS = ["medium_smart", "high_smart"] as const;
+const VALID_BILLING_CYCLES = ["monthly", "yearly"] as const;
 
 const VALID_ACTIONS: Action[] = ["approve", "reject", "update", "reopen", "delete"];
 
-function getExpiryDate(billingCycle?: string): string {
+function getSafePlan(plan?: string | null): string {
+  return VALID_PLANS.includes(plan as typeof VALID_PLANS[number]) ? (plan as string) : "medium_smart";
+}
+
+function getSafeBillingCycle(billingCycle?: string | null): "monthly" | "yearly" {
+  return VALID_BILLING_CYCLES.includes(billingCycle as typeof VALID_BILLING_CYCLES[number])
+    ? (billingCycle as "monthly" | "yearly")
+    : "monthly";
+}
+
+function getExpiryDate(billingCycle?: string | null): string {
   const d = new Date();
-  if (billingCycle === "yearly") d.setFullYear(d.getFullYear() + 1);
+  if (getSafeBillingCycle(billingCycle) === "yearly") d.setFullYear(d.getFullYear() + 1);
   else d.setMonth(d.getMonth() + 1);
   return d.toISOString();
 }
 
-async function hasOtherApprovedPayment(
-  admin: ReturnType<typeof createClient>,
-  restaurantId: string,
-  excludePaymentId: string,
-): Promise<boolean> {
-  const { data } = await admin
-    .from("payment_requests")
-    .select("id")
-    .eq("restaurant_id", restaurantId)
-    .eq("status", "approved")
-    .neq("id", excludePaymentId)
-    .limit(1);
-  return Array.isArray(data) && data.length > 0;
-}
+type PaymentState = {
+  id?: string;
+  restaurant_id: string;
+  plan: string;
+  billing_cycle?: string | null;
+  amount?: number | null;
+  payment_method?: string | null;
+  transaction_id?: string | null;
+  admin_notes?: string | null;
+};
 
 async function notifyRestaurantAdmins(
   admin: ReturnType<typeof createClient>,
@@ -55,16 +62,32 @@ async function notifyRestaurantAdmins(
   message: string,
   type: string,
 ) {
+  const { data: restaurant } = await admin
+    .from("restaurants")
+    .select("owner_id")
+    .eq("id", restaurantId)
+    .maybeSingle();
+
   const { data: roles } = await admin
     .from("user_roles")
     .select("user_id")
     .eq("role", "admin")
     .eq("restaurant_id", restaurantId);
 
-  if (roles && roles.length > 0) {
+  const recipientIds = new Set<string>();
+
+  if (restaurant?.owner_id) {
+    recipientIds.add(restaurant.owner_id);
+  }
+
+  for (const role of roles || []) {
+    if (role.user_id) recipientIds.add(role.user_id);
+  }
+
+  if (recipientIds.size > 0) {
     await admin.from("notifications").insert(
-      roles.map((r: { user_id: string }) => ({
-        user_id: r.user_id,
+      Array.from(recipientIds).map((userId) => ({
+        user_id: userId,
         restaurant_id: restaurantId,
         title,
         message,
@@ -72,6 +95,138 @@ async function notifyRestaurantAdmins(
       })),
     );
   }
+}
+
+async function syncRestaurantSubscription(
+  admin: ReturnType<typeof createClient>,
+  restaurantId: string,
+  payment: PaymentState | null,
+) {
+  const now = new Date().toISOString();
+
+  if (!payment) {
+    const { error: restaurantError } = await admin
+      .from("restaurants")
+      .update({
+        status: "inactive",
+        subscription_status: "expired",
+        subscription_start_date: null,
+        subscription_end_date: null,
+        next_billing_date: null,
+        updated_at: now,
+      })
+      .eq("id", restaurantId);
+
+    if (restaurantError) throw restaurantError;
+
+    const { error: subscriptionError } = await admin
+      .from("subscriptions")
+      .update({ status: "expired", updated_at: now })
+      .eq("restaurant_id", restaurantId)
+      .eq("status", "active");
+
+    if (subscriptionError) throw subscriptionError;
+
+    return;
+  }
+
+  const tier = getSafePlan(payment.plan);
+  const billingCycle = getSafeBillingCycle(payment.billing_cycle);
+  const startDate = now;
+  const endDate = getExpiryDate(billingCycle);
+
+  const { error: deactivateError } = await admin
+    .from("subscriptions")
+    .update({ status: "expired", updated_at: now })
+    .eq("restaurant_id", restaurantId)
+    .eq("status", "active");
+
+  if (deactivateError) throw deactivateError;
+
+  if (payment.transaction_id) {
+    const { data: existingSubscription, error: subscriptionLookupError } = await admin
+      .from("subscriptions")
+      .select("id")
+      .eq("restaurant_id", restaurantId)
+      .eq("transaction_id", payment.transaction_id)
+      .maybeSingle();
+
+    if (subscriptionLookupError) throw subscriptionLookupError;
+
+    const subscriptionPayload = {
+      tier,
+      billing_cycle: billingCycle,
+      amount: Number(payment.amount ?? 0),
+      payment_method: payment.payment_method ?? null,
+      transaction_id: payment.transaction_id,
+      notes: payment.admin_notes ?? null,
+      start_date: startDate,
+      end_date: endDate,
+      status: "active",
+      updated_at: now,
+    };
+
+    if (existingSubscription?.id) {
+      const { error: updateSubscriptionError } = await admin
+        .from("subscriptions")
+        .update(subscriptionPayload)
+        .eq("id", existingSubscription.id);
+
+      if (updateSubscriptionError) throw updateSubscriptionError;
+    } else {
+      const { error: insertSubscriptionError } = await admin
+        .from("subscriptions")
+        .insert({
+          restaurant_id: restaurantId,
+          ...subscriptionPayload,
+        });
+
+      if (insertSubscriptionError) throw insertSubscriptionError;
+    }
+  }
+
+  const { error: restaurantError } = await admin
+    .from("restaurants")
+    .update({
+      status: "active_paid",
+      subscription_status: "active",
+      plan: tier,
+      tier,
+      billing_cycle: billingCycle,
+      trial_ends_at: endDate,
+      trial_end_date: endDate,
+      subscription_start_date: startDate,
+      subscription_end_date: endDate,
+      next_billing_date: endDate,
+      updated_at: now,
+    })
+    .eq("id", restaurantId);
+
+  if (restaurantError) throw restaurantError;
+}
+
+async function getLatestApprovedPayment(
+  admin: ReturnType<typeof createClient>,
+  restaurantId: string,
+  excludePaymentId?: string,
+): Promise<PaymentState | null> {
+  let query = admin
+    .from("payment_requests")
+    .select("id, restaurant_id, plan, billing_cycle, amount, payment_method, transaction_id, admin_notes")
+    .eq("restaurant_id", restaurantId)
+    .eq("status", "approved")
+    .order("updated_at", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (excludePaymentId) {
+    query = query.neq("id", excludePaymentId);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  return Array.isArray(data) && data.length > 0 ? (data[0] as PaymentState) : null;
 }
 
 Deno.serve(async (req) => {
@@ -117,7 +272,7 @@ Deno.serve(async (req) => {
 
     const { data: payment, error: fetchErr } = await admin
       .from("payment_requests")
-      .select("id, restaurant_id, plan, billing_cycle, status")
+      .select("id, restaurant_id, plan, billing_cycle, amount, payment_method, transaction_id, admin_notes, status")
       .eq("id", payment_id)
       .single();
     if (fetchErr || !payment) return json({ error: "Payment request not found" }, 404);
@@ -126,32 +281,22 @@ Deno.serve(async (req) => {
 
     // ── APPROVE ─────────────────────────────────────────────────────────────
     if (action === "approve") {
-      const plan = body.plan ?? payment.plan;
-      if (!VALID_PLANS.includes(plan as typeof VALID_PLANS[number])) {
-        return json({ error: "Invalid plan" }, 400);
-      }
-      const expiryDate = getExpiryDate(body.billing_cycle ?? payment.billing_cycle);
-      const tier = ["medium_smart", "high_smart"].includes(plan) ? plan : "medium_smart";
+      const plan = getSafePlan(body.plan ?? payment.plan);
+      const billingCycle = getSafeBillingCycle(body.billing_cycle ?? payment.billing_cycle);
+      const tier = plan;
 
       const { error: payErr } = await admin
         .from("payment_requests")
-        .update({ status: "approved", admin_notes: body.admin_notes ?? null, updated_at: now })
+        .update({ status: "approved", plan, billing_cycle: billingCycle, admin_notes: body.admin_notes ?? null, updated_at: now })
         .eq("id", payment_id);
       if (payErr) return json({ error: "Internal server error" }, 500);
 
-      const { error: restErr } = await admin
-        .from("restaurants")
-        .update({
-          status: "active_paid",
-          subscription_status: "active",
-          plan,
-          tier,
-          trial_ends_at: expiryDate,
-          trial_end_date: expiryDate,
-          updated_at: now,
-        })
-        .eq("id", payment.restaurant_id);
-      if (restErr) return json({ error: "Internal server error" }, 500);
+      await syncRestaurantSubscription(admin, payment.restaurant_id, {
+        ...payment,
+        plan,
+        billing_cycle: billingCycle,
+        admin_notes: body.admin_notes ?? null,
+      });
 
       await notifyRestaurantAdmins(
         admin, payment.restaurant_id,
@@ -173,12 +318,8 @@ Deno.serve(async (req) => {
       if (error) return json({ error: "Internal server error" }, 500);
 
       if (payment.status === "approved") {
-        const otherApproved = await hasOtherApprovedPayment(admin, payment.restaurant_id, payment_id);
-        if (!otherApproved) {
-          await admin.from("restaurants")
-            .update({ status: "inactive", subscription_status: "expired", updated_at: now })
-            .eq("id", payment.restaurant_id);
-        }
+        const replacementPayment = await getLatestApprovedPayment(admin, payment.restaurant_id, payment_id);
+        await syncRestaurantSubscription(admin, payment.restaurant_id, replacementPayment);
       }
 
       await notifyRestaurantAdmins(
@@ -194,34 +335,38 @@ Deno.serve(async (req) => {
     // ── UPDATE ──────────────────────────────────────────────────────────────
     if (action === "update") {
       const newStatus = body.status ?? payment.status;
-      const newPlan   = body.plan   ?? payment.plan;
+      const newPlan = getSafePlan(body.plan ?? payment.plan);
 
       if (!["pending", "approved", "rejected"].includes(newStatus as string)) {
         return json({ error: "Invalid status value" }, 400);
       }
-      if (!VALID_PLANS.includes(newPlan as typeof VALID_PLANS[number])) {
-        return json({ error: "Invalid plan" }, 400);
+
+      const paymentUpdatePayload: Record<string, unknown> = {
+        plan: newPlan,
+        status: newStatus,
+        admin_notes: body.admin_notes ?? null,
+        updated_at: now,
+      };
+      if (typeof body.amount === "number" && Number.isFinite(body.amount)) {
+        paymentUpdatePayload.amount = body.amount;
       }
 
       const { error: payErr } = await admin
         .from("payment_requests")
-        .update({ plan: newPlan, amount: body.amount, status: newStatus, admin_notes: body.admin_notes ?? null, updated_at: now })
+        .update(paymentUpdatePayload)
         .eq("id", payment_id);
       if (payErr) return json({ error: "Internal server error" }, 500);
 
       if (newStatus === "approved") {
-        const expiryDate = getExpiryDate(payment.billing_cycle);
-        const tier = ["medium_smart", "high_smart"].includes(newPlan) ? newPlan : "medium_smart";
-        await admin.from("restaurants")
-          .update({ status: "active_paid", subscription_status: "active", plan: newPlan, tier, trial_ends_at: expiryDate, trial_end_date: expiryDate, updated_at: now })
-          .eq("id", payment.restaurant_id);
+        await syncRestaurantSubscription(admin, payment.restaurant_id, {
+          ...payment,
+          plan: newPlan,
+          amount: typeof body.amount === "number" ? body.amount : payment.amount,
+          admin_notes: body.admin_notes ?? null,
+        });
       } else if (payment.status === "approved" && newStatus !== "approved") {
-        const otherApproved = await hasOtherApprovedPayment(admin, payment.restaurant_id, payment_id);
-        if (!otherApproved) {
-          await admin.from("restaurants")
-            .update({ status: "inactive", subscription_status: "expired", updated_at: now })
-            .eq("id", payment.restaurant_id);
-        }
+        const replacementPayment = await getLatestApprovedPayment(admin, payment.restaurant_id, payment_id);
+        await syncRestaurantSubscription(admin, payment.restaurant_id, replacementPayment);
       }
 
       return json({ success: true, action: "update" });
@@ -236,12 +381,8 @@ Deno.serve(async (req) => {
       if (error) return json({ error: "Internal server error" }, 500);
 
       if (payment.status === "approved") {
-        const otherApproved = await hasOtherApprovedPayment(admin, payment.restaurant_id, payment_id);
-        if (!otherApproved) {
-          await admin.from("restaurants")
-            .update({ status: "inactive", subscription_status: "expired", updated_at: now })
-            .eq("id", payment.restaurant_id);
-        }
+        const replacementPayment = await getLatestApprovedPayment(admin, payment.restaurant_id, payment_id);
+        await syncRestaurantSubscription(admin, payment.restaurant_id, replacementPayment);
       }
       return json({ success: true, action: "reopen" });
     }
@@ -249,12 +390,8 @@ Deno.serve(async (req) => {
     // ── DELETE ──────────────────────────────────────────────────────────────
     if (action === "delete") {
       if (payment.status === "approved") {
-        const otherApproved = await hasOtherApprovedPayment(admin, payment.restaurant_id, payment_id);
-        if (!otherApproved) {
-          await admin.from("restaurants")
-            .update({ status: "inactive", subscription_status: "expired", updated_at: now })
-            .eq("id", payment.restaurant_id);
-        }
+        const replacementPayment = await getLatestApprovedPayment(admin, payment.restaurant_id, payment_id);
+        await syncRestaurantSubscription(admin, payment.restaurant_id, replacementPayment);
       }
       const { error } = await admin.from("payment_requests").delete().eq("id", payment_id);
       if (error) return json({ error: "Internal server error" }, 500);

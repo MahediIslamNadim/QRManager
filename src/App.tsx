@@ -23,6 +23,7 @@ import AdminTables from "./pages/AdminTables";
 import AdminOrders from "./pages/AdminOrders";
 import AdminStaff from "./pages/AdminStaff";
 import AdminAnalytics from "./pages/AdminAnalytics";
+import AIAnalytics from "./pages/AIAnalytics";
 import AdminSettings from "./pages/AdminSettings";
 import AdminSetup from "./pages/AdminSetup";
 import WaiterDashboard from "./pages/WaiterDashboard";
@@ -181,6 +182,10 @@ const App = () => (
               <Route
                 path="/admin/analytics"
                 element={<ProtectedRoute allowedRoles={["admin", "super_admin"]}><AdminAnalytics /></ProtectedRoute>}
+              />
+              <Route
+                path="/admin/ai-insights"
+                element={<ProtectedRoute allowedRoles={["admin", "super_admin"]}><AIAnalytics /></ProtectedRoute>}
               />
               <Route
                 path="/admin/settings"

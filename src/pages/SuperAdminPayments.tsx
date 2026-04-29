@@ -30,6 +30,8 @@ interface PaymentRequest {
   restaurant_name?: string;
 }
 
+type PaymentPlan = "medium_smart" | "high_smart";
+
 const invokePayment = async (body: Record<string, unknown>) => {
   const { data, error } = await supabase.functions.invoke("process-payment", { body });
   if (error) throw new Error(error.message || "Function error");
@@ -52,8 +54,7 @@ const SuperAdminPayments = () => {
   const [activeTab, setActiveTab] = useState<"manual" | "ssl">("manual");
   const [selectedPayment, setSelectedPayment] = useState<PaymentRequest | null>(null);
   const [adminNotes, setAdminNotes] = useState("");
-  setEditPlan((p.plan as "medium_smart" | "high_smart") || "medium_smart");
-
+  const [editPlan, setEditPlan] = useState<PaymentPlan>("medium_smart");
   const [editAmount, setEditAmount] = useState(0);
   const [editStatus, setEditStatus] = useState<"pending" | "approved" | "rejected">("pending");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -143,7 +144,14 @@ const SuperAdminPayments = () => {
     enabled: activeTab === "ssl",
   });
 
-  const closeDialog = () => { setDialogOpen(false); setSelectedPayment(null); setAdminNotes(""); };
+  const closeDialog = () => {
+    setDialogOpen(false);
+    setSelectedPayment(null);
+    setAdminNotes("");
+    setEditPlan("medium_smart");
+    setEditAmount(0);
+    setEditStatus("pending");
+  };
 
   const approveMutation = useMutation({
     mutationFn: ({ paymentId, plan, billingCycle }: { paymentId: string; plan: string; billingCycle?: string }) =>
@@ -183,7 +191,7 @@ const SuperAdminPayments = () => {
   const openReview = (p: PaymentRequest) => {
     setSelectedPayment(p);
     setAdminNotes(p.admin_notes || "");
-    setEditPlan((p.plan as "medium_smart" | "high_smart") || "medium_smart");
+    setEditPlan(p.plan === "high_smart" ? "high_smart" : "medium_smart");
     setEditAmount(Number(p.amount) || 0);
     setEditStatus((p.status as "pending" | "approved" | "rejected") || "pending");
     setDialogOpen(true);

@@ -34,7 +34,9 @@ const AdminSetup = () => {
               await supabase
                 .from("admin_invites" as any)
                 .update({ status: "accepted", accepted_at: new Date().toISOString() } as any)
-                .eq("id", inviteId);
+                .eq("id", inviteId)
+                .eq("email", user.email)
+                .eq("status", "pending");
             }
             navigate("/admin", { replace: true });
           } else {

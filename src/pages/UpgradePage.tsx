@@ -1,5 +1,5 @@
 // UpgradePage.tsx - Tier upgrade and payment page
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import DashboardLayout from '@/components/DashboardLayout';
 import { Button } from '@/components/ui/button';
@@ -17,11 +17,13 @@ import TierSelection from '@/components/TierSelection';
 
 const BKASH_NUMBER = import.meta.env.VITE_BKASH_NUMBER ?? "01786130439";
 const NAGAD_NUMBER = import.meta.env.VITE_NAGAD_NUMBER ?? "01786130439";
+const normalizeTransactionId = (value: string) => value.trim().toUpperCase();
 
 const UpgradePage = () => {
   const { restaurantId } = useAuth();
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
+  const tierSelectionRef = useRef<HTMLDivElement | null>(null);
 
   const [selectedTier, setSelectedTier] = useState<TierName>('medium_smart');
   const [selectedBillingCycle, setSelectedBillingCycle] = useState<BillingCycle>('yearly');
@@ -43,7 +45,7 @@ const UpgradePage = () => {
       if (!restaurantId) return null;
       const { data, error } = await supabase
         .from('restaurants')
-        .select('tier, billing_cycle, subscription_status, trial_end_date')
+        .select('tier, billing_cycle, subscription_status, trial_end_date, owner_id')
         .eq('id', restaurantId)
         .single();
       if (error) throw error;
@@ -61,6 +63,26 @@ const UpgradePage = () => {
   } = useTrialStatus(restaurantId);
 
   const { user } = useAuth();
+  const isRestaurantOwner = !!user && restaurant?.owner_id === user.id;
+
+  const { data: pendingPaymentRequest } = useQuery({
+    queryKey: ['pending-payment-request', restaurantId],
+    queryFn: async () => {
+      if (!restaurantId) return null;
+
+      const { data, error } = await (supabase.from('payment_requests') as any)
+        .select('id, transaction_id, created_at')
+        .eq('restaurant_id', restaurantId)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!restaurantId
+  });
 
   const paymentMutation = useMutation({
     mutationFn: async () => {
@@ -72,6 +94,26 @@ const UpgradePage = () => {
         ? tierConfig.price_monthly
         : tierConfig.price_yearly;
 
+      if (!isRestaurantOwner) throw new Error('Only the restaurant owner can submit a plan upgrade request.');
+      if (pendingPaymentRequest) throw new Error('A payment request is already pending for this restaurant.');
+
+      const normalizedTransactionId = normalizeTransactionId(transactionId);
+      const { data: existingRequests, error: duplicateCheckError } = await (supabase.from('payment_requests') as any)
+        .select('id, transaction_id, status')
+        .eq('restaurant_id', restaurantId)
+        .in('status', ['pending', 'approved']);
+
+      if (duplicateCheckError) throw duplicateCheckError;
+
+      const duplicateTransaction = (existingRequests || []).find(
+        (request: { transaction_id?: string | null }) =>
+          normalizeTransactionId(request.transaction_id ?? '') === normalizedTransactionId
+      );
+
+      if (duplicateTransaction) {
+        throw new Error('This transaction ID has already been used for another payment request.');
+      }
+
       const { error } = await (supabase.from('payment_requests') as any).insert({
         user_id: user.id,
         restaurant_id: restaurantId,
@@ -79,7 +121,7 @@ const UpgradePage = () => {
         billing_cycle: selectedBillingCycle,
         amount,
         payment_method: paymentMethod,
-        transaction_id: transactionId.trim(),
+        transaction_id: normalizedTransactionId,
         phone_number: payPhone.trim() || null,
         status: 'pending',
       });
@@ -90,6 +132,7 @@ const UpgradePage = () => {
       setTransactionId("");
       setPayPhone("");
       queryClient.invalidateQueries({ queryKey: ['restaurant-subscription', restaurantId] });
+      queryClient.invalidateQueries({ queryKey: ['pending-payment-request', restaurantId] });
     },
     onError: (err: any) => toast.error(err.message || 'Submit ব্যর্থ হয়েছে'),
   });
@@ -99,6 +142,14 @@ const UpgradePage = () => {
     setSelectedBillingCycle(billingCycle);
     setShowPaymentForm(true);
     setPaySuccess(false);
+  };
+
+  const focusTierSelection = () => {
+    setShowPaymentForm(false);
+    setPaySuccess(false);
+    requestAnimationFrame(() => {
+      tierSelectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
   };
 
   return (
@@ -145,7 +196,7 @@ const UpgradePage = () => {
                 </div>
 
                 {subscriptionStatus !== 'active' && (
-                  <Button variant="hero" size="lg">
+                  <Button variant="hero" size="lg" onClick={focusTierSelection}>
                     <Zap className="w-4 h-4 mr-2" />
                     Upgrade Now
                   </Button>
@@ -162,6 +213,19 @@ const UpgradePage = () => {
               <CardTitle>পেমেন্ট সম্পন্ন করুন</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
+              {!isRestaurantOwner && (
+                <div className="rounded-lg border border-warning/30 bg-warning/10 p-4 text-sm text-warning-foreground">
+                  Only the restaurant owner can submit an upgrade payment request. Please use the owner account for billing changes.
+                </div>
+              )}
+
+              {pendingPaymentRequest && !paySuccess && (
+                <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm text-muted-foreground">
+                  A payment request is already pending for this restaurant. Transaction ID:{' '}
+                  <span className="font-mono text-foreground">{pendingPaymentRequest.transaction_id}</span>
+                </div>
+              )}
+
               {/* Selected Plan Summary */}
               <div className="bg-muted rounded-lg p-6">
                 <div className="flex items-center justify-between mb-4">
@@ -314,7 +378,7 @@ const UpgradePage = () => {
                       variant="hero"
                       className="flex-1"
                       onClick={() => paymentMutation.mutate()}
-                      disabled={paymentMutation.isPending || !transactionId.trim()}
+                      disabled={paymentMutation.isPending || !transactionId.trim() || !isRestaurantOwner || !!pendingPaymentRequest}
                     >
                       {paymentMutation.isPending ? 'সাবমিট হচ্ছে...' : 'পেমেন্ট সাবমিট করুন'}
                       <ArrowRight className="w-4 h-4 ml-2" />
@@ -326,11 +390,13 @@ const UpgradePage = () => {
           </Card>
         ) : (
           /* Tier Selection */
-          <TierSelection
-            onSelect={handleTierSelect}
-            selectedTier={selectedTier}
-            selectedBillingCycle={selectedBillingCycle}
-          />
+          <div ref={tierSelectionRef} id="tier-selection">
+            <TierSelection
+              onSelect={handleTierSelect}
+              selectedTier={selectedTier}
+              selectedBillingCycle={selectedBillingCycle}
+            />
+          </div>
         )}
 
         {/* FAQ */}
