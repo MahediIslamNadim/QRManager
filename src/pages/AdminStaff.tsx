@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  AlertTriangle, Crown, Mail, Shield, Trash2, UserPlus,
+  AlertTriangle, Crown, Mail, Trash2, UserPlus,
   Users, ChefHat, RefreshCw, Search, Calendar,
 } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
@@ -31,27 +31,27 @@ type StaffMember = {
 const ROLES: { value: StaffRole; label: string; icon: any; color: string; bg: string; desc: string }[] = [
   {
     value: "admin",
-    label: "অ্যাডমিন",
+    label: "\u0985\u09cd\u09af\u09be\u09a1\u09ae\u09bf\u09a8",
     icon: Crown,
     color: "text-purple-500",
     bg: "bg-purple-500/15 text-purple-500 border-purple-500/30",
-    desc: "সব ফিচারে পূর্ণ অ্যাক্সেস",
+    desc: "\u09b8\u09ac \u09ab\u09bf\u099a\u09be\u09b0\u09c7 \u09aa\u09c2\u09b0\u09cd\u09a3 \u0985\u09cd\u09af\u09be\u0995\u09cd\u09b8\u09c7\u09b8",
   },
   {
     value: "waiter",
-    label: "ওয়েটার",
+    label: "\u0993\u09af\u09bc\u09c7\u099f\u09be\u09b0",
     icon: Users,
     color: "text-primary",
     bg: "bg-primary/15 text-primary border-primary/30",
-    desc: "অর্ডার, টেবিল ও পেমেন্ট",
+    desc: "\u0985\u09b0\u09cd\u09a1\u09be\u09b0, \u099f\u09c7\u09ac\u09bf\u09b2 \u0993 \u09aa\u09c7\u09ae\u09c7\u09a8\u09cd\u099f",
   },
   {
     value: "kitchen",
-    label: "কিচেন",
+    label: "\u0995\u09bf\u099a\u09c7\u09a8",
     icon: ChefHat,
     color: "text-warning",
     bg: "bg-warning/15 text-warning border-warning/30",
-    desc: "কিচেন ডিসপ্লে ও অর্ডার স্ট্যাটাস",
+    desc: "\u0995\u09bf\u099a\u09c7\u09a8 \u09a1\u09bf\u09b8\u09aa\u09cd\u09b2\u09c7 \u0993 \u0985\u09b0\u09cd\u09a1\u09be\u09b0 \u09b8\u09cd\u099f\u09cd\u09af\u09be\u099f\u09be\u09b8",
   },
 ];
 
@@ -76,10 +76,12 @@ export default function AdminStaff() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
+  // FIX 1: maxStaffDisplay added
   const {
     canAdd: canInviteStaff,
     currentCount: staffCount,
     maxStaff,
+    maxStaffDisplay,
     tier,
     isAtLimit,
     upgradeMessage,
@@ -96,7 +98,7 @@ export default function AdminStaff() {
   const [roleFilter,      setRoleFilter]      = useState<StaffRole | "all">("all");
   const [updatingRole,    setUpdatingRole]    = useState<string | null>(null);
 
-  // ── Fetch staff ─────────────────────────────────────────────────────────
+  // Fetch staff
   const { data: staffMembers = [], isLoading } = useQuery<StaffMember[]>({
     queryKey: ["staff", restaurantId],
     queryFn: async () => {
@@ -145,12 +147,12 @@ export default function AdminStaff() {
     enabled: !!restaurantId,
   });
 
-  // ── Invite ───────────────────────────────────────────────────────────────
+  // Invite
   const inviteMutation = useMutation({
     mutationFn: async () => {
       if (!restaurantId) throw new Error("No restaurant");
       const normalizedEmail = inviteEmail.trim().toLowerCase();
-      if (!normalizedEmail) throw new Error("ইমেইল দিন।");
+      if (!normalizedEmail) throw new Error("\u0987\u09ae\u09c7\u0987\u09b2 \u09a6\u09bf\u09a8\u0964");
       const check = checkBeforeInvite();
       if (!check.allowed) throw new Error(upgradeMessage || "Staff limit reached.");
 
@@ -165,16 +167,16 @@ export default function AdminStaff() {
     },
     onSuccess: result => {
       queryClient.invalidateQueries({ queryKey: ["staff", restaurantId] });
-      if (result?.already_exists)  toast.success("এই স্টাফ ইতিমধ্যেই যুক্ত আছেন।");
-      else if (result?.role_updated) toast.success("স্টাফের রোল আপডেট হয়েছে।");
-      else toast.success("স্টাফ সফলভাবে যোগ হয়েছে।");
+      if (result?.already_exists)  toast.success("\u098f\u0987 \u09b8\u09cd\u099f\u09be\u09ab \u0987\u09a4\u09bf\u09ae\u09a7\u09cd\u09af\u09c7\u0987 \u09af\u09c1\u0995\u09cd\u09a4 \u0986\u099b\u09c7\u09a8\u0964");
+      else if (result?.role_updated) toast.success("\u09b8\u09cd\u099f\u09be\u09ab\u09c7\u09b0 \u09b0\u09cb\u09b2 \u0986\u09aa\u09a1\u09c7\u099f \u09b9\u09af\u09bc\u09c7\u099b\u09c7\u0964");
+      else toast.success("\u09b8\u09cd\u099f\u09be\u09ab \u09b8\u09ab\u09b2\u09ad\u09be\u09ac\u09c7 \u09af\u09cb\u0997 \u09b9\u09af\u09bc\u09c7\u099b\u09c7\u0964");
       setShowInviteDialog(false);
       setInviteEmail(""); setInviteFullName(""); setInvitePassword(""); setInviteRole("waiter");
     },
     onError: (err: Error) => toast.error(err.message),
   });
 
-  // ── Remove ───────────────────────────────────────────────────────────────
+  // Remove
   const removeMutation = useMutation({
     mutationFn: async (staff: Pick<StaffMember, "id" | "user_id">) => {
       if (!restaurantId) throw new Error("No restaurant");
@@ -187,30 +189,48 @@ export default function AdminStaff() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["staff", restaurantId] });
-      toast.success("স্টাফ সরানো হয়েছে।");
+      toast.success("\u09b8\u09cd\u099f\u09be\u09ab \u09b8\u09b0\u09be\u09a8\u09cb \u09b9\u09af\u09bc\u09c7\u099b\u09c7\u0964");
     },
     onError: (err: Error) => toast.error(err.message),
   });
 
-  // ── Role update ───────────────────────────────────────────────────────────
+  // FIX 2: updateRole — delete old role first, then insert new one with restaurant_id
   const updateRole = async (userId: string, newRole: StaffRole) => {
+    if (!restaurantId) return;
     setUpdatingRole(userId);
     try {
-      const { error } = await supabase
+      // Step 1: delete existing staff role entries
+      const { error: deleteErr } = await supabase
         .from("user_roles")
+        .delete()
+        .eq("user_id", userId)
+        .in("role", ["admin", "waiter", "kitchen"]);
+      if (deleteErr) throw deleteErr;
+
+      // Step 2: insert new role with restaurant_id
+      const { error: insertErr } = await (supabase.from("user_roles") as any)
+        .upsert(
+          { user_id: userId, role: newRole, restaurant_id: restaurantId },
+          { onConflict: "user_id,role" }
+        );
+      if (insertErr) throw insertErr;
+
+      // Step 3: sync staff_restaurants table
+      await (supabase.from("staff_restaurants") as any)
         .update({ role: newRole })
-        .eq("user_id", userId);
-      if (error) throw error;
+        .eq("user_id", userId)
+        .eq("restaurant_id", restaurantId);
+
       queryClient.invalidateQueries({ queryKey: ["staff", restaurantId] });
-      toast.success("রোল আপডেট হয়েছে।");
+      toast.success("\u09b0\u09cb\u09b2 \u0986\u09aa\u09a1\u09c7\u099f \u09b9\u09af\u09bc\u09c7\u099b\u09c7\u0964");
     } catch (err: any) {
-      toast.error(err.message || "রোল আপডেট করতে সমস্যা হয়েছে।");
+      toast.error(err.message || "\u09b0\u09cb\u09b2 \u0986\u09aa\u09a1\u09c7\u099f \u0995\u09b0\u09a4\u09c7 \u09b8\u09ae\u09b8\u09cd\u09af\u09be \u09b9\u09af\u09bc\u09c7\u099b\u09c7\u0964");
     } finally {
       setUpdatingRole(null);
     }
   };
 
-  // ── Filtered list ─────────────────────────────────────────────────────────
+  // Filtered list
   const filtered = staffMembers.filter(s => {
     const matchSearch = !search ||
       (s.users?.full_name || "").toLowerCase().includes(search.toLowerCase()) ||
@@ -222,39 +242,40 @@ export default function AdminStaff() {
   const countByRole = (role: StaffRole) => staffMembers.filter(s => s.role === role).length;
 
   return (
-    <DashboardLayout role="admin" title="স্টাফ ম্যানেজমেন্ট">
+    <DashboardLayout role="admin" title="\u09b8\u09cd\u099f\u09be\u09ab \u09ae\u09cd\u09af\u09be\u09a8\u09c7\u099c\u09ae\u09c7\u09a8\u09cd\u099f">
       <div className="space-y-6 animate-fade-up max-w-5xl">
 
-        {/* ── Header ────────────────────────────────────────────────────── */}
+        {/* Header */}
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
             <h2 className="text-2xl font-bold flex items-center gap-2">
               <div className="w-9 h-9 rounded-xl bg-primary/15 flex items-center justify-center">
                 <Users className="w-5 h-5 text-primary" />
               </div>
-              স্টাফ ম্যানেজমেন্ট
+              {"\u09b8\u09cd\u099f\u09be\u09ab \u09ae\u09cd\u09af\u09be\u09a8\u09c7\u099c\u09ae\u09c7\u09a8\u09cd\u099f"}
             </h2>
             <p className="text-sm text-muted-foreground mt-1">
-              রেস্টুরেন্টের টিম মেম্বার পরিচালনা করুন
+              {"\u09b0\u09c7\u09b8\u09cd\u099f\u09c1\u09b0\u09c7\u09a8\u09cd\u099f\u09c7\u09b0 \u099f\u09bf\u09ae \u09ae\u09c7\u09ae\u09cd\u09ac\u09be\u09b0 \u09aa\u09b0\u09bf\u099a\u09be\u09b2\u09a8\u09be \u0995\u09b0\u09c1\u09a8"}
             </p>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs text-muted-foreground bg-secondary px-3 py-1.5 rounded-full border border-border">
-              {staffCount} / {maxStaff === Infinity ? "আনলিমিটেড" : maxStaff} জন স্টাফ
+              {/* FIX 1: use maxStaffDisplay instead of checking Infinity */}
+              {staffCount} / {maxStaffDisplay} {"\u099c\u09a8 \u09b8\u09cd\u099f\u09be\u09ab"}
             </span>
             <Button onClick={() => setShowInviteDialog(true)} disabled={!canInviteStaff || limitLoading} variant="hero" className="gap-2">
-              <UserPlus className="w-4 h-4" /> স্টাফ যোগ করুন
+              <UserPlus className="w-4 h-4" /> {"\u09b8\u09cd\u099f\u09be\u09ab \u09af\u09cb\u0997 \u0995\u09b0\u09c1\u09a8"}
             </Button>
           </div>
         </div>
 
-        {/* ── Stats row ─────────────────────────────────────────────────── */}
+        {/* Stats row */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { label: "মোট স্টাফ",  value: staffMembers.length, color: "border-border bg-secondary/30" },
-            { label: "অ্যাডমিন",   value: countByRole("admin"),   color: "border-purple-500/20 bg-purple-500/5" },
-            { label: "ওয়েটার",    value: countByRole("waiter"),  color: "border-primary/20 bg-primary/5" },
-            { label: "কিচেন",      value: countByRole("kitchen"), color: "border-warning/20 bg-warning/5" },
+            { label: "\u09ae\u09cb\u099f \u09b8\u09cd\u099f\u09be\u09ab",  value: staffMembers.length, color: "border-border bg-secondary/30" },
+            { label: "\u0985\u09cd\u09af\u09be\u09a1\u09ae\u09bf\u09a8",   value: countByRole("admin"),   color: "border-purple-500/20 bg-purple-500/5" },
+            { label: "\u0993\u09af\u09bc\u09c7\u099f\u09be\u09b0",    value: countByRole("waiter"),  color: "border-primary/20 bg-primary/5" },
+            { label: "\u0995\u09bf\u099a\u09c7\u09a8",      value: countByRole("kitchen"), color: "border-warning/20 bg-warning/5" },
           ].map((s, i) => (
             <div key={i} className={`rounded-2xl border px-4 py-3 text-center ${s.color}`}>
               <p className="text-2xl font-bold">{s.value}</p>
@@ -263,52 +284,52 @@ export default function AdminStaff() {
           ))}
         </div>
 
-        {/* ── Limit warning ─────────────────────────────────────────────── */}
+        {/* Limit warning */}
         {isAtLimit && (
           <div className="bg-warning/10 border border-warning/30 rounded-xl p-4 flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-warning flex-shrink-0 mt-0.5" />
             <div className="flex-1">
-              <p className="font-semibold text-warning text-sm">স্টাফ সীমা পূর্ণ হয়ে গেছে</p>
+              <p className="font-semibold text-warning text-sm">{"\u09b8\u09cd\u099f\u09be\u09ab \u09b8\u09c0\u09ae\u09be \u09aa\u09c2\u09b0\u09cd\u09a3 \u09b9\u09af\u09bc\u09c7 \u0997\u09c7\u099b\u09c7"}</p>
               <p className="text-sm text-muted-foreground mt-1">
-                {upgradeMessage || `আপনার প্ল্যানে সর্বোচ্চ ${maxStaff} জন স্টাফ যোগ করা যাবে।`}
+                {upgradeMessage || `\u0986\u09aa\u09a8\u09be\u09b0 \u09aa\u09cd\u09b2\u09cd\u09af\u09be\u09a8\u09c7 \u09b8\u09b0\u09cd\u09ac\u09cb\u099a\u09cd\u099a ${maxStaffDisplay} \u099c\u09a8 \u09b8\u09cd\u099f\u09be\u09ab \u09af\u09cb\u0997 \u0995\u09b0\u09be \u09af\u09be\u09ac\u09c7\u0964`}
               </p>
               {tier === "medium_smart" && (
                 <Button size="sm" className="mt-2 bg-purple-600 hover:bg-purple-700 text-white h-8 text-xs"
                   onClick={() => navigate("/upgrade")}>
-                  হাই স্মার্টে আপগ্রেড করুন
+                  {"\u09b9\u09be\u0987 \u09b8\u09cd\u09ae\u09be\u09b0\u09cd\u099f\u09c7 \u0986\u09aa\u0997\u09cd\u09b0\u09c7\u09a1 \u0995\u09b0\u09c1\u09a8"}
                 </Button>
               )}
             </div>
           </div>
         )}
 
-        {/* ── Invite dialog ─────────────────────────────────────────────── */}
+        {/* Invite dialog */}
         <Dialog open={showInviteDialog} onOpenChange={setShowInviteDialog}>
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <UserPlus className="w-5 h-5 text-primary" /> নতুন স্টাফ যোগ করুন
+                <UserPlus className="w-5 h-5 text-primary" /> {"\u09a8\u09a4\u09c1\u09a8 \u09b8\u09cd\u099f\u09be\u09ab \u09af\u09cb\u0997 \u0995\u09b0\u09c1\u09a8"}
               </DialogTitle>
             </DialogHeader>
             <form onSubmit={e => { e.preventDefault(); inviteMutation.mutate(); }} className="space-y-4 mt-2">
               <div className="space-y-1.5">
-                <Label>ইমেইল *</Label>
+                <Label>{"\u0987\u09ae\u09c7\u0987\u09b2"} *</Label>
                 <Input type="email" placeholder="staff@example.com"
                   value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} required />
               </div>
               <div className="space-y-1.5">
-                <Label>পুরো নাম (ঐচ্ছিক)</Label>
-                <Input placeholder="যেমন: Rahim Uddin"
+                <Label>{"\u09aa\u09c1\u09b0\u09cb \u09a8\u09be\u09ae"} ({"\u0990\u099a\u09cd\u099b\u09bf\u0995"})</Label>
+                <Input placeholder="\u09af\u09c7\u09ae\u09a8: Rahim Uddin"
                   value={inviteFullName} onChange={e => setInviteFullName(e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label>পাসওয়ার্ড</Label>
-                <Input type="password" placeholder="নতুন স্টাফ হলে দিন"
+                <Label>{"\u09aa\u09be\u09b8\u0993\u09af\u09bc\u09be\u09b0\u09cd\u09a1"}</Label>
+                <Input type="password" placeholder="\u09a8\u09a4\u09c1\u09a8 \u09b8\u09cd\u099f\u09be\u09ab \u09b9\u09b2\u09c7 \u09a6\u09bf\u09a8"
                   value={invitePassword} onChange={e => setInvitePassword(e.target.value)} />
-                <p className="text-xs text-muted-foreground">আগে অ্যাকাউন্ট থাকলে পাসওয়ার্ড লাগবে না।</p>
+                <p className="text-xs text-muted-foreground">{"\u0986\u0997\u09c7 \u0985\u09cd\u09af\u09be\u0995\u09be\u0989\u09a8\u09cd\u099f \u09a5\u09be\u0995\u09b2\u09c7 \u09aa\u09be\u09b8\u0993\u09af\u09bc\u09be\u09b0\u09cd\u09a1 \u09b2\u09be\u0997\u09ac\u09c7 \u09a8\u09be\u0964"}</p>
               </div>
               <div className="space-y-2">
-                <Label>ভূমিকা</Label>
+                <Label>{"\u09ad\u09c2\u09ae\u09bf\u0995\u09be"}</Label>
                 <div className="grid grid-cols-3 gap-2">
                   {ROLES.map(r => (
                     <button key={r.value} type="button" onClick={() => setInviteRole(r.value)}
@@ -325,18 +346,20 @@ export default function AdminStaff() {
                 <p className="text-xs text-muted-foreground">{ROLES.find(r => r.value === inviteRole)?.desc}</p>
               </div>
               <Button type="submit" variant="hero" className="w-full" disabled={inviteMutation.isPending}>
-                {inviteMutation.isPending ? <><RefreshCw className="w-4 h-4 animate-spin mr-2" />যোগ হচ্ছে...</> : "স্টাফ যোগ করুন"}
+                {inviteMutation.isPending
+                  ? <><RefreshCw className="w-4 h-4 animate-spin mr-2" />{"\u09af\u09cb\u0997 \u09b9\u099a\u09cd\u099b\u09c7..."}</>
+                  : "\u09b8\u09cd\u099f\u09be\u09ab \u09af\u09cb\u0997 \u0995\u09b0\u09c1\u09a8"}
               </Button>
             </form>
           </DialogContent>
         </Dialog>
 
-        {/* ── Search + filter ───────────────────────────────────────────── */}
+        {/* Search + filter */}
         {staffMembers.length > 0 && (
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input placeholder="নাম বা ইমেইলে খুঁজুন..." value={search}
+              <Input placeholder="\u09a8\u09be\u09ae \u09ac\u09be \u0987\u09ae\u09c7\u0987\u09b2\u09c7 \u0996\u09c1\u0981\u099c\u09c1\u09a8..." value={search}
                 onChange={e => setSearch(e.target.value)} className="pl-9" />
             </div>
             <div className="flex gap-2">
@@ -347,14 +370,14 @@ export default function AdminStaff() {
                       ? "bg-primary text-primary-foreground border-primary"
                       : "bg-secondary/50 border-border text-muted-foreground hover:text-foreground"
                   }`}>
-                  {f === "all" ? "সবাই" : ROLES.find(r => r.value === f)?.label}
+                  {f === "all" ? "\u09b8\u09ac\u09be\u0987" : ROLES.find(r => r.value === f)?.label}
                 </button>
               ))}
             </div>
           </div>
         )}
 
-        {/* ── Staff list ────────────────────────────────────────────────── */}
+        {/* Staff list */}
         {isLoading ? (
           <div className="space-y-3">
             {[1,2,3].map(i => <div key={i} className="h-24 rounded-2xl bg-secondary/40 animate-pulse" />)}
@@ -366,20 +389,20 @@ export default function AdminStaff() {
                 <Users className="w-8 h-8 text-muted-foreground/40" />
               </div>
               <div>
-                <p className="font-semibold">এখনো কোনো স্টাফ নেই</p>
-                <p className="text-sm text-muted-foreground mt-1">স্টাফ যোগ করে আপনার টিম গড়ুন।</p>
+                <p className="font-semibold">{"\u098f\u0996\u09a8\u09cb \u0995\u09cb\u09a8\u09cb \u09b8\u09cd\u099f\u09be\u09ab \u09a8\u09c7\u0987"}</p>
+                <p className="text-sm text-muted-foreground mt-1">{"\u09b8\u09cd\u099f\u09be\u09ab \u09af\u09cb\u0997 \u0995\u09b0\u09c7 \u0986\u09aa\u09a8\u09be\u09b0 \u099f\u09bf\u09ae \u0997\u09dc\u09c1\u09a8\u0964"}</p>
               </div>
               <Button onClick={() => setShowInviteDialog(true)} variant="outline" className="gap-2">
-                <UserPlus className="w-4 h-4" /> প্রথম স্টাফ যোগ করুন
+                <UserPlus className="w-4 h-4" /> {"\u09aa\u09cd\u09b0\u09a5\u09ae \u09b8\u09cd\u099f\u09be\u09ab \u09af\u09cb\u0997 \u0995\u09b0\u09c1\u09a8"}
               </Button>
             </CardContent>
           </Card>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground text-sm">কোনো ফলাফল নেই।</div>
+          <div className="text-center py-12 text-muted-foreground text-sm">{"\u0995\u09cb\u09a8\u09cb \u09ab\u09b2\u09be\u09ab\u09b2 \u09a8\u09c7\u0987\u0964"}</div>
         ) : (
           <div className="grid gap-3">
             {filtered.map((staff, idx) => {
-              const rc   = getRoleConfig(staff.role);
+              const rc    = getRoleConfig(staff.role);
               const RIcon = rc.icon;
               const avatarGrad = AVATAR_COLORS[idx % AVATAR_COLORS.length];
               const isUpdating = updatingRole === staff.user_id;
@@ -396,7 +419,7 @@ export default function AdminStaff() {
                       {/* Info */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <p className="font-semibold truncate">{staff.users?.full_name || "নাম নেই"}</p>
+                          <p className="font-semibold truncate">{staff.users?.full_name || "\u09a8\u09be\u09ae \u09a8\u09c7\u0987"}</p>
                           <Badge className={`text-xs border ${rc.bg} flex items-center gap-1`}>
                             <RIcon className="w-3 h-3" /> {rc.label}
                           </Badge>
@@ -416,14 +439,16 @@ export default function AdminStaff() {
 
                       {/* Actions */}
                       <div className="flex items-center gap-2 flex-shrink-0">
-                        {/* Role change buttons */}
+                        {/* Desktop role buttons */}
                         <div className="hidden sm:flex gap-1">
                           {ROLES.filter(r => r.value !== staff.role).map(r => (
                             <button key={r.value} disabled={isUpdating}
                               onClick={() => updateRole(staff.user_id, r.value)}
-                              title={`${r.label} বানান`}
+                              title={`${r.label} \u09ac\u09be\u09a8\u09be\u09a8`}
                               className="w-7 h-7 rounded-lg bg-secondary/60 hover:bg-secondary border border-border flex items-center justify-center transition-colors disabled:opacity-50">
-                              {isUpdating ? <RefreshCw className="w-3 h-3 animate-spin" /> : <r.icon className={`w-3.5 h-3.5 ${r.color}`} />}
+                              {isUpdating
+                                ? <RefreshCw className="w-3 h-3 animate-spin" />
+                                : <r.icon className={`w-3.5 h-3.5 ${r.color}`} />}
                             </button>
                           ))}
                         </div>
@@ -441,7 +466,7 @@ export default function AdminStaff() {
                         <Button variant="ghost" size="icon"
                           className="w-8 h-8 text-destructive hover:text-destructive hover:bg-destructive/10"
                           onClick={() => {
-                            if (confirm(`"${staff.users?.full_name || "এই স্টাফ"}" কে সরিয়ে দেবেন?`)) {
+                            if (confirm(`"${staff.users?.full_name || "\u098f\u0987 \u09b8\u09cd\u099f\u09be\u09ab"}" \u0995\u09c7 \u09b8\u09b0\u09bf\u09af\u09bc\u09c7 \u09a6\u09c7\u09ac\u09c7\u09a8?`)) {
                               removeMutation.mutate({ id: staff.id, user_id: staff.user_id });
                             }
                           }}>
@@ -456,25 +481,25 @@ export default function AdminStaff() {
           </div>
         )}
 
-        {/* ── Role descriptions ─────────────────────────────────────────── */}
+        {/* Role descriptions */}
         <div>
-          <h3 className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wide">রোলের বিবরণ</h3>
+          <h3 className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wide">{"\u09b0\u09cb\u09b2\u09c7\u09b0 \u09ac\u09bf\u09ac\u09b0\u09a3"}</h3>
           <div className="grid gap-3 sm:grid-cols-3">
             {[
               {
                 role: ROLES[0],
-                perms: ["মেনু ও টেবিল ম্যানেজমেন্ট", "স্টাফ যোগ ও বাদ দেওয়া", "অর্ডার ও অ্যানালিটিক্স", "বিলিং ও সেটিংস"],
+                perms: ["\u09ae\u09c7\u09a8\u09c1 \u0993 \u099f\u09c7\u09ac\u09bf\u09b2 \u09ae\u09cd\u09af\u09be\u09a8\u09c7\u099c\u09ae\u09c7\u09a8\u09cd\u099f", "\u09b8\u09cd\u099f\u09be\u09ab \u09af\u09cb\u0997 \u0993 \u09ac\u09be\u09a6 \u09a6\u09c7\u0993\u09af\u09bc\u09be", "\u0985\u09b0\u09cd\u09a1\u09be\u09b0 \u0993 \u0985\u09cd\u09af\u09be\u09a8\u09be\u09b2\u09bf\u099f\u09bf\u0995\u09cd\u09b8", "\u09ac\u09bf\u09b2\u09bf\u0982 \u0993 \u09b8\u09c7\u099f\u09bf\u0982\u09b8"],
                 blocked: [],
               },
               {
                 role: ROLES[1],
-                perms: ["অর্ডার গ্রহণ ও পরিচালনা", "টেবিল ও সিট ম্যানেজমেন্ট", "বিল ও পেমেন্ট গ্রহণ", "সার্ভিস রিকোয়েস্ট দেখা"],
-                blocked: ["মেনু সম্পাদনা নেই"],
+                perms: ["\u0985\u09b0\u09cd\u09a1\u09be\u09b0 \u0997\u09cd\u09b0\u09b9\u09a3 \u0993 \u09aa\u09b0\u09bf\u099a\u09be\u09b2\u09a8\u09be", "\u099f\u09c7\u09ac\u09bf\u09b2 \u0993 \u09b8\u09bf\u099f \u09ae\u09cd\u09af\u09be\u09a8\u09c7\u099c\u09ae\u09c7\u09a8\u09cd\u099f", "\u09ac\u09bf\u09b2 \u0993 \u09aa\u09c7\u09ae\u09c7\u09a8\u09cd\u099f \u0997\u09cd\u09b0\u09b9\u09a3", "\u09b8\u09be\u09b0\u09cd\u09ad\u09bf\u09b8 \u09b0\u09bf\u0995\u09cb\u09af\u09bc\u09c7\u09b8\u09cd\u099f \u09a6\u09c7\u0996\u09be"],
+                blocked: ["\u09ae\u09c7\u09a8\u09c1 \u09b8\u09ae\u09cd\u09aa\u09be\u09a6\u09a8\u09be \u09a8\u09c7\u0987"],
               },
               {
                 role: ROLES[2],
-                perms: ["কিচেন ডিসপ্লে দেখা", "অর্ডার স্ট্যাটাস আপডেট", "রান্না সম্পন্ন মার্ক করা"],
-                blocked: ["বিলিং ও স্টাফ অ্যাক্সেস নেই"],
+                perms: ["\u0995\u09bf\u099a\u09c7\u09a8 \u09a1\u09bf\u09b8\u09aa\u09cd\u09b2\u09c7 \u09a6\u09c7\u0996\u09be", "\u0985\u09b0\u09cd\u09a1\u09be\u09b0 \u09b8\u09cd\u099f\u09cd\u09af\u09be\u099f\u09be\u09b8 \u0986\u09aa\u09a1\u09c7\u099f", "\u09b0\u09be\u09a8\u09cd\u09a8\u09be \u09b8\u09ae\u09cd\u09aa\u09a8\u09cd\u09a8 \u09ae\u09be\u09b0\u09cd\u0995 \u0995\u09b0\u09be"],
+                blocked: ["\u09ac\u09bf\u09b2\u09bf\u0982 \u0993 \u09b8\u09cd\u099f\u09be\u09ab \u0985\u09cd\u09af\u09be\u0995\u09cd\u09b8\u09c7\u09b8 \u09a8\u09c7\u0987"],
               },
             ].map(({ role, perms, blocked }) => (
               <Card key={role.value} className={`border-${role.value === "admin" ? "purple-500" : role.value === "waiter" ? "primary" : "warning"}/20`}>
@@ -488,8 +513,8 @@ export default function AdminStaff() {
                 </CardHeader>
                 <CardContent className="px-4 pb-4">
                   <ul className="text-xs space-y-1">
-                    {perms.map(p => <li key={p} className="text-muted-foreground">✓ {p}</li>)}
-                    {blocked.map(b => <li key={b} className="text-muted-foreground/50">✗ {b}</li>)}
+                    {perms.map(p => <li key={p} className="text-muted-foreground">&#10003; {p}</li>)}
+                    {blocked.map(b => <li key={b} className="text-muted-foreground/50">&#10007; {b}</li>)}
                   </ul>
                 </CardContent>
               </Card>

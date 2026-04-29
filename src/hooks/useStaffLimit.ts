@@ -15,7 +15,8 @@ const getStaffLimit = (tier: TierName): number | string => {
 interface StaffLimitResult {
   canAdd: boolean;
   currentCount: number;
-  maxStaff: number | string;
+  maxStaff: number;  // -1 = unlimited, otherwise the limit
+  maxStaffDisplay: string; // "আনলিমিটেড" or the number as string
   tier: TierName;
   remainingSlots: number;
   isAtLimit: boolean;
@@ -27,6 +28,7 @@ export const useStaffLimit = (restaurantId: string | undefined) => {
     canAdd: true,
     currentCount: 0,
     maxStaff: 5,
+    maxStaffDisplay: '5',
     tier: 'medium_smart',
     remainingSlots: 5,
     isAtLimit: false
@@ -80,7 +82,8 @@ export const useStaffLimit = (restaurantId: string | undefined) => {
         setResult({
           canAdd,
           currentCount,
-          maxStaff: getStaffLimit(tier),
+          maxStaff: isUnlimited ? Infinity : maxStaff,
+          maxStaffDisplay: isUnlimited ? 'আনলিমিটেড' : String(maxStaff),
           tier,
           remainingSlots: isUnlimited ? Infinity : remainingSlots,
           isAtLimit,
