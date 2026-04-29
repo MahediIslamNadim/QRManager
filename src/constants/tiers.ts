@@ -60,6 +60,7 @@ export const TIERS: Record<TierType, TierConfig> = {
       'unlimited_tables',
       'unlimited_staff',
       'ai_recommendations',
+      'ai_analytics',
       'predictive_analytics',
       'custom_branding',
       'api_access',
@@ -97,6 +98,11 @@ export const FEATURE_DESCRIPTIONS: Record<string, { name: string; name_bn: strin
     name: 'AI Recommendations',
     name_bn: 'AI সুপারিশ',
     description: 'Smart menu suggestions for customers'
+  },
+  ai_analytics: {
+    name: 'AI Analytics',
+    name_bn: 'AI অ্যানালিটিক্স',
+    description: 'AI powered restaurant analytics and forecasts'
   },
   custom_branding: {
     name: 'Custom Branding',

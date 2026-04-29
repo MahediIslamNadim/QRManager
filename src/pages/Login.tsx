@@ -589,7 +589,7 @@ const Login = () => {
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                           {([
                             { id: "medium_smart" as const, label: "Medium Smart", price: "৳৯৯৯", period: "/মাস", features: ["QR অর্ডারিং", "রিয়েলটাইম ট্র্যাকিং", "৩টি স্টাফ অ্যাকাউন্ট"] },
-                            { id: "high_smart" as const, label: "High Smart", price: "৳১৯৯৯", period: "/মাস", features: ["সব Medium ফিচার", "AI Insights", "আনলিমিটেড স্টাফ"] },
+                            { id: "high_smart" as const, label: "High Smart", price: "৳১৯৯৯", period: "/মাস", features: ["সব Medium ফিচার", "AI অ্যানালিটিক্স", "আনলিমিটেড স্টাফ"] },
                           ]).map(plan => {
                             const active = selectedPlan === plan.id;
                             return (

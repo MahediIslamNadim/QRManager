@@ -55,6 +55,11 @@ export const FEATURES = {
     tiers: ['high_smart'] as TierName[],
     requiresActiveSub: true
   },
+  ai_analytics: {
+    name: 'AI অ্যানালিটিক্স',
+    tiers: ['high_smart'] as TierName[],
+    requiresActiveSub: true
+  },
   custom_branding: {
     name: 'Custom Branding',
     tiers: ['high_smart'] as TierName[],

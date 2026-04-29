@@ -69,8 +69,8 @@ export default function AIAnalytics() {
   };
 
   return (
-    <DashboardLayout role="admin" title="AI Analytics">
-      <FeatureGate feature="ai_recommendations" restaurantId={restaurantId}>
+    <DashboardLayout role="admin" title="AI অ্যানালিটিক্স">
+      <FeatureGate feature="ai_analytics" restaurantId={restaurantId}>
         <div className="max-w-6xl mx-auto space-y-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -79,8 +79,8 @@ export default function AIAnalytics() {
                   <Brain className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-bold text-foreground">AI Analytics</h2>
-                  <p className="text-sm text-muted-foreground">High Smart package er advanced restaurant insights</p>
+                  <h2 className="text-2xl font-bold text-foreground">AI অ্যানালিটিক্স</h2>
+                  <p className="text-sm text-muted-foreground">High Smart package-এর advanced restaurant insights</p>
                 </div>
               </div>
               {lastUpdated && <p className="text-xs text-muted-foreground mt-2">Last updated: {lastUpdated}</p>}
@@ -99,7 +99,7 @@ export default function AIAnalytics() {
                   <LineChart className="h-8 w-8 text-primary" />
                 </div>
                 <div>
-                  <p className="font-semibold text-lg">High Smart AI Analytics ready</p>
+                  <p className="font-semibold text-lg">High Smart AI অ্যানালিটিক্স ready</p>
                   <p className="text-sm text-muted-foreground mt-1">
                     Restaurant order, menu, revenue and demand data analyze kore smart recommendation generate korbe.
                   </p>

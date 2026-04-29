@@ -27,7 +27,7 @@ const navItems: Record<Role, { title: string; href: string; icon: any }[]> = {
     { title: "সেটিংস", href: "/super-admin/settings", icon: Settings },
   ],
   admin: [
-    { title: "AI Analytics", href: "/admin/ai-insights", icon: BarChart3 },
+    { title: "AI অ্যানালিটিক্স", href: "/admin/ai-analytics", icon: BarChart3 },
     { title: "ড্যাশবোর্ড", href: "/admin", icon: LayoutDashboard },
     { title: "মেনু ম্যানেজমেন্ট", href: "/admin/menu", icon: Menu },
     { title: "টেবিল ও QR", href: "/admin/tables", icon: QrCode },
