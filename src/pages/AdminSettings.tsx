@@ -789,7 +789,7 @@ const AdminSettings = () => {
               <CardContent className="space-y-4">
                 <div className="bg-primary/5 border border-primary/20 rounded-xl p-3 text-xs text-muted-foreground space-y-1">
                   <p>নতুন অর্ডার আসলে নির্দিষ্ট ইমেইলে notification পাঠানো হবে।</p>
-                  <p className="text-warning/80">⚠️ এটি কাজ করতে Supabase-এ <code className="bg-secondary px-1 rounded">RESEND_API_KEY</code> সেট করতে হবে এবং <code className="bg-secondary px-1 rounded">notify-email</code> function deploy করতে হবে।</p>
+                  <p className="text-warning/80">⚠️ এটি কাজ করতে Supabase-এ <code className="bg-secondary px-1 rounded">RESEND_API_KEY</code> এবং <code className="bg-secondary px-1 rounded">EDGE_WEBHOOK_SECRET</code> সেট করতে হবে, এবং <code className="bg-secondary px-1 rounded">notify-email</code> function deploy করতে হবে।</p>
                 </div>
                 <div className="space-y-2">
                   <Label>নোটিফিকেশন ইমেইল</Label>
@@ -825,7 +825,7 @@ const AdminSettings = () => {
                 <p className="text-sm font-semibold text-warning mb-1.5">⚠️ Edge Function Deploy করতে হবে</p>
                 <p className="text-xs text-muted-foreground mb-2">Supabase Dashboard থেকে Edge Function deploy করুন এবং Database Webhook সেট করুন:</p>
                 <code className="text-xs bg-secondary block p-2 rounded-lg text-foreground whitespace-pre-wrap">
-                  {`# Terminal থেকে:\nsupabase functions deploy notify-whatsapp\nsupabase functions deploy notify-email\nsupabase functions deploy daily-report\n\n# Supabase Dashboard → Database → Webhooks:\n# Table: orders, Event: INSERT\n# URL 1: .../functions/v1/notify-whatsapp\n# URL 2: .../functions/v1/notify-email\n\n# Supabase → Edge Functions → Secrets:\n# RESEND_API_KEY = your_resend_api_key`}
+                  {`# Terminal থেকে:\nsupabase functions deploy notify-whatsapp\nsupabase functions deploy notify-email\nsupabase functions deploy daily-report\n\n# Supabase Dashboard → Database → Webhooks:\n# Table: orders, Event: INSERT\n# URL 1: .../functions/v1/notify-whatsapp\n# URL 2: .../functions/v1/notify-email\n# Header: x-webhook-secret = your_edge_webhook_secret\n\n# Supabase → Edge Functions → Secrets:\n# EDGE_WEBHOOK_SECRET = your_edge_webhook_secret\n# RESEND_API_KEY = your_resend_api_key`}
                 </code>
               </CardContent>
             </Card>

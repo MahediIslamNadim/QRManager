@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useMenuSession } from "@/hooks/useMenuSession";
 import { useMenuOrders, isNotificationOrder, type OrderItem } from "@/hooks/useMenuOrders";
-import { useAIRecommendations } from "@/hooks/useAIRecommendations";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const getImageUrl = (path: string | null) => {
@@ -93,26 +92,30 @@ const CustomerMenu = () => {
   const [feedbackRating, setFeedbackRating] = useState(0);
   const [feedbackComment, setFeedbackComment] = useState("");
   const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
+  const aiRecommendations: MenuItem[] = [];
+  const aiExplanations: Record<string, string> = {};
+  const trackAIClick = () => undefined;
 
   // ── AI Recommendations ────────────────────────────────────────────────
-  const {
-    recommendations: aiRecommendations,
-    explanations: aiExplanations,
-    loading: aiLoading,
-    trackClick: trackAIClick
-  } = useAIRecommendations({
-    restaurantId: restaurantId || 'demo',
-    menuItems,
-    strategy: 'balanced'
-  });
-
   // ── Sanitize user text input ──────────────────────────────────────────────
+  const stripControlChars = (value: string) =>
+    Array.from(value).filter((char) => {
+      const code = char.charCodeAt(0);
+      return !(
+        code <= 8 ||
+        code === 11 ||
+        code === 12 ||
+        (code >= 14 && code <= 31) ||
+        code === 127
+      );
+    }).join("");
+
   const sanitize = (text: string, maxLen = 500): string =>
-    text
-      .trim()
-      .replace(/<[^>]*>/g, "")
-      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "")
-      .slice(0, maxLen);
+    stripControlChars(
+      text
+        .trim()
+        .replace(/<[^>]*>/g, "")
+    ).slice(0, maxLen);
 
   // ── Item ratings from reviews table (with realtime) ───────────────────────
   const [itemRatings, setItemRatings] = useState<Record<string, { avg: number; count: number }>>({});

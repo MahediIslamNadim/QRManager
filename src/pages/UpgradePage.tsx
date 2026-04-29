@@ -11,7 +11,7 @@ import { useTrialStatus } from '@/hooks/useTrialStatus';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Check, Zap, Crown, ArrowRight, Clock, Shield, CheckCircle2, Copy, CreditCard, Loader2 } from 'lucide-react';
+import { Check, Zap, Crown, ArrowRight, Clock, Shield, CheckCircle2, Copy, Loader2 } from 'lucide-react';
 import { TIERS, TierName, BillingCycle, formatPrice } from '@/constants/tiers';
 import TierSelection from '@/components/TierSelection';
 
@@ -35,7 +35,6 @@ const UpgradePage = () => {
   const [transactionId, setTransactionId] = useState("");
   const [payPhone, setPayPhone] = useState("");
   const [paySuccess, setPaySuccess] = useState(false);
-  const [sslLoading, setSslLoading] = useState(false);
 
   // Get current subscription info
   const { data: restaurant } = useQuery({
@@ -62,21 +61,6 @@ const UpgradePage = () => {
   } = useTrialStatus(restaurantId);
 
   const { user } = useAuth();
-
-  const handleSSLPay = async () => {
-    if (!restaurantId) return;
-    setSslLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("ssl-init", {
-        body: { restaurant_id: restaurantId, plan: selectedTier, billing_cycle: selectedBillingCycle },
-      });
-      if (error || data?.error) throw new Error(data?.error ?? error?.message);
-      window.location.href = data.gateway_url;
-    } catch (err: any) {
-      toast.error(err.message || "SSLCommerz শুরু করা যায়নি");
-      setSslLoading(false);
-    }
-  };
 
   const paymentMutation = useMutation({
     mutationFn: async () => {
@@ -227,23 +211,7 @@ const UpgradePage = () => {
                   {/* Payment Method Selector */}
                   <div className="space-y-3">
                     <h4 className="font-semibold">পেমেন্ট মাধ্যম বেছে নিন</h4>
-                    <div className="grid grid-cols-1 gap-3">
-                      {/* SSLCommerz — coming soon */}
-                      <div className="p-4 border-2 border-border rounded-lg opacity-50 cursor-not-allowed relative">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-primary/10 rounded flex items-center justify-center">
-                            <CreditCard className="w-5 h-5 text-primary" />
-                          </div>
-                          <div className="flex-1">
-                            <div className="font-semibold flex items-center gap-2">
-                              SSLCommerz
-                              <span className="text-[10px] bg-muted text-muted-foreground px-2 py-0.5 rounded-full">শীঘ্রই আসছে</span>
-                            </div>
-                            <div className="text-xs text-muted-foreground">কার্ড, মোবাইল ব্যাংকিং, ইন্টারনেট ব্যাংকিং</div>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 gap-3">
                         <button
                           onClick={() => setPaymentMethod('bkash')}
                           className={`p-4 border-2 rounded-lg text-left transition-colors ${
@@ -276,8 +244,10 @@ const UpgradePage = () => {
                             </div>
                           </div>
                         </button>
-                      </div>
                     </div>
+                    <p className="text-xs text-muted-foreground">
+                      বর্তমানে launch version-এ manual bKash/Nagad verification active আছে।
+                    </p>
                   </div>
 
                   {/* Manual bKash/Nagad flow */}

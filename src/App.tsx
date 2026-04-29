@@ -38,7 +38,6 @@ import Demo from "./pages/Demo";
 import KitchenDisplay from "./pages/KitchenDisplay";
 import UpgradePage from "./pages/UpgradePage";
 import BillingPage from "./pages/BillingPage";
-import AIInsights from "./pages/AIInsights";
 import AdminReports from "./pages/AdminReports";
 import AdminFeedback from "./pages/AdminFeedback";
 import AdminSupport from "./pages/AdminSupport";
@@ -190,10 +189,6 @@ const App = () => (
               <Route
                 path="/admin/kitchen"
                 element={<ProtectedRoute allowedRoles={["admin", "super_admin", "waiter", "kitchen"]}><KitchenDisplay /></ProtectedRoute>}
-              />
-              <Route
-                path="/admin/ai-insights"
-                element={<ProtectedRoute allowedRoles={["admin", "super_admin"]}><AIInsights /></ProtectedRoute>}
               />
               <Route
                 path="/admin/reports"

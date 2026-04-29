@@ -3,7 +3,7 @@ import { APP_NAME } from "@/constants/app";
 import {
   LayoutDashboard, UtensilsCrossed, Store, Users, BarChart3,
   CreditCard, Menu, QrCode, ShoppingCart, UserCheck, Bell,
-  Settings, LogOut, ChevronLeft, X, ChefHat, Sparkles, Receipt, FileText, MessageSquare, Headphones
+  Settings, LogOut, ChevronLeft, X, ChefHat, Receipt, FileText, MessageSquare, Headphones
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -34,7 +34,6 @@ const navItems: Record<Role, { title: string; href: string; icon: any }[]> = {
     { title: "কিচেন ডিসপ্লে", href: "/admin/kitchen", icon: ChefHat },
     { title: "কর্মী ম্যানেজমেন্ট", href: "/admin/staff", icon: UserCheck },
     { title: "অ্যানালিটিক্স", href: "/admin/analytics", icon: BarChart3 },
-    { title: "AI Insights", href: "/admin/ai-insights", icon: Sparkles },
     { title: "কাস্টম রিপোর্ট", href: "/admin/reports", icon: FileText },
     { title: "কাস্টমার ফিডব্যাক", href: "/admin/feedback", icon: MessageSquare },
     { title: "প্রায়োরিটি সাপোর্ট", href: "/admin/support", icon: Headphones },

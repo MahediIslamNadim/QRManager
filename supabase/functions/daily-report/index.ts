@@ -3,7 +3,24 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-webhook-secret",
+};
+
+const isAuthorizedRequest = (req: Request, serviceRoleKey: string) => {
+  const sharedSecret = Deno.env.get("EDGE_WEBHOOK_SECRET");
+  const headerSecret = req.headers.get("x-webhook-secret");
+  const authHeader = req.headers.get("Authorization");
+  const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+
+  if (sharedSecret) {
+    return (
+      headerSecret === sharedSecret ||
+      bearerToken === sharedSecret ||
+      bearerToken === serviceRoleKey
+    );
+  }
+
+  return bearerToken === serviceRoleKey;
 };
 
 serve(async (req) => {
@@ -17,6 +34,9 @@ serve(async (req) => {
     if (!supabaseUrl || !serviceRoleKey) {
       console.error("daily-report: missing required env vars");
       return new Response(JSON.stringify({ error: "Server misconfiguration" }), { status: 500 });
+    }
+    if (!isAuthorizedRequest(req, serviceRoleKey)) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
     }
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 
