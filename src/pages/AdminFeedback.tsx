@@ -1,9 +1,13 @@
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
-import { Star, MessageSquare, TrendingUp, Users } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { Star, MessageSquare, TrendingUp, Users, Brain, Loader2, RefreshCw, ThumbsUp, ThumbsDown, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { toast } from "sonner";
 
 const StarDisplay = ({ rating, size = "sm" }: { rating: number; size?: "sm" | "md" }) => {
   const sz = size === "sm" ? "w-3.5 h-3.5" : "w-5 h-5";
@@ -19,8 +23,59 @@ const StarDisplay = ({ rating, size = "sm" }: { rating: number; size?: "sm" | "m
   );
 };
 
+type FeedbackAnalysis = {
+  headline: string;
+  sentiment: "positive" | "neutral" | "negative";
+  positive: string[];
+  negative: string[];
+  common_complaints: string[];
+  actions: string[];
+};
+
+type FeedbackMetrics = {
+  totalFeedback: number;
+  commentsCount: number;
+  averageRating: number;
+  positiveCount: number;
+  negativeCount: number;
+  neutralCount: number;
+};
+
+type FeedbackAnalysisResponse = {
+  analysis?: FeedbackAnalysis;
+  metrics?: FeedbackMetrics;
+  source?: "gemini" | "fallback";
+  generated_at?: string;
+  cached?: boolean;
+  error?: string;
+};
+
+const AnalysisList = ({ icon, title, items }: { icon: ReactNode; title: string; items: string[] }) => (
+  <div className="rounded-lg border border-border p-3">
+    <div className="flex items-center gap-2 mb-2">
+      {icon}
+      <p className="text-sm font-semibold text-foreground">{title}</p>
+    </div>
+    <ul className="space-y-1.5">
+      {items.map((item, index) => (
+        <li key={`${title}-${index}`} className="text-sm text-muted-foreground flex gap-2">
+          <span className="mt-2 h-1.5 w-1.5 rounded-full bg-primary flex-shrink-0" />
+          <span>{item}</span>
+        </li>
+      ))}
+    </ul>
+  </div>
+);
+
 const AdminFeedback = () => {
   const { restaurantId } = useAuth();
+  const [analysis, setAnalysis] = useState<FeedbackAnalysis | null>(null);
+  const [analysisMeta, setAnalysisMeta] = useState<{
+    metrics?: FeedbackMetrics;
+    source?: "gemini" | "fallback";
+    generated_at?: string;
+  }>({});
+  const [analysisLoading, setAnalysisLoading] = useState(false);
 
   // Order-level feedback (with comments)
   const { data: orderFeedback = [], isLoading: loadingOrders } = useQuery({
@@ -94,9 +149,114 @@ const AdminFeedback = () => {
     return d.toLocaleDateString("bn-BD", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
   };
 
+  const generateFeedbackAnalysis = async (force = false) => {
+    if (!restaurantId) {
+      toast.error("Restaurant context পাওয়া যায়নি");
+      return;
+    }
+
+    try {
+      setAnalysisLoading(true);
+      const { data, error } = await supabase.functions.invoke<FeedbackAnalysisResponse>("feedback-analysis", {
+        body: { restaurant_id: restaurantId, force },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      if (!data?.analysis) throw new Error("Feedback analysis পাওয়া যায়নি");
+
+      setAnalysis(data.analysis);
+      setAnalysisMeta({
+        metrics: data.metrics,
+        source: data.source,
+        generated_at: data.generated_at,
+      });
+      toast.success(data.cached ? "Cached feedback analysis loaded" : "Feedback analysis ready");
+    } catch (err: any) {
+      toast.error(err.message || "Feedback analysis তৈরি করা যায়নি");
+    } finally {
+      setAnalysisLoading(false);
+    }
+  };
+
   return (
     <DashboardLayout role="admin" title="কাস্টমার ফিডব্যাক">
       <div className="space-y-6">
+        <Card className="border-primary/20 bg-primary/5">
+          <CardContent className="p-4 space-y-4">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                  <Brain className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="font-display font-semibold text-foreground">AI Feedback Analysis</p>
+                  {analysis && (
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <Badge variant={analysis.sentiment === "positive" ? "success" : analysis.sentiment === "negative" ? "destructive" : "secondary"}>
+                        {analysis.sentiment}
+                      </Badge>
+                      {analysisMeta.source && (
+                        <span className="text-xs text-muted-foreground">
+                          {analysisMeta.source === "gemini" ? "AI generated" : "Fallback analysis"}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {analysis && (
+                  <Button type="button" size="sm" variant="outline" onClick={() => generateFeedbackAnalysis(true)} disabled={analysisLoading}>
+                    {analysisLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                    Refresh
+                  </Button>
+                )}
+                <Button type="button" size="sm" onClick={() => generateFeedbackAnalysis(!!analysis)} disabled={analysisLoading}>
+                  {analysisLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Brain className="h-4 w-4" />}
+                  {analysisLoading ? "Analyzing..." : analysis ? "View AI Analysis" : "Analyze Feedback"}
+                </Button>
+              </div>
+            </div>
+
+            {analysis && (
+              <div className="rounded-lg border border-border bg-background p-4 space-y-4">
+                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+                  <div>
+                    <p className="font-semibold text-foreground">{analysis.headline}</p>
+                    {analysisMeta.generated_at && (
+                      <p className="text-xs text-muted-foreground mt-1">{formatDate(analysisMeta.generated_at)}</p>
+                    )}
+                  </div>
+                  {analysisMeta.metrics && (
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div className="rounded-md bg-secondary px-3 py-2">
+                        <p className="text-xs text-muted-foreground">Positive</p>
+                        <p className="font-semibold text-success">{analysisMeta.metrics.positiveCount}</p>
+                      </div>
+                      <div className="rounded-md bg-secondary px-3 py-2">
+                        <p className="text-xs text-muted-foreground">Neutral</p>
+                        <p className="font-semibold">{analysisMeta.metrics.neutralCount}</p>
+                      </div>
+                      <div className="rounded-md bg-secondary px-3 py-2">
+                        <p className="text-xs text-muted-foreground">Negative</p>
+                        <p className="font-semibold text-destructive">{analysisMeta.metrics.negativeCount}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-4">
+                  <AnalysisList icon={<ThumbsUp className="h-4 w-4 text-success" />} title="Positive" items={analysis.positive} />
+                  <AnalysisList icon={<ThumbsDown className="h-4 w-4 text-destructive" />} title="Negative" items={analysis.negative} />
+                  <AnalysisList icon={<AlertTriangle className="h-4 w-4 text-warning" />} title="Common Complaint" items={analysis.common_complaints} />
+                  <AnalysisList icon={<CheckCircle2 className="h-4 w-4 text-primary" />} title="Action" items={analysis.actions} />
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Summary Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card>

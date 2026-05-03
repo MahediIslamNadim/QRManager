@@ -27,6 +27,7 @@ Powered by [NexCore Technologies](https://www.facebook.com/min.pikacoo)
 - Dashboard with restaurant stats
 - AI Daily Summary for owner-facing daily sales insights
 - Menu Intelligence suggestions for item naming, descriptions, categories, pricing, and combos
+- AI Feedback Analysis for customer sentiment, complaints, and action items
 - Menu management with image upload
 - Table and QR management
 - Orders and payment collection
@@ -143,7 +144,7 @@ Notes:
 - `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` are required
 - `VITE_BKASH_NUMBER` and `VITE_NAGAD_NUMBER` are needed for payment flows
 - AI provider keys must be configured as Supabase Edge Function secrets, not `VITE_*` frontend variables
-- `GEMINI_API_KEY` powers the server-side `ai-analytics`, `ai-daily-summary`, and `menu-intelligence` functions
+- `GEMINI_API_KEY` powers the server-side `ai-analytics`, `ai-daily-summary`, `menu-intelligence`, and `feedback-analysis` functions
 
 ## Local development
 
@@ -200,6 +201,7 @@ Current functions inside [supabase/functions](/c:/Users/hhnad/OneDrive/Desktop/N
 - `daily-report`
 - `ai-daily-summary`
 - `menu-intelligence`
+- `feedback-analysis`
 
 ### Enterprise and multi-branch support helpers
 - `bootstrap-enterprise-restaurant`
