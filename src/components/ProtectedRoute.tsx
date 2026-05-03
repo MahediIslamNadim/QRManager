@@ -5,9 +5,10 @@ import { authDebug } from "@/lib/authDebug";
 interface ProtectedRouteProps {
   children: React.ReactNode;
   allowedRoles?: string[];
+  allowMissingRestaurant?: boolean;
 }
 
-const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
+const ProtectedRoute = ({ children, allowedRoles, allowMissingRestaurant = false }: ProtectedRouteProps) => {
   const { user, role, loading, trialExpired, restaurantId } = useAuth();
   const location = useLocation();
 
@@ -38,7 +39,7 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
     return <Navigate to="/login" replace />;
   }
 
-  if (role === "admin" && !restaurantId) {
+  if (role === "admin" && !restaurantId && !allowMissingRestaurant) {
     authDebug("ProtectedRoute", "Redirecting admin to /admin-setup because restaurantId is missing", {
       allowedRoles,
       path: location.pathname,

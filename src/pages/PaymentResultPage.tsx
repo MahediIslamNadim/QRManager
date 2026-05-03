@@ -19,13 +19,22 @@ const PaymentResultPage = () => {
       btnAction: () => navigate("/admin"),
       btnVariant: "hero" as const,
     },
+    pending: {
+      icon: <AlertCircle className="w-16 h-16 text-warning" />,
+      bg: "bg-warning/10",
+      title: "পেমেন্ট যাচাই হচ্ছে",
+      message: "আপনার পেমেন্ট রিকোয়েস্ট পাওয়া গেছে। SSLCommerz confirmation আসার পর subscription auto activate হবে। কিছুক্ষণ পর dashboard refresh করুন।",
+      btnLabel: "ড্যাশবোর্ডে যান",
+      btnAction: () => navigate("/admin"),
+      btnVariant: "outline" as const,
+    },
     failed: {
       icon: <XCircle className="w-16 h-16 text-destructive" />,
       bg: "bg-destructive/10",
       title: "পেমেন্ট ব্যর্থ হয়েছে",
       message: "কোনো কারণে পেমেন্ট সম্পন্ন হয়নি। আবার চেষ্টা করুন অথবা অন্য পদ্ধতি ব্যবহার করুন।",
       btnLabel: "আবার চেষ্টা করুন",
-      btnAction: () => navigate("/admin/upgrade"),
+      btnAction: () => navigate("/upgrade"),
       btnVariant: "default" as const,
     },
     cancelled: {
@@ -34,7 +43,7 @@ const PaymentResultPage = () => {
       title: "পেমেন্ট বাতিল করা হয়েছে",
       message: "আপনি পেমেন্ট বাতিল করেছেন। যেকোনো সময় আবার চেষ্টা করতে পারবেন।",
       btnLabel: "প্ল্যান পেজে যান",
-      btnAction: () => navigate("/admin/upgrade"),
+      btnAction: () => navigate("/upgrade"),
       btnVariant: "outline" as const,
     },
   }[status] ?? {

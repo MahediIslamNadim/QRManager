@@ -77,6 +77,7 @@ export function useMenuOrders({
   restaurantId,
   tableId,
   seatId,
+  sessionToken,
   sessionStartedAt,
   isDemo,
   tokenValid,
@@ -94,88 +95,44 @@ export function useMenuOrders({
     if (!isDemo) { setMyOrders([]); setOrderHistory([]); }
   }, [seatId, isDemo]);
 
-  const fetchOrderItems = useCallback(async (orderId: string): Promise<OrderItem[]> => {
-    const { data } = await supabase
-      .from("order_items")
-      .select("id, name, price, quantity, menu_item_id")
-      .eq("order_id", orderId);
-    return (data as OrderItem[]) || [];
-  }, []);
+  const loadOrdersForSession = useCallback(async (history = false): Promise<Order[]> => {
+    if (!sessionToken) return [];
+
+    const { data, error } = await supabase.rpc(
+      "get_orders_for_session" as any,
+      {
+        p_token: sessionToken,
+        p_customer_device_id: getOrCreateCustomerId(),
+        p_history: history,
+      } as any,
+    );
+
+    if (error || !data) return [];
+    return (Array.isArray(data) ? data : []) as Order[];
+  }, [sessionToken]);
 
   const fetchExistingOrders = useCallback(async () => {
-    if (isDemo || !tableId || !restaurantId) return;
+    if (isDemo || !tableId || !restaurantId || !sessionToken) return;
     setOrdersLoading(true);
     try {
-      let query = supabase
-        .from("orders")
-        .select("id, total, status, created_at")
-        .eq("restaurant_id", restaurantId)
-        .eq("table_id", tableId)
-        .in("status", ACTIVE_STATUSES)
-        .gt("total", 0)
-        .order("created_at", { ascending: false })
-        .limit(10);
-
-      if (seatId) query = query.eq("seat_id", seatId);
-
-      const { data: ordersData, error } = await query;
-      if (error || !ordersData) return;
-
-      const orderIds = ordersData.map(o => o.id);
-      const { data: itemsData } = await supabase
-        .from("order_items")
-        .select("id, name, price, quantity, menu_item_id, order_id")
-        .in("order_id", orderIds);
-
-      setMyOrders(
-        ordersData.map(order => ({
-          ...order,
-          items: (itemsData || []).filter((i: any) => i.order_id === order.id) as OrderItem[],
-        })),
-      );
+      setMyOrders(await loadOrdersForSession(false));
     } catch {
       // silently fail — non-critical
     } finally {
       setOrdersLoading(false);
     }
-  }, [isDemo, tableId, restaurantId, seatId]);
+  }, [isDemo, tableId, restaurantId, sessionToken, loadOrdersForSession]);
 
   // Fetch completed order history — uses persistent customer_device_id so
   // returning customers see their full history across all past visits
   const fetchOrderHistory = useCallback(async () => {
-    if (isDemo || !restaurantId) return;
+    if (isDemo || !restaurantId || !sessionToken) return;
     try {
-      const customerId = getOrCreateCustomerId();
-      const { data: historyData, error } = await supabase
-        .from("orders")
-        .select("id, total, status, created_at")
-        .eq("restaurant_id", restaurantId)
-        .eq("customer_device_id" as any, customerId)
-        .in("status", ["delivered", "completed", "served", "cancelled"])
-        .gt("total", 0)
-        .order("created_at", { ascending: false })
-        .limit(50);
-
-      if (error || !historyData) return;
-
-      const ids = historyData.map(o => o.id);
-      if (ids.length === 0) return;
-
-      const { data: itemsData } = await supabase
-        .from("order_items")
-        .select("id, name, price, quantity, menu_item_id, order_id")
-        .in("order_id", ids);
-
-      setOrderHistory(
-        historyData.map(order => ({
-          ...order,
-          items: (itemsData || []).filter((i: any) => i.order_id === order.id) as OrderItem[],
-        })),
-      );
+      setOrderHistory(await loadOrdersForSession(true));
     } catch {
       // silently fail
     }
-  }, [isDemo, restaurantId]);
+  }, [isDemo, restaurantId, sessionToken, loadOrdersForSession]);
 
   // Initial load
   useEffect(() => {
@@ -184,6 +141,17 @@ export function useMenuOrders({
       fetchOrderHistory();
     }
   }, [tableChecked, tokenValid, fetchExistingOrders, fetchOrderHistory]);
+
+  // Realtime delivery can be restricted by tight RLS, so poll the token-bound
+  // RPC while the customer has a valid session.
+  useEffect(() => {
+    if (isDemo || !tableChecked || !tokenValid || !sessionToken) return;
+    const interval = setInterval(() => {
+      fetchExistingOrders();
+      fetchOrderHistory();
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [isDemo, tableChecked, tokenValid, sessionToken, fetchExistingOrders, fetchOrderHistory]);
 
   // Realtime subscription
   useEffect(() => {
@@ -207,11 +175,7 @@ export function useMenuOrders({
         if (!ACTIVE_STATUSES.includes(newOrder.status)) return;
         if (newOrder.total === 0) return;
         if (seatId && newOrder.seat_id && newOrder.seat_id !== seatId) return;
-        const items = await fetchOrderItems(newOrder.id);
-        setMyOrders(prev => {
-          if (prev.find(o => o.id === newOrder.id)) return prev;
-          return [{ ...newOrder, items }, ...prev];
-        });
+        fetchExistingOrders();
       })
       .on("postgres_changes", {
         event: "UPDATE", schema: "public", table: "orders",
@@ -226,12 +190,7 @@ export function useMenuOrders({
           if (exists) {
             return prev.map(o => o.id === updated.id ? { ...o, status: updated.status } : o);
           } else if (ACTIVE_STATUSES.includes(updated.status)) {
-            fetchOrderItems(updated.id).then(items => {
-              setMyOrders(p => {
-                if (p.find(o => o.id === updated.id)) return p;
-                return [{ ...updated, items }, ...p];
-              });
-            });
+            fetchExistingOrders();
             return prev;
           }
           return prev;
@@ -273,7 +232,7 @@ export function useMenuOrders({
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [tableId, restaurantId, isDemo, seatId, fetchOrderItems, onRatingRequest]);
+  }, [tableId, restaurantId, isDemo, seatId, fetchExistingOrders, onRatingRequest]);
 
   const refreshOrders = useCallback(() => {
     fetchExistingOrders();

@@ -94,21 +94,22 @@ Monthly (100 requests/day):
 npm install openai
 ```
 
-### Step 2: Add to .env
+### Step 2: Add the key as a Supabase Edge Function secret
 
-```env
-VITE_OPENAI_API_KEY=sk-proj-your-key-here
+```bash
+supabase secrets set OPENAI_API_KEY=sk-proj-your-key-here
 ```
 
-### Step 3: Create OpenAI Client
+Do not use `VITE_OPENAI_API_KEY` or browser OpenAI clients in production. Any `VITE_*` value is bundled into frontend JavaScript.
+
+### Step 3: Create a Supabase Edge Function client
 
 ```typescript
-// src/lib/ai/openaiClient.ts
+// supabase/functions/ai-insights/index.ts
 import OpenAI from 'openai';
 
 const openai = new OpenAI({
-  apiKey: process.env.VITE_OPENAI_API_KEY,
-  dangerouslyAllowBrowser: true // Only for development
+  apiKey: Deno.env.get("OPENAI_API_KEY"),
 });
 
 // Menu Recommendations
@@ -376,9 +377,9 @@ const cache = new Map();
 ## 🚀 **Quick Start Checklist**
 
 - [ ] Get OpenAI API key from platform.openai.com
-- [ ] Add to .env: `VITE_OPENAI_API_KEY=sk-...`
+- [ ] Add as Supabase Edge Function secret: `OPENAI_API_KEY=sk-...`
 - [ ] Install: `npm install openai`
-- [ ] Copy openaiClient.ts code
+- [ ] Call OpenAI only from an Edge Function
 - [ ] Test with sample data
 - [ ] Set usage limits ($10-20/month)
 - [ ] Deploy!

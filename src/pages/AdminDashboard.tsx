@@ -1,16 +1,37 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
 import StatCard from "@/components/StatCard";
-import { ShoppingCart, DollarSign, Users, TrendingUp, Clock, Banknote, Smartphone, Star, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { ShoppingCart, DollarSign, Users, TrendingUp, Clock, Banknote, Smartphone, Star, AlertTriangle, CheckCircle2, Sparkles, Loader2, RefreshCw, Brain } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
+
+type DailySummary = {
+  headline: string;
+  bullets: string[];
+  suggestion: string;
+};
+
+type DailySummaryResponse = {
+  summary?: DailySummary;
+  source?: "gemini" | "fallback";
+  generated_at?: string;
+  cached?: boolean;
+  error?: string;
+};
+
 const AdminDashboard = () => {
-  const { user, restaurantId } = useAuth();
+  const { restaurantId } = useAuth();
   const navigate = useNavigate();
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const [dailySummary, setDailySummary] = useState<DailySummary | null>(null);
+  const [dailySummaryMeta, setDailySummaryMeta] = useState<{ source?: string; generatedAt?: string; cached?: boolean }>({});
+  const [summaryLoading, setSummaryLoading] = useState(false);
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ["admin-stats", restaurantId],
     queryFn: async () => {
@@ -117,6 +138,36 @@ const AdminDashboard = () => {
     enabled: !!restaurantId,
   });
 
+  const generateDailySummary = async (force = false) => {
+    if (!restaurantId) {
+      toast.error("Restaurant পাওয়া যায়নি");
+      return;
+    }
+
+    setSummaryLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke<DailySummaryResponse>("ai-daily-summary", {
+        body: { restaurant_id: restaurantId, force },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      if (!data?.summary) throw new Error("AI summary পাওয়া যায়নি");
+
+      setDailySummary(data.summary);
+      setDailySummaryMeta({
+        source: data.source,
+        generatedAt: data.generated_at,
+        cached: data.cached,
+      });
+      setSummaryOpen(true);
+    } catch (err: any) {
+      toast.error(err.message || "AI Daily Summary তৈরি করা যায়নি");
+    } finally {
+      setSummaryLoading(false);
+    }
+  };
+
   const timeAgo = (date: string) => {
     const diff = Math.floor((Date.now() - new Date(date).getTime()) / 60000);
     if (diff < 1) return "এইমাত্র";
@@ -173,6 +224,36 @@ const AdminDashboard = () => {
             </>
           )}
         </div>
+
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="p-4 sm:p-5">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <Brain className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <p className="font-display font-semibold text-foreground">AI Daily Summary</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    আজকের order, sales, top item আর peak time analyze করে সহজ report তৈরি করবে।
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                {dailySummary && (
+                  <Button variant="outline" size="sm" onClick={() => setSummaryOpen(true)} className="gap-2">
+                    <Sparkles className="w-4 h-4" />
+                    View
+                  </Button>
+                )}
+                <Button size="sm" onClick={() => generateDailySummary(!!dailySummary)} disabled={summaryLoading} className="gap-2">
+                  {summaryLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : dailySummary ? <RefreshCw className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
+                  {summaryLoading ? "Analyzing..." : dailySummary ? "Refresh AI" : "Generate AI Summary"}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Yesterday comparison row */}
         {stats && (
@@ -341,6 +422,56 @@ const AdminDashboard = () => {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={summaryOpen} onOpenChange={setSummaryOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="font-display flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-primary" />
+              {dailySummary?.headline || "AI Daily Summary"}
+            </DialogTitle>
+          </DialogHeader>
+
+          {dailySummary && (
+            <div className="space-y-5">
+              <div className="rounded-lg border bg-secondary/30 p-4">
+                <p className="text-sm font-semibold text-foreground mb-3">আজকের সারাংশ</p>
+                <ul className="space-y-2">
+                  {dailySummary.bullets.map((item, index) => (
+                    <li key={`${item}-${index}`} className="flex gap-2 text-sm text-foreground">
+                      <span className="mt-2 h-1.5 w-1.5 rounded-full bg-primary flex-shrink-0" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="rounded-lg border border-success/30 bg-success/5 p-4">
+                <p className="text-sm font-semibold text-success mb-1">Suggestion</p>
+                <p className="text-sm text-foreground">{dailySummary.suggestion}</p>
+              </div>
+
+              <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                <span>{dailySummaryMeta.source === "gemini" ? "AI generated" : "Fallback summary"}</span>
+                {dailySummaryMeta.generatedAt && (
+                  <span>{new Date(dailySummaryMeta.generatedAt).toLocaleString("en-BD")}</span>
+                )}
+              </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => generateDailySummary(true)}
+                disabled={summaryLoading}
+                className="w-full gap-2"
+              >
+                {summaryLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                Regenerate
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 };

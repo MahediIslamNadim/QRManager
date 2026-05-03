@@ -1,5 +1,6 @@
 // sendEmail.ts - Email sending utility (Supabase Edge Function or Resend)
 import { EMAIL_TEMPLATES } from './emailTemplates';
+import { TIERS, TierName } from '@/constants/tiers';
 
 // Email sending service configuration
 // In production, use Resend, SendGrid, or Supabase Edge Function with Resend
@@ -68,7 +69,7 @@ export const sendTrialExpiringEmail = async (
   email: string,
   restaurantName: string,
   daysLeft: number,
-  tier: any
+  tier: TierName
 ) => {
   return sendEmail({
     to: email,
@@ -91,14 +92,14 @@ export const sendTrialExpiredEmail = async (
 export const sendSubscriptionActivatedEmail = async (
   email: string,
   restaurantName: string,
-  tier: any,
+  tier: TierName,
   billingCycle: string,
   amount: number,
   nextBillingDate: Date
 ) => {
   return sendEmail({
     to: email,
-    subject: `Welcome to ${tier.displayName}! 🎉`,
+    subject: `Welcome to ${TIERS[tier].name}! 🎉`,
     html: EMAIL_TEMPLATES.subscriptionActivated(
       restaurantName,
       tier,

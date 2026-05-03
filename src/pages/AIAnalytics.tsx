@@ -174,7 +174,7 @@ export default function AIAnalytics() {
 
   return (
     <DashboardLayout role="admin" title="AI অ্যানালিটিক্স">
-      <FeatureGate feature="ai_analytics" restaurantId={restaurantId}>
+      <FeatureGate feature="ai_analytics">
         <div className="mx-auto max-w-7xl space-y-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-2">

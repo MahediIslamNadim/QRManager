@@ -8,7 +8,6 @@ const CustomerSeatSelect = () => {
   const { restaurantId } = useParams();
   const [searchParams] = useSearchParams();
   const tableId = searchParams.get("table");
-  const tokenParam = searchParams.get("token"); // ✅ token from URL
   const navigate = useNavigate();
 
   const [restaurant, setRestaurant] = useState<any>(null);
@@ -16,7 +15,6 @@ const CustomerSeatSelect = () => {
   const [seats, setSeats] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [validToken, setValidToken] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -33,20 +31,6 @@ const CustomerSeatSelect = () => {
       if (tableRes.data) setTableName(tableRes.data.name);
       if (seatsRes.data) setSeats(seatsRes.data);
 
-      // Validate token via RPC (direct table_sessions SELECT is no longer public).
-      // The token must have arrived from ShortCodeRedirect or CustomerMenu.
-      if (tokenParam) {
-        const { data: session } = await supabase.rpc(
-          "validate_and_create_session" as any,
-          { p_restaurant_id: restaurantId, p_table_id: tableId, p_token: tokenParam } as any,
-        );
-        if (session) {
-          setValidToken((session as any).token as string);
-        }
-        // No fallback: if token is missing or invalid, validToken stays null
-        // and selectSeat() will navigate without a token → CustomerMenu blocks ordering.
-      }
-
       setLoading(false);
       } catch (err) {
         setError("তথ্য লোড করতে সমস্যা হয়েছে। পেজ রিফ্রেশ করুন।");
@@ -54,7 +38,7 @@ const CustomerSeatSelect = () => {
       }
     };
     fetchData();
-  }, [restaurantId, tableId, tokenParam]);
+  }, [restaurantId, tableId]);
 
   // Realtime seat status updates
   useEffect(() => {
@@ -75,10 +59,8 @@ const CustomerSeatSelect = () => {
     return () => { supabase.removeChannel(channel); };
   }, [tableId]);
 
-  // ✅ Pass token when navigating to menu
   const selectSeat = (seatId: string) => {
-    const tokenQuery = validToken ? `&token=${validToken}` : "";
-    navigate(`/menu/${restaurantId}?table=${tableId}&seat=${seatId}${tokenQuery}`);
+    navigate(`/menu/${restaurantId}?table=${tableId}&seat=${seatId}`);
   };
 
   if (loading) {

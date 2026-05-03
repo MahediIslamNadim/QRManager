@@ -21,8 +21,8 @@ const paidPlans = PLANS_LIST.map(p => ({
   popular: 'popular' in p ? (p as any).popular : false,
 }));
 
-const BKASH_NUMBER = import.meta.env.VITE_BKASH_NUMBER || "01786130439";
-const NAGAD_NUMBER = import.meta.env.VITE_NAGAD_NUMBER || import.meta.env.VITE_BKASH_NUMBER || "01786130439";
+const BKASH_NUMBER = import.meta.env.VITE_BKASH_NUMBER || "";
+const NAGAD_NUMBER = import.meta.env.VITE_NAGAD_NUMBER || "";
 
 const TrialExpired = () => {
   const navigate = useNavigate();

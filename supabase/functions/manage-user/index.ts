@@ -171,10 +171,39 @@ Deno.serve(async (req) => {
             );
           }
 
+          const restaurantId = staffAssignments[0].restaurant_id;
+
+          const { error: deleteRoleErr } = await adminClient
+            .from("user_roles")
+            .delete()
+            .eq("user_id", user_id)
+            .in("role", STAFF_ROLES as unknown as string[]);
+
+          if (deleteRoleErr) {
+            console.error("User role cleanup failed:", deleteRoleErr.message);
+            return jsonResponse({ error: deleteRoleErr.message }, 500);
+          }
+
+          const { error: upsertRoleErr } = await adminClient
+            .from("user_roles")
+            .upsert(
+              {
+                user_id,
+                role: updates.role,
+                restaurant_id: restaurantId,
+              },
+              { onConflict: "user_id,role" },
+            );
+
+          if (upsertRoleErr) {
+            console.error("User role sync failed:", upsertRoleErr.message);
+            return jsonResponse({ error: upsertRoleErr.message }, 500);
+          }
+
           const { error: roleErr } = await (adminClient.from("staff_restaurants") as any)
             .update({ role: updates.role })
             .eq("user_id", user_id)
-            .eq("restaurant_id", staffAssignments[0].restaurant_id);
+            .eq("restaurant_id", restaurantId);
 
           if (roleErr) {
             console.error("Role update failed:", roleErr.message);

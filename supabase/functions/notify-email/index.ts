@@ -23,6 +23,14 @@ const isAuthorizedRequest = (req: Request, serviceRoleKey: string) => {
   return bearerToken === serviceRoleKey;
 };
 
+const escapeHtml = (value: unknown) =>
+  String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -73,16 +81,21 @@ serve(async (req) => {
       .eq("id", orderId)
       .single();
 
-    const tableName = (orderRow as any)?.restaurant_tables?.name || "N/A";
+    const restaurantName = escapeHtml(restaurant.name);
+    const tableName = escapeHtml((orderRow as any)?.restaurant_tables?.name || "N/A");
     const items = ((orderRow as any)?.order_items || []) as { name: string; quantity: number; price: number }[];
-    const itemRows = items.map(i => `<tr><td style="padding:4px 8px">${i.name}</td><td style="padding:4px 8px;text-align:right">${i.quantity}x</td><td style="padding:4px 8px;text-align:right">৳${i.price * i.quantity}</td></tr>`).join("");
+    const itemRows = items.map(i => {
+      const quantity = Number(i.quantity || 0);
+      const price = Number(i.price || 0);
+      return `<tr><td style="padding:4px 8px">${escapeHtml(i.name)}</td><td style="padding:4px 8px;text-align:right">${quantity}x</td><td style="padding:4px 8px;text-align:right">৳${price * quantity}</td></tr>`;
+    }).join("");
     const time = new Date().toLocaleTimeString("en-BD", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Dhaka" });
 
     const html = `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;background:#f5f5f5;padding:20px">
 <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.1)">
   <div style="background:#f97316;padding:20px 24px">
     <h2 style="margin:0;color:#fff;font-size:20px">🍽️ নতুন অর্ডার!</h2>
-    <p style="margin:4px 0 0;color:rgba(255,255,255,.85);font-size:13px">${restaurant.name}</p>
+    <p style="margin:4px 0 0;color:rgba(255,255,255,.85);font-size:13px">${restaurantName}</p>
   </div>
   <div style="padding:20px 24px">
     <table style="width:100%;border-collapse:collapse;margin-bottom:16px">

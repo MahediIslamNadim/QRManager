@@ -276,7 +276,7 @@ Profit Margin: Still 70%+ even with AI! 💰
 
 ### OpenAI Setup:
 - [ ] Get API key from platform.openai.com
-- [ ] Add to .env: `VITE_OPENAI_API_KEY=sk-...`
+- [ ] Add as Supabase Edge Function secret: `OPENAI_API_KEY=sk-...`
 - [ ] Install: `npm install openai`
 - [ ] Test GPT-3.5 with sample data
 - [ ] Set usage limit: $20/month
@@ -284,7 +284,7 @@ Profit Margin: Still 70%+ even with AI! 💰
 
 ### Claude Setup (Optional):
 - [ ] Get API key from console.anthropic.com
-- [ ] Add to .env: `VITE_ANTHROPIC_API_KEY=sk-ant-...`
+- [ ] Add as server-side secret only: `ANTHROPIC_API_KEY=sk-ant-...`
 - [ ] Install: `npm install @anthropic-ai/sdk`
 - [ ] Test with long documents
 - [ ] Set usage limit: $10/month

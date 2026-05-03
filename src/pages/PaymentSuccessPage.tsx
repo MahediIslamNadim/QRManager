@@ -31,7 +31,7 @@ export default function PaymentSuccessPage() {
           <div className="space-y-2">
             <h1 className="text-3xl font-bold text-success">Payment Successful!</h1>
             <p className="text-lg text-muted-foreground">
-              Welcome to <strong>{tierConfig.displayName}</strong>
+              Welcome to <strong>{tierConfig.name}</strong>
             </p>
           </div>
 
@@ -39,7 +39,7 @@ export default function PaymentSuccessPage() {
           <div className="bg-muted/50 rounded-lg p-6 text-left space-y-3">
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Plan</span>
-              <span className="font-semibold">{tierConfig.displayName}</span>
+              <span className="font-semibold">{tierConfig.name}</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Status</span>

@@ -24,27 +24,31 @@ const ShortCodeRedirect = () => {
       const seat = params.get("seat");
       const existingToken = params.get("token");
 
-      // If a tableId is present and no token yet, create a session server-side
-      // so the token is in the URL before any customer page loads.
-      let token = existingToken;
+      const saveSession = (token: string, expiresAt?: string | null) => {
+        if (!tableId) return;
+        localStorage.setItem(`qrm_session_${data.id}_${tableId}`, JSON.stringify({
+          token,
+          expiresAt: expiresAt || new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+          startedAt: new Date().toISOString(),
+        }));
+      };
+
       if (tableId && !existingToken) {
         const { data: session } = await (supabase.rpc as any)(
           "validate_and_create_session",
           { p_restaurant_id: data.id, p_table_id: tableId, p_token: null },
         );
-        if (session?.token) token = session.token as string;
+        if (session?.token) saveSession(session.token as string, session.expires_at as string | null);
+      } else if (tableId && existingToken) {
+        saveSession(existingToken);
       }
 
-      const tokenSuffix = token ? `&token=${token}` : "";
+      params.delete("token");
 
       if (tableId && !seat) {
-        // Group customer — seat select
-        navigate(`/menu/${data.id}/select-seat?table=${tableId}${tokenSuffix}`, { replace: true });
+        navigate(`/menu/${data.id}/select-seat?table=${tableId}`, { replace: true });
       } else {
-        // Single customer or returning with token
-        const base = new URLSearchParams(window.location.search);
-        if (token) base.set("token", token);
-        navigate(`/menu/${data.id}?${base.toString()}`, { replace: true });
+        navigate(`/menu/${data.id}?${params.toString()}`, { replace: true });
       }
     };
     lookup();
@@ -55,8 +59,8 @@ const ShortCodeRedirect = () => {
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-4">
           <p className="text-4xl">😕</p>
-          <h1 className="text-xl font-display font-bold text-foreground">রেস্টুরেন্ট পাওয়া যায়নি</h1>
-          <p className="text-muted-foreground text-sm">এই QR কোডটি সঠিক নয় অথবা মেয়াদ শেষ হয়েছে।</p>
+          <h1 className="text-xl font-display font-bold text-foreground">রেস্টুরেন্ট পাওয়া যায়নি</h1>
+          <p className="text-muted-foreground text-sm">এই QR কোডটি সঠিক নয় অথবা মেয়াদ শেষ হয়েছে।</p>
         </div>
       </div>
     );

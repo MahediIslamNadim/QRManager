@@ -31,7 +31,7 @@ export default function PaymentPage() {
   const [phoneNumber, setPhoneNumber] = useState('');
 
   const tierConfig = TIERS[tier];
-  const amount = billingCycle === 'monthly' ? tierConfig.priceMonthly : tierConfig.priceYearly;
+  const amount = billingCycle === 'monthly' ? tierConfig.price_monthly : tierConfig.price_yearly;
 
   const handlePayment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,13 +89,13 @@ export default function PaymentPage() {
           status: 'active',
           payment_method: paymentMethod,
           transaction_id: `TXN-${Date.now()}`, // Placeholder
-          notes: `Activated ${tierConfig.displayName} - ${billingCycle}`
+          notes: `Activated ${tierConfig.name} - ${billingCycle}`
         });
 
       if (subscriptionError) throw subscriptionError;
 
       toast.success('Payment successful! Your subscription is now active.');
-      navigate('/admin/payment-success?tier=' + tier);
+      navigate('/payment/result?status=success&tier=' + tier);
 
     } catch (error: any) {
       console.error('Payment error:', error);
@@ -111,7 +111,7 @@ export default function PaymentPage() {
         {/* Back Button */}
         <Button
           variant="ghost"
-          onClick={() => navigate('/admin/upgrade')}
+          onClick={() => navigate('/upgrade')}
           className="mb-4"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
@@ -297,7 +297,7 @@ export default function PaymentPage() {
               <CardContent className="space-y-4">
                 <div>
                   <div className="text-sm text-muted-foreground mb-1">Selected Plan</div>
-                  <div className="font-bold text-lg">{tierConfig.displayName}</div>
+                  <div className="font-bold text-lg">{tierConfig.name}</div>
                 </div>
 
                 <div>
@@ -314,7 +314,7 @@ export default function PaymentPage() {
                     <div className="flex justify-between items-center text-success text-sm mb-2">
                       <span>Annual Savings (20%)</span>
                       <span className="font-semibold">
-                        -{formatPrice(tierConfig.priceMonthly * 12 - tierConfig.priceYearly)}
+                        -{formatPrice(tierConfig.price_monthly * 12 - tierConfig.price_yearly)}
                       </span>
                     </div>
                   )}

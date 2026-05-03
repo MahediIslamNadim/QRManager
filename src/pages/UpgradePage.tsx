@@ -15,8 +15,8 @@ import { Check, Zap, Crown, ArrowRight, Clock, Shield, CheckCircle2, Copy, Loade
 import { TIERS, TierName, BillingCycle, formatPrice } from '@/constants/tiers';
 import TierSelection from '@/components/TierSelection';
 
-const BKASH_NUMBER = import.meta.env.VITE_BKASH_NUMBER ?? "01786130439";
-const NAGAD_NUMBER = import.meta.env.VITE_NAGAD_NUMBER ?? "01786130439";
+const BKASH_NUMBER = import.meta.env.VITE_BKASH_NUMBER ?? "";
+const NAGAD_NUMBER = import.meta.env.VITE_NAGAD_NUMBER ?? "";
 const normalizeTransactionId = (value: string) => value.trim().toUpperCase();
 
 const UpgradePage = () => {

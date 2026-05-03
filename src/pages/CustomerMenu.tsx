@@ -27,6 +27,7 @@ interface MenuItem {
   stock_quantity?: number | null;
   prep_time_minutes?: number | null;
   order_count?: number;
+  sort_order?: number | null;
 }
 
 interface CartItem extends MenuItem {
@@ -94,7 +95,7 @@ const CustomerMenu = () => {
   const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
   const aiRecommendations: MenuItem[] = [];
   const aiExplanations: Record<string, string> = {};
-  const trackAIClick = () => undefined;
+  const trackAIClick = (_itemId: string) => undefined;
 
   // ── AI Recommendations ────────────────────────────────────────────────
   // ── Sanitize user text input ──────────────────────────────────────────────

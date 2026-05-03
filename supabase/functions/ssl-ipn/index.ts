@@ -132,15 +132,34 @@ Deno.serve(async (req) => {
       return ok;
     }
 
-    await admin.from("ssl_transactions").update({
-      status: "validated",
-      val_id, bank_tran_id, card_type, store_amount,
-      ssl_status: sslStatus,
-      updated_at: new Date().toISOString(),
-    }).eq("tran_id", tran_id);
+    const { data: claimRows, error: claimError } = await admin
+      .from("ssl_transactions")
+      .update({
+        status: "validated",
+        val_id,
+        bank_tran_id,
+        card_type,
+        store_amount,
+        ssl_status: sslStatus,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("tran_id", tran_id)
+      .eq("status", "pending")
+      .select("restaurant_id, plan, billing_cycle");
 
-    await activateSubscription(admin, txn);
-    console.log(`ssl-ipn: activated subscription for restaurant=${txn.restaurant_id}`);
+    if (claimError) {
+      console.error("ssl-ipn: failed to claim transaction:", claimError.message);
+      return ok;
+    }
+
+    const claimedTxn = claimRows?.[0];
+    if (!claimedTxn) {
+      console.log(`ssl-ipn: transaction already processed or not pending tran_id=${tran_id}`);
+      return ok;
+    }
+
+    await activateSubscription(admin, claimedTxn);
+    console.log(`ssl-ipn: activated subscription for restaurant=${claimedTxn.restaurant_id}`);
   } catch (err) {
     console.error("ssl-ipn error:", err);
   }

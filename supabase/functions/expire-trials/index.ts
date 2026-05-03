@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-webhook-secret",
 };
 
 Deno.serve(async (req) => {
@@ -13,9 +13,11 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
 
-  // Only service-role key should call this
-  const token = (req.headers.get("Authorization") ?? "").replace("Bearer ", "");
-  if (token !== Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")) {
+  const cronSecret = Deno.env.get("CRON_SECRET") ?? Deno.env.get("EDGE_WEBHOOK_SECRET");
+  const bearerToken = (req.headers.get("Authorization") ?? "").replace("Bearer ", "");
+  const headerSecret = req.headers.get("x-webhook-secret");
+
+  if (!cronSecret || (bearerToken !== cronSecret && headerSecret !== cronSecret)) {
     return new Response(JSON.stringify({ error: "Forbidden" }), {
       status: 403,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

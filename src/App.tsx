@@ -130,7 +130,10 @@ const App = () => (
               <Route path="/" element={<Index />} />
               <Route path="/login" element={<Login />} />
               <Route path="/reset-password" element={<ResetPassword />} />
-              <Route path="/admin-setup" element={<AdminSetup />} />
+              <Route
+                path="/admin-setup"
+                element={<ProtectedRoute allowedRoles={["admin"]} allowMissingRestaurant><AdminSetup /></ProtectedRoute>}
+              />
               <Route path="/pricing" element={<Pricing />} />
               <Route path="/features" element={<Features />} />
               <Route path="/demo" element={<Demo />} />

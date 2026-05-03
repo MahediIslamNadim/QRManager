@@ -79,11 +79,11 @@ CREATE TABLE menu_item_metrics (...);
 
 ### **Priority 2: API Key Setup** 🟡
 1. Get Gemini API key: https://aistudio.google.com/
-2. Update `.env`:
+2. Add it as a Supabase Edge Function secret:
    ```
-   VITE_GEMINI_API_KEY=AIzaSy...
+   GEMINI_API_KEY=AIzaSy...
    ```
-3. Verify in Vercel env vars
+3. Do not expose Gemini/OpenAI keys as `VITE_*` frontend variables
 
 ### **Priority 3: Testing** 🟢
 1. Install dependencies:

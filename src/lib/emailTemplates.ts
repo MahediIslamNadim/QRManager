@@ -137,8 +137,8 @@ export const trialExpiringEmail = (
   <p>To continue using QR Manager after your trial ends, please choose a plan:</p>
 
   <div class="info-box">
-    <strong>${TIERS[tier].displayName}</strong><br>
-    From ${formatPrice(TIERS[tier].priceMonthly)}/month<br>
+    <strong>${TIERS[tier].name}</strong><br>
+    From ${formatPrice(TIERS[tier].price_monthly)}/month<br>
     <small>Save 20% with annual billing</small>
   </div>
 
@@ -183,7 +183,7 @@ export const subscriptionActivatedEmail = (
   amount: number,
   nextBillingDate: Date
 ) => emailWrapper(`
-  <h2>Welcome to ${TIERS[tier].displayName}! 🎉</h2>
+  <h2>Welcome to ${TIERS[tier].name}! 🎉</h2>
   <p>Hi ${restaurantName},</p>
   
   <div class="success-box">
@@ -195,7 +195,7 @@ export const subscriptionActivatedEmail = (
   <table style="width: 100%; border-collapse: collapse;">
     <tr>
       <td style="padding: 8px 0;"><strong>Plan:</strong></td>
-      <td style="text-align: right;">${TIERS[tier].displayName}</td>
+      <td style="text-align: right;">${TIERS[tier].name}</td>
     </tr>
     <tr>
       <td style="padding: 8px 0;"><strong>Billing:</strong></td>

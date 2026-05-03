@@ -239,8 +239,7 @@ async function getPersonalizedRecommendations(
 ): Promise<MenuItem[]> {
   try {
     // Get user's order history
-    const { data: userOrders } = await supabase
-      .from('orders')
+    const { data: userOrders } = await (supabase.from('orders') as any)
       .select('id, order_items(menu_item_id, quantity)')
       .eq('restaurant_id', restaurantId)
       .eq('user_id', userId)

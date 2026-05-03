@@ -25,6 +25,8 @@ Powered by [NexCore Technologies](https://www.facebook.com/min.pikacoo)
 
 ### Restaurant admin
 - Dashboard with restaurant stats
+- AI Daily Summary for owner-facing daily sales insights
+- Menu Intelligence suggestions for item naming, descriptions, categories, pricing, and combos
 - Menu management with image upload
 - Table and QR management
 - Orders and payment collection
@@ -117,8 +119,8 @@ There is also an older simplified plan list in [src/constants/pricing.ts](/c:/Us
 - Supabase Edge Functions
 
 ### AI and payments
-- Google Gemini via `@google/generative-ai`
-- OpenAI client utilities
+- Google Gemini through Supabase Edge Functions
+- Server-side AI summary and analytics helpers
 - SSLCommerz payment flow
 - Manual payment request handling for bKash and Nagad
 
@@ -134,16 +136,14 @@ VITE_SUPABASE_URL=your_supabase_url
 VITE_SUPABASE_PUBLISHABLE_KEY=your_supabase_anon_key
 VITE_BKASH_NUMBER=your_bkash_number
 VITE_NAGAD_NUMBER=your_nagad_number
-VITE_GEMINI_API_KEY=your_gemini_api_key
-VITE_OPENAI_API_KEY=your_openai_api_key
 ```
 
 Notes:
 
 - `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` are required
 - `VITE_BKASH_NUMBER` and `VITE_NAGAD_NUMBER` are needed for payment flows
-- `VITE_GEMINI_API_KEY` is needed for AI insights
-- `VITE_OPENAI_API_KEY` is only needed if you use the OpenAI-based utilities
+- AI provider keys must be configured as Supabase Edge Function secrets, not `VITE_*` frontend variables
+- `GEMINI_API_KEY` powers the server-side `ai-analytics`, `ai-daily-summary`, and `menu-intelligence` functions
 
 ## Local development
 
@@ -198,6 +198,8 @@ Current functions inside [supabase/functions](/c:/Users/hhnad/OneDrive/Desktop/N
 - `notify-email`
 - `notify-whatsapp`
 - `daily-report`
+- `ai-daily-summary`
+- `menu-intelligence`
 
 ### Enterprise and multi-branch support helpers
 - `bootstrap-enterprise-restaurant`

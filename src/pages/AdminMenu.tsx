@@ -2,7 +2,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Edit, Trash2, Image as ImageIcon, Upload, X, CheckCircle, XCircle, Clock } from "lucide-react";
+import { Plus, Edit, Trash2, Image as ImageIcon, Upload, X, CheckCircle, XCircle, Clock, Sparkles, Loader2, Wand2, Check } from "lucide-react";
 import { useState, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,10 +11,25 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 
 const categories = ["সব", "বিরিয়ানি", "কাবাব", "ভাত", "পানীয়", "ডেজার্ট", "other"];
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+
+type MenuIntelligenceSuggestion = {
+  better_name: string;
+  description: string;
+  category: string;
+  price_positioning: string;
+  combo_idea: string;
+};
+
+type MenuIntelligenceResponse = {
+  suggestion?: MenuIntelligenceSuggestion;
+  source?: "gemini" | "fallback";
+  error?: string;
+};
 
 const getImageUrl = (path: string | null) => {
   if (!path) return null;
@@ -33,6 +48,9 @@ const AdminMenu = () => {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [menuSuggestion, setMenuSuggestion] = useState<MenuIntelligenceSuggestion | null>(null);
+  const [suggestionSource, setSuggestionSource] = useState<"gemini" | "fallback" | null>(null);
+  const [suggestionLoading, setSuggestionLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [sortBy, setSortBy] = useState<'default' | 'popular' | 'price' | 'available'>('available');
@@ -75,7 +93,18 @@ const AdminMenu = () => {
     return a.sort_order - b.sort_order;
   });
 
-  const filtered = activeCategory === "সব" ? menuItems : menuItems.filter((i: any) => i.category === activeCategory);
+  const allCategory = categories[0];
+  const categoryOptions = Array.from(
+    new Set(
+      [
+        ...categories.slice(1),
+        ...menuItemsRaw.map((item: any) => item.category),
+        menuSuggestion?.category,
+      ].filter(Boolean),
+    ),
+  );
+  const filterCategories = [allCategory, ...categoryOptions];
+  const filtered = activeCategory === allCategory ? menuItems : menuItems.filter((i: any) => i.category === activeCategory);
 
   const uploadImage = async (file: File): Promise<string | null> => {
     const ext = file.name.split(".").pop();
@@ -155,12 +184,65 @@ const AdminMenu = () => {
     onError: (err: any) => toast.error(err.message),
   });
 
+  const generateMenuSuggestion = async () => {
+    if (!restaurantId) {
+      toast.error("Restaurant context পাওয়া যায়নি");
+      return;
+    }
+    if (!form.name.trim()) {
+      toast.error("আগে item name লিখুন");
+      return;
+    }
+
+    try {
+      setSuggestionLoading(true);
+      const { data, error } = await supabase.functions.invoke<MenuIntelligenceResponse>("menu-intelligence", {
+        body: {
+          restaurant_id: restaurantId,
+          item: {
+            id: editingItem?.id || null,
+            name: form.name,
+            description: form.description,
+            category: form.category,
+            price: form.price ? Number(form.price) : null,
+            prep_time_minutes: form.prepTime ? Number(form.prepTime) : null,
+          },
+        },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      if (!data?.suggestion) throw new Error("AI suggestion পাওয়া যায়নি");
+
+      setMenuSuggestion(data.suggestion);
+      setSuggestionSource(data.source || "fallback");
+      toast.success("Menu Intelligence suggestion ready");
+    } catch (err: any) {
+      toast.error(err.message || "Menu Intelligence কাজ করেনি");
+    } finally {
+      setSuggestionLoading(false);
+    }
+  };
+
+  const applyMenuSuggestion = (scope: "all" | "name" | "description" | "category") => {
+    if (!menuSuggestion) return;
+    setForm((current) => ({
+      ...current,
+      name: scope === "all" || scope === "name" ? menuSuggestion.better_name : current.name,
+      description: scope === "all" || scope === "description" ? menuSuggestion.description : current.description,
+      category: scope === "all" || scope === "category" ? menuSuggestion.category : current.category,
+    }));
+    toast.success("Suggestion applied");
+  };
+
   const resetForm = () => {
     setForm({ name: "", price: "", category: "other", description: "", available: true, hasStock: false, stockQty: "", prepTime: "" });
     setEditingItem(null);
     setShowForm(false);
     setImageFile(null);
     setImagePreview(null);
+    setMenuSuggestion(null);
+    setSuggestionSource(null);
   };
 
   const openEdit = (item: any) => {
@@ -169,6 +251,8 @@ const AdminMenu = () => {
     setEditingItem(item);
     setImageFile(null);
     setImagePreview(item.image_url ? getImageUrl(item.image_url) : null);
+    setMenuSuggestion(null);
+    setSuggestionSource(null);
     setShowForm(true);
   };
 
@@ -192,7 +276,7 @@ const AdminMenu = () => {
       <div className="space-y-6 animate-fade-up">
         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
           <div className="flex flex-wrap gap-2">
-            {categories.map((cat) => (
+            {filterCategories.map((cat) => (
               <Button key={cat} variant={activeCategory === cat ? "default" : "outline"} size="sm" onClick={() => setActiveCategory(cat)}>
                 {cat}
               </Button>
@@ -225,7 +309,7 @@ const AdminMenu = () => {
 
         {/* Add/Edit Dialog */}
         <Dialog open={showForm} onOpenChange={setShowForm}>
-          <DialogContent className="max-w-md flex flex-col max-h-[90vh]">
+          <DialogContent className="max-w-2xl flex flex-col max-h-[90vh]">
             <DialogHeader className="flex-shrink-0">
               <DialogTitle className="font-display">{editingItem ? "আইটেম সম্পাদনা" : "নতুন আইটেম"}</DialogTitle>
             </DialogHeader>
@@ -270,10 +354,70 @@ const AdminMenu = () => {
                 <Label>ক্যাটাগরি</Label>
                 <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
                   className="w-full h-10 rounded-md border border-border bg-background px-3 text-sm">
-                  {categories.filter(c => c !== "সব").map(c => <option key={c} value={c}>{c}</option>)}
+                  {categoryOptions.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
-              <div><Label>বিবরণ</Label><Input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></div>
+              <div><Label>বিবরণ</Label><Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></div>
+
+              <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                      <Sparkles className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">Menu Intelligence</p>
+                    </div>
+                  </div>
+                  <Button type="button" size="sm" variant="outline" onClick={generateMenuSuggestion} disabled={suggestionLoading}>
+                    {suggestionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                    Suggest
+                  </Button>
+                </div>
+
+                {menuSuggestion && (
+                  <div className="rounded-lg border border-border bg-background p-3 space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">Better name</p>
+                        <p className="font-display text-lg font-semibold text-foreground">{menuSuggestion.better_name}</p>
+                      </div>
+                      <span className="text-[11px] font-semibold rounded-full bg-secondary px-2 py-1 text-secondary-foreground">
+                        {suggestionSource === "gemini" ? "AI" : "Smart fallback"}
+                      </span>
+                    </div>
+                    <div className="grid gap-2 text-sm">
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground">Description</p>
+                        <p className="text-foreground">{menuSuggestion.description}</p>
+                      </div>
+                      <div className="grid sm:grid-cols-2 gap-2">
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground">Category</p>
+                          <p className="text-foreground">{menuSuggestion.category}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground">Combo idea</p>
+                          <p className="text-foreground">{menuSuggestion.combo_idea}</p>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground">Price positioning</p>
+                        <p className="text-foreground">{menuSuggestion.price_positioning}</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button type="button" size="sm" onClick={() => applyMenuSuggestion("all")}>
+                        <Check className="h-4 w-4" />
+                        Use all
+                      </Button>
+                      <Button type="button" size="sm" variant="outline" onClick={() => applyMenuSuggestion("name")}>Use name</Button>
+                      <Button type="button" size="sm" variant="outline" onClick={() => applyMenuSuggestion("description")}>Use description</Button>
+                      <Button type="button" size="sm" variant="outline" onClick={() => applyMenuSuggestion("category")}>Use category</Button>
+                    </div>
+                  </div>
+                )}
+              </div>
               <div className="flex items-center gap-2">
                 <Switch checked={form.available} onCheckedChange={v => setForm(f => ({ ...f, available: v }))} />
                 <Label>উপলব্ধ</Label>

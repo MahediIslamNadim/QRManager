@@ -31,7 +31,9 @@ const saveSession = (restaurantId: string, tableId: string, token: string, expir
 
 const loadSession = (restaurantId: string, tableId: string, seatId?: string | null): { token: string; startedAt: string } | null => {
   try {
-    const raw = localStorage.getItem(storageKey(restaurantId, tableId, seatId));
+    const raw =
+      localStorage.getItem(storageKey(restaurantId, tableId, seatId)) ||
+      (seatId ? localStorage.getItem(storageKey(restaurantId, tableId)) : null);
     if (!raw) return null;
     const { token, expiresAt, startedAt } = JSON.parse(raw);
     if (new Date(expiresAt) > new Date()) return { token, startedAt };
@@ -111,7 +113,7 @@ export function useMenuSession({
 
         // Check localStorage first (restores session on refresh)
         const stored = loadSession(restaurantId, tableId, seatId);
-        const existingToken = tokenParam ?? stored?.token ?? null;
+        const existingToken = stored?.token ?? tokenParam ?? null;
 
         const { data: sessionResult, error: sessionErr } = await supabase.rpc(
           "validate_and_create_session" as any,
@@ -135,9 +137,11 @@ export function useMenuSession({
           saveSession(restaurantId, tableId, token, expiresAt, seatId);
           setSessionStartedAt(startedAt);
 
-          const newUrl = new URL(window.location.href);
-          newUrl.searchParams.set("token", token);
-          window.history.replaceState({}, "", newUrl.toString());
+          if (tokenParam) {
+            const newUrl = new URL(window.location.href);
+            newUrl.searchParams.delete("token");
+            window.history.replaceState({}, "", newUrl.toString());
+          }
         } else {
           setTokenValid(false);
           clearSession(restaurantId, tableId, seatId);
@@ -163,8 +167,7 @@ export function useMenuSession({
         .limit(1)
         .then(({ data: seatsData }) => {
           if (seatsData && seatsData.length > 0) {
-            const tokenQuery = sessionToken ? `&token=${sessionToken}` : "";
-            navigate(`/menu/${restaurantId}/select-seat?table=${tableId}${tokenQuery}`, { replace: true });
+            navigate(`/menu/${restaurantId}/select-seat?table=${tableId}`, { replace: true });
           }
         });
     }

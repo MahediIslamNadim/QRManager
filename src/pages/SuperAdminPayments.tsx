@@ -92,7 +92,7 @@ const SuperAdminPayments = () => {
       const { data: rows, error, count } = await q;
       if (error) throw error;
 
-      const restIds = [...new Set((rows || []).map((p: any) => p.restaurant_id))];
+      const restIds = [...new Set<string>((rows || []).map((p: any) => p.restaurant_id))];
       let restMap = new Map<string, string>();
       if (restIds.length > 0) {
         const { data: restaurants } = await supabase
@@ -140,7 +140,7 @@ const SuperAdminPayments = () => {
         .order("created_at", { ascending: false })
         .limit(100);
       if (error) throw error;
-      const restIds = [...new Set((data || []).map((t: any) => t.restaurant_id))];
+      const restIds = [...new Set<string>((data || []).map((t: any) => t.restaurant_id))];
       let restMap = new Map<string, string>();
       if (restIds.length > 0) {
         const { data: rests } = await supabase.from("restaurants").select("id, name").in("id", restIds);
