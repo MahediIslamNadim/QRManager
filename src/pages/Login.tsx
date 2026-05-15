@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { createAuthedSupabaseClient, supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { isSupportedAppRole, resolveAuthContext } from "@/lib/authContext";
 import { authDebug, clearPendingLoginRedirect, setPendingLoginRedirect } from "@/lib/authDebug";
 import { toast } from "sonner";
 import {
@@ -31,17 +32,7 @@ const waitForSession = async (maxAttempts = 5): Promise<boolean> => {
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const pickRedirectRole = (
-  roleRows: Array<{ role: string }> | null | undefined,
-): RedirectRole | null => {
-  const roles = new Set((roleRows || []).map((row) => row.role));
-
-  if (roles.has("super_admin")) return "super_admin";
-  if (roles.has("admin")) return "admin";
-  if (roles.has("waiter")) return "waiter";
-  if (roles.has("kitchen")) return "kitchen";
-  return null;
-};
+const isRedirectRole = (role: string | null): role is RedirectRole => isSupportedAppRole(role);
 
 const getRedirectPath = (resolvedRole: RedirectRole, inviteId: string | null) => {
   if (resolvedRole === "super_admin") return "/super-admin";
@@ -73,32 +64,22 @@ const Login = () => {
     accessToken: string,
     maxAttempts = 6,
   ): Promise<RedirectRole | null> => {
-    const authedClient = createAuthedSupabaseClient(accessToken);
-
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      const { data: roleRows, error: roleError } = await authedClient
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userId)
-        .order("role");
+      const authContext = await resolveAuthContext(accessToken);
+      const resolvedRole = isRedirectRole(authContext.role) ? authContext.role : null;
 
-      const resolvedRole = pickRedirectRole(roleRows as Array<{ role: string }> | null | undefined);
-      authDebug("Login", "Direct role lookup attempt finished", {
+      authDebug("Login", "Server auth context lookup attempt finished", {
         attempt: attempt + 1,
-        error: roleError?.message ?? null,
         resolvedRole,
-        roles: roleRows?.map((row) => row.role) ?? [],
-        rowCount: roleRows?.length ?? 0,
+        restaurantId: authContext.restaurantId,
+        restaurantPlan: authContext.restaurantPlan,
+        trialExpired: authContext.trialExpired,
         userId,
       });
 
-      if (roleError) {
-        console.warn("Login role lookup failed:", roleError.message);
-      }
-
       if (resolvedRole) {
         await refetchUserData(userId, accessToken);
-        authDebug("Login", "Context sync completed after direct role lookup", {
+        authDebug("Login", "Context sync completed after secure auth context lookup", {
           resolvedRole,
           userId,
         });
@@ -106,49 +87,6 @@ const Login = () => {
       }
 
       await wait(250);
-    }
-
-    // Fallback 1: check staff_restaurants (waiter / kitchen / admin staff)
-    authDebug("Login", "user_roles exhausted — falling back to staff_restaurants", { userId });
-    const { data: staffRow } = await authedClient
-      .from("staff_restaurants" as any)
-      .select("role, restaurant_id")
-      .eq("user_id", userId)
-      .limit(1)
-      .maybeSingle();
-
-    const staffRole = (staffRow as any)?.role as string | undefined;
-    authDebug("Login", "staff_restaurants fallback result", { staffRole, userId });
-
-    if (staffRole) {
-      const fallbackRole = pickRedirectRole([{ role: staffRole }]);
-      if (fallbackRole) {
-        await (authedClient.from("user_roles") as any).upsert(
-          { user_id: userId, role: staffRole, restaurant_id: (staffRow as any)?.restaurant_id ?? null },
-          { onConflict: "user_id,role" }
-        );
-        await refetchUserData(userId, accessToken);
-        return fallbackRole;
-      }
-    }
-
-    // Fallback 2: check restaurants ownership (owner = admin)
-    authDebug("Login", "staff_restaurants fallback empty — checking restaurants owner", { userId });
-    const { data: ownedRestaurant } = await authedClient
-      .from("restaurants")
-      .select("id")
-      .eq("owner_id", userId)
-      .limit(1)
-      .maybeSingle();
-
-    if (ownedRestaurant?.id) {
-      authDebug("Login", "User owns a restaurant — assigning admin role", { userId });
-      await (authedClient.from("user_roles") as any).upsert(
-        { user_id: userId, role: "admin", restaurant_id: ownedRestaurant.id },
-        { onConflict: "user_id,role" }
-      );
-      await refetchUserData(userId, accessToken);
-      return "admin";
     }
 
     authDebug("Login", "All role fallbacks exhausted", { maxAttempts, userId });

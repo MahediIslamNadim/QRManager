@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { UtensilsCrossed, Users, Armchair } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
+import { loadMenuSession, saveMenuSession } from "@/lib/menuSessionStorage";
 
 const CustomerSeatSelect = () => {
   const { restaurantId } = useParams();
@@ -18,46 +18,72 @@ const CustomerSeatSelect = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!restaurantId || !tableId) { setError("ভুল লিংক"); setLoading(false); return; }
+      if (!restaurantId || !tableId) {
+        setError("ভুল লিংক");
+        setLoading(false);
+        return;
+      }
 
       try {
-      const [restRes, tableRes, seatsRes] = await Promise.all([
-        supabase.from("restaurants").select("name").eq("id", restaurantId).maybeSingle(),
-        supabase.from("restaurant_tables").select("name, seats").eq("id", tableId).maybeSingle(),
-        supabase.from("table_seats").select("*").eq("table_id", tableId).order("seat_number"),
-      ]);
+        const stored = loadMenuSession(restaurantId, tableId);
+        const existingToken = searchParams.get("token") || stored?.token || null;
 
-      if (restRes.data) setRestaurant(restRes.data);
-      if (tableRes.data) setTableName(tableRes.data.name);
-      if (seatsRes.data) setSeats(seatsRes.data);
+        const { data: sessionResult, error: sessionErr } = await supabase.rpc(
+          "validate_and_create_session" as any,
+          {
+            p_restaurant_id: restaurantId,
+            p_table_id: tableId,
+            p_token: existingToken,
+            p_seat_id: null,
+          } as any,
+        );
 
-      setLoading(false);
-      } catch (err) {
+        if (sessionErr || !sessionResult?.token) {
+          throw new Error("session_error");
+        }
+
+        const token = sessionResult.token as string;
+        const expiresAt =
+          (sessionResult.expires_at as string | null) ||
+          new Date(Date.now() + 30 * 60 * 1000).toISOString();
+
+        saveMenuSession(
+          restaurantId,
+          tableId,
+          token,
+          expiresAt,
+          null,
+          stored?.startedAt,
+        );
+
+        const { data, error } = await supabase.rpc(
+          "get_public_table_seats" as any,
+          {
+            p_restaurant_id: restaurantId,
+            p_table_id: tableId,
+            p_token: token,
+          } as any,
+        );
+
+        if (error || !data) {
+          throw new Error("table_access_error");
+        }
+
+        setRestaurant((data as any).restaurant ?? null);
+        setTableName((data as any).table?.name ?? "");
+        setSeats((data as any).seats ?? []);
+        setError(null);
+        setLoading(false);
+      } catch {
         setError("তথ্য লোড করতে সমস্যা হয়েছে। পেজ রিফ্রেশ করুন।");
         setLoading(false);
       }
     };
-    fetchData();
-  }, [restaurantId, tableId]);
 
-  // Realtime seat status updates
-  useEffect(() => {
-    if (!tableId) return;
-    const channel = supabase
-      .channel(`seat-status-${tableId}`)
-      .on("postgres_changes", {
-        event: "UPDATE", schema: "public",
-        table: "table_seats",
-        filter: `table_id=eq.${tableId}`
-      }, (payload) => {
-        setSeats(prev => prev.map(s => s.id === payload.new.id ? { ...s, ...payload.new } : s));
-        if (payload.new.status === "occupied" && payload.old?.status === "available") {
-          toast.info(`সিট ${payload.new.seat_number} এইমাত্র ব্যস্ত হয়েছে`);
-        }
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [tableId]);
+    fetchData();
+    const interval = window.setInterval(fetchData, 10000);
+    return () => window.clearInterval(interval);
+  }, [restaurantId, tableId, searchParams]);
 
   const selectSeat = (seatId: string) => {
     navigate(`/menu/${restaurantId}?table=${tableId}&seat=${seatId}`);
@@ -79,7 +105,12 @@ const CustomerSeatSelect = () => {
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center p-6">
           <p className="text-destructive font-medium mb-3">{error}</p>
-          <button onClick={() => window.location.reload()} className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium">রিফ্রেশ করুন</button>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium"
+          >
+            রিফ্রেশ করুন
+          </button>
         </div>
       </div>
     );
@@ -134,9 +165,11 @@ const CustomerSeatSelect = () => {
                       : "border-primary/30 bg-card hover:border-primary hover:bg-primary/5 hover:shadow-lg hover:shadow-primary/10 hover:-translate-y-1 active:scale-95 cursor-pointer"
                   }`}
                 >
-                  <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${
-                    isOccupied ? "bg-destructive/10" : "bg-primary/10"
-                  }`}>
+                  <div
+                    className={`w-14 h-14 rounded-2xl flex items-center justify-center ${
+                      isOccupied ? "bg-destructive/10" : "bg-primary/10"
+                    }`}
+                  >
                     <Armchair className={`w-7 h-7 ${isOccupied ? "text-destructive" : "text-primary"}`} />
                   </div>
                   <div>

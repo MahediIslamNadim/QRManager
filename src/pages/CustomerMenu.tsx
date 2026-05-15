@@ -120,58 +120,6 @@ const CustomerMenu = () => {
 
   // ── Item ratings from reviews table (with realtime) ───────────────────────
   const [itemRatings, setItemRatings] = useState<Record<string, { avg: number; count: number }>>({});
-  const [rawReviews, setRawReviews] = useState<{ menu_item_id: string; rating: number }[]>([]);
-
-  const buildRatings = useCallback((reviews: { menu_item_id: string; rating: number }[]) => {
-    const map: Record<string, number[]> = {};
-    reviews.forEach(r => {
-      if (!map[r.menu_item_id]) map[r.menu_item_id] = [];
-      map[r.menu_item_id].push(r.rating);
-    });
-    const result: Record<string, { avg: number; count: number }> = {};
-    Object.entries(map).forEach(([id, ratings]) => {
-      result[id] = {
-        avg: Math.round((ratings.reduce((a, b) => a + b, 0) / ratings.length) * 10) / 10,
-        count: ratings.length,
-      };
-    });
-    setItemRatings(result);
-  }, []);
-
-  useEffect(() => {
-    if (!restaurantId || isDemo) return;
-    supabase
-      .from("reviews")
-      .select("menu_item_id, rating")
-      .eq("restaurant_id", restaurantId)
-      .not("menu_item_id", "is", null)
-      .then(({ data }) => {
-        if (!data) return;
-        setRawReviews(data);
-        buildRatings(data);
-      });
-  }, [restaurantId, isDemo, buildRatings]);
-
-  // Realtime reviews subscription
-  useEffect(() => {
-    if (!restaurantId || isDemo) return;
-    const channel = supabase
-      .channel(`reviews-realtime-${restaurantId}`)
-      .on("postgres_changes", {
-        event: "INSERT", schema: "public", table: "reviews",
-        filter: `restaurant_id=eq.${restaurantId}`,
-      }, (payload) => {
-        const newReview = payload.new as { menu_item_id: string; rating: number };
-        if (!newReview.menu_item_id) return;
-        setRawReviews(prev => {
-          const updated = [...prev, newReview];
-          buildRatings(updated);
-          return updated;
-        });
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [restaurantId, isDemo, buildRatings]);
 
   // ── Quick inline rating (only for items this customer has ordered) ──────────
   const [quickRatingItem, setQuickRatingItem] = useState<MenuItem | null>(null);
@@ -187,6 +135,28 @@ const CustomerMenu = () => {
   const submitQuickRating = async (star: number) => {
     if (!quickRatingItem || !restaurantId || star < 1) return;
     setQuickRatingSubmitting(true);
+    try {
+      await submitPublicReview({
+        menuItemId: quickRatingItem.id,
+        rating: star,
+        comment: null,
+      });
+
+      const newRated = new Set(ratedItemIds).add(quickRatingItem.id);
+      setRatedItemIds(newRated);
+      try { localStorage.setItem(`rated_items_${restaurantId}`, JSON.stringify([...newRated])); } catch { /* private */ }
+      toast("ðŸ™ à¦§à¦¨à§à¦¯à¦¬à¦¾à¦¦! à¦°à§‡à¦Ÿà¦¿à¦‚ à¦¦à§‡à¦“à¦¯à¦¼à¦¾à¦° à¦œà¦¨à§à¦¯à¥¤", { duration: 3000 });
+      setQuickRatingItem(null);
+      setQuickRatingValue(0);
+      fetchMenuData();
+      return;
+    } catch {
+      toast.error("à¦°à§‡à¦Ÿà¦¿à¦‚ à¦¦à§‡à¦“à¦¯à¦¼à¦¾ à¦¯à¦¾à¦¯à¦¼à¦¨à¦¿, à¦†à¦¬à¦¾à¦° à¦šà§‡à¦·à§à¦Ÿà¦¾ à¦•à¦°à§à¦¨à¥¤");
+      return;
+    } finally {
+      setQuickRatingSubmitting(false);
+    }
+
     const { error } = await supabase.from("reviews").insert({
       menu_item_id: quickRatingItem.id,
       restaurant_id: restaurantId,
@@ -218,6 +188,38 @@ const CustomerMenu = () => {
     tableName, tableIsOpen, seatNumber,
     tokenValid, tokenChecking, tableChecked, sessionToken, sessionStartedAt,
   } = useMenuSession({ restaurantId, tableId, seatId, tokenParam, isDemo });
+
+  const submitPublicReview = useCallback(
+    async ({
+      menuItemId,
+      rating,
+      comment,
+    }: {
+      menuItemId: string | null;
+      rating: number;
+      comment: string | null;
+    }) => {
+      if (!restaurantId || !tableId || !sessionToken) {
+        throw new Error("Session not ready");
+      }
+
+      const { error } = await supabase.rpc(
+        "create_public_review" as any,
+        {
+          p_restaurant_id: restaurantId,
+          p_table_id: tableId,
+          p_token: sessionToken,
+          p_rating: rating,
+          p_menu_item_id: menuItemId,
+          p_comment: comment,
+          p_seat_id: seatId ?? null,
+        } as any,
+      );
+
+      if (error) throw error;
+    },
+    [restaurantId, tableId, sessionToken, seatId],
+  );
 
   // ── Orders / realtime (extracted hook) ────────────────────────────────────
   const onRatingRequest = useCallback((orderId: string, items: OrderItem[]) => {
@@ -299,6 +301,46 @@ const CustomerMenu = () => {
       return;
     }
 
+    if (!restaurantId || !tableId || !sessionToken) {
+      return;
+    }
+
+    const { data: publicMenuData, error: publicMenuError } = await supabase.rpc(
+      "get_public_menu_context" as any,
+      {
+        p_restaurant_id: restaurantId,
+        p_table_id: tableId,
+        p_token: sessionToken,
+        p_seat_id: seatId ?? null,
+      } as any,
+    );
+
+    if (!publicMenuError && publicMenuData) {
+      const menuContext = publicMenuData as any;
+      const items = (menuContext.menu_items ?? []) as MenuItem[];
+      const ratings = Object.entries(menuContext.ratings ?? {}).reduce<Record<string, { avg: number; count: number }>>(
+        (acc, [menuItemId, value]) => {
+          const rating = value as { avg?: number; count?: number };
+          acc[menuItemId] = {
+            avg: Number(rating.avg ?? 0),
+            count: Number(rating.count ?? 0),
+          };
+          return acc;
+        },
+        {},
+      );
+
+      setRestaurant(menuContext.restaurant ?? null);
+      setMenuItems(items);
+      setItemRatings(ratings);
+      setCategories(["à¦¸à¦¬", ...new Set(items.map((item) => item.category))]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(false);
+    return;
+
     const [restRes, menuRes] = await Promise.all([
       supabase.from("restaurants").select("*").eq("id", restaurantId!).maybeSingle(),
       supabase.from("menu_items").select("*, menu_item_metrics(order_count)").eq("restaurant_id", restaurantId!).order("sort_order"),
@@ -314,7 +356,7 @@ const CustomerMenu = () => {
       setCategories(["সব", ...new Set(items.map((i: any) => i.category))]);
     }
     setLoading(false);
-  }, [restaurantId, isDemo]);
+  }, [restaurantId, isDemo, seatId, sessionToken, tableId]);
 
   useEffect(() => {
     fetchMenuData();
@@ -542,6 +584,11 @@ const CustomerMenu = () => {
   };
 
   // ── Early returns (gates) ──────────────────────────────────────────────────
+  const consumeButtonTap = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
   if (loading || tokenChecking) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -817,7 +864,7 @@ const CustomerMenu = () => {
       </div>
 
       {/* Menu Items */}
-      <div className={`max-w-2xl mx-auto px-4 py-6 space-y-5 ${totalItems > 0 ? 'pb-52' : 'pb-28'}`}>
+      <div className={`max-w-2xl mx-auto px-4 py-6 space-y-5 ${totalItems > 0 ? 'pb-60' : 'pb-36'}`}>
         {filtered.length === 0 && (
           <div className="text-center py-16">
             <UtensilsCrossed className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
@@ -966,16 +1013,16 @@ const CustomerMenu = () => {
                     <span className="px-4 py-2 rounded-xl bg-muted text-muted-foreground text-sm font-medium cursor-not-allowed">অপ্রাপ্য</span>
                   ) : cartItem ? (
                     <div className="flex items-center gap-1 bg-secondary rounded-xl p-1">
-                      <button onClick={() => updateQuantity(item.id, -1)} className="w-9 h-9 rounded-lg bg-card hover:bg-accent flex items-center justify-center transition-colors border border-border/50 active:scale-90">
+                      <button type="button" onClick={(event) => { consumeButtonTap(event); updateQuantity(item.id, -1); }} className="w-9 h-9 rounded-lg bg-card hover:bg-accent flex items-center justify-center transition-colors border border-border/50 active:scale-90">
                         <Minus className="w-4 h-4 text-foreground" />
                       </button>
                       <span className="text-sm font-bold text-foreground w-8 text-center">{cartItem.quantity}</span>
-                      <button onClick={() => updateQuantity(item.id, 1)} className="w-9 h-9 rounded-lg gradient-primary flex items-center justify-center shadow-md shadow-primary/20 active:scale-90 transition-transform">
+                      <button type="button" onClick={(event) => { consumeButtonTap(event); updateQuantity(item.id, 1); }} className="w-9 h-9 rounded-lg gradient-primary flex items-center justify-center shadow-md shadow-primary/20 active:scale-90 transition-transform">
                         <Plus className="w-4 h-4 text-primary-foreground" />
                       </button>
                     </div>
                   ) : (
-                    <button onClick={() => addToCart(item)}
+                    <button type="button" onClick={(event) => { consumeButtonTap(event); addToCart(item); }}
                       className="px-5 py-2.5 rounded-xl gradient-primary text-primary-foreground text-sm font-semibold flex items-center gap-2 shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-all duration-300 active:scale-95 hover:scale-105">
                       <Plus className="w-4 h-4" /> যোগ করুন
                     </button>
@@ -1012,6 +1059,7 @@ const CustomerMenu = () => {
           <div className="max-w-2xl mx-auto flex items-center">
             {/* Order Track */}
             <button
+              type="button"
               onClick={() => { setOrderStatusTab("active"); setShowOrderStatus(true); }}
               className="flex-1 flex flex-col items-center gap-0.5 py-3 relative group">
               <div className="relative">
@@ -1027,6 +1075,7 @@ const CustomerMenu = () => {
 
             {/* History */}
             <button
+              type="button"
               onClick={() => { setOrderStatusTab("history"); setShowOrderStatus(true); }}
               className="flex-1 flex flex-col items-center gap-0.5 py-3 relative group">
               <div className="relative">
@@ -1042,6 +1091,7 @@ const CustomerMenu = () => {
 
             {/* Feedback */}
             <button
+              type="button"
               onClick={() => setShowFeedback(true)}
               className="flex-1 flex flex-col items-center gap-0.5 py-3 group">
               <MessageSquare className="w-5 h-5 text-muted-foreground group-hover:text-primary group-hover:scale-110 transition-all" />
@@ -1050,6 +1100,7 @@ const CustomerMenu = () => {
 
             {/* Waiter */}
             <button
+              type="button"
               onClick={handleCallWaiter}
               disabled={waiterCooldown}
               className={`flex-1 flex flex-col items-center gap-0.5 py-3 group transition-opacity ${waiterCooldown ? 'opacity-50 cursor-not-allowed' : ''}`}>
@@ -1059,6 +1110,7 @@ const CustomerMenu = () => {
 
             {/* Bill */}
             <button
+              type="button"
               onClick={handleRequestBill}
               disabled={billCooldown}
               className={`flex-1 flex flex-col items-center gap-0.5 py-3 group transition-opacity ${billCooldown ? 'opacity-50 cursor-not-allowed' : ''}`}>
@@ -1391,6 +1443,24 @@ const CustomerMenu = () => {
                   if (!feedbackRating || !restaurantId) return;
                   const cleanComment = feedbackComment ? sanitize(feedbackComment, 500) : null;
                   setFeedbackSubmitting(true);
+                  try {
+                    await submitPublicReview({
+                      menuItemId: null,
+                      rating: feedbackRating,
+                      comment: cleanComment,
+                    });
+                    toast("ðŸ™ à¦§à¦¨à§à¦¯à¦¬à¦¾à¦¦! à¦«à¦¿à¦¡à¦¬à§à¦¯à¦¾à¦• à¦ªà§‡à¦¯à¦¼à§‡à¦›à¦¿à¥¤", { duration: 4000 });
+                    setShowFeedback(false);
+                    setFeedbackRating(0);
+                    setFeedbackComment("");
+                    return;
+                  } catch {
+                    toast.error("à¦«à¦¿à¦¡à¦¬à§à¦¯à¦¾à¦• à¦¦à§‡à¦“à¦¯à¦¼à¦¾ à¦¯à¦¾à¦¯à¦¼à¦¨à¦¿, à¦†à¦¬à¦¾à¦° à¦šà§‡à¦·à§à¦Ÿà¦¾ à¦•à¦°à§à¦¨à¥¤");
+                    return;
+                  } finally {
+                    setFeedbackSubmitting(false);
+                  }
+
                   const { error } = await supabase.from("reviews").insert({
                     restaurant_id: restaurantId,
                     menu_item_id: null,
@@ -1533,6 +1603,27 @@ const CustomerMenu = () => {
                     .map(([menu_item_id, rating]) => ({ menu_item_id, restaurant_id: restaurantId, rating, comment: ratingComment ? sanitize(ratingComment, 300) : null }));
                   if (ratingsToSubmit.length === 0) return;
                   setRatingSubmitting(true);
+                  try {
+                    for (const ratingRow of ratingsToSubmit) {
+                      await submitPublicReview({
+                        menuItemId: ratingRow.menu_item_id,
+                        rating: ratingRow.rating,
+                        comment: ratingRow.comment,
+                      });
+                    }
+
+                    try { localStorage.setItem(`rated_${ratingOrderId}`, "done"); } catch { /* Safari private / iOS WebView */ }
+                    toast("ðŸ™ à¦§à¦¨à§à¦¯à¦¬à¦¾à¦¦! à¦°à§‡à¦Ÿà¦¿à¦‚ à¦ªà§‡à¦¯à¦¼à§‡à¦›à¦¿à¥¤", { duration: 4000 });
+                    setRatingOrderId(null); setRatingItems([]); setPerItemRatings({}); setRatingComment("");
+                    fetchMenuData();
+                    return;
+                  } catch {
+                    toast.error("à¦°à§‡à¦Ÿà¦¿à¦‚ à¦¦à§‡à¦“à¦¯à¦¼à¦¾ à¦¯à¦¾à¦¯à¦¼à¦¨à¦¿, à¦†à¦¬à¦¾à¦° à¦šà§‡à¦·à§à¦Ÿà¦¾ à¦•à¦°à§à¦¨à¥¤");
+                    return;
+                  } finally {
+                    setRatingSubmitting(false);
+                  }
+
                   const { error } = await supabase.from("reviews").insert(ratingsToSubmit as any);
                   setRatingSubmitting(false);
                   if (!error) {

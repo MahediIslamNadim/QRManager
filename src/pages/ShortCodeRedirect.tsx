@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { saveMenuSession } from "@/lib/menuSessionStorage";
 
 const ShortCodeRedirect = () => {
   const { shortCode } = useParams();
@@ -24,23 +25,26 @@ const ShortCodeRedirect = () => {
       const seat = params.get("seat");
       const existingToken = params.get("token");
 
-      const saveSession = (token: string, expiresAt?: string | null) => {
-        if (!tableId) return;
-        localStorage.setItem(`qrm_session_${data.id}_${tableId}`, JSON.stringify({
-          token,
-          expiresAt: expiresAt || new Date(Date.now() + 30 * 60 * 1000).toISOString(),
-          startedAt: new Date().toISOString(),
-        }));
-      };
-
       if (tableId && !existingToken) {
         const { data: session } = await (supabase.rpc as any)(
           "validate_and_create_session",
           { p_restaurant_id: data.id, p_table_id: tableId, p_token: null },
         );
-        if (session?.token) saveSession(session.token as string, session.expires_at as string | null);
+        if (session?.token) {
+          saveMenuSession(
+            data.id,
+            tableId,
+            session.token as string,
+            (session.expires_at as string | null) || new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+          );
+        }
       } else if (tableId && existingToken) {
-        saveSession(existingToken);
+        saveMenuSession(
+          data.id,
+          tableId,
+          existingToken,
+          new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+        );
       }
 
       params.delete("token");
