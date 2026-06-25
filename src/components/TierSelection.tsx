@@ -1,48 +1,19 @@
-// TierSelection Component - Display tier options for upgrade
-import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Check, Zap, Crown } from 'lucide-react';
-import { TIERS, TierName, BillingCycle, formatPrice } from '@/constants/tiers';
+import { TIERS, TierName, formatPrice } from '@/constants/tiers';
 
 interface TierSelectionProps {
-  onSelect: (tier: TierName, billingCycle: BillingCycle) => void;
+  onSelect: (tier: TierName) => void;
   selectedTier?: TierName;
-  selectedBillingCycle?: BillingCycle;
 }
 
-const TierSelection = ({ onSelect, selectedTier, selectedBillingCycle = 'yearly' }: TierSelectionProps) => {
-  const [billingCycle, setBillingCycle] = useState<BillingCycle>(selectedBillingCycle);
-
+const TierSelection = ({ onSelect, selectedTier }: TierSelectionProps) => {
   return (
     <div className="space-y-6">
-      {/* Billing Toggle */}
-      <div className="flex justify-center">
-        <div className="inline-flex rounded-lg border p-1 bg-muted">
-          <button
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              billingCycle === 'monthly' ? 'bg-background shadow' : 'text-muted-foreground'
-            }`}
-            onClick={() => setBillingCycle('monthly')}
-          >
-            Monthly
-          </button>
-          <button
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              billingCycle === 'yearly' ? 'bg-background shadow' : 'text-muted-foreground'
-            }`}
-            onClick={() => setBillingCycle('yearly')}
-          >
-            Yearly
-            <span className="ml-2 text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">Save 20%</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Tier Cards */}
       <div className="grid md:grid-cols-2 gap-6">
         {(Object.entries(TIERS) as [TierName, typeof TIERS[TierName]][]).map(([tierKey, config]) => {
-          const price = billingCycle === 'monthly' ? config.price_monthly : config.price_yearly;
+          const price = config.price_yearly;
           const isSelected = selectedTier === tierKey;
           const isPopular = tierKey === 'medium_smart';
 
@@ -73,14 +44,10 @@ const TierSelection = ({ onSelect, selectedTier, selectedBillingCycle = 'yearly'
                 <p className="text-sm text-muted-foreground">{config.description}</p>
                 <div className="mt-2">
                   <span className="text-3xl font-bold">{formatPrice(price)}</span>
-                  <span className="text-muted-foreground text-sm">
-                    {billingCycle === 'monthly' ? '/month' : '/year'}
-                  </span>
-                  {billingCycle === 'yearly' && (
-                    <p className="text-xs text-green-600 mt-1">
-                      {formatPrice(Math.round(config.price_yearly / 12))}/month (billed yearly)
-                    </p>
-                  )}
+                  <span className="text-muted-foreground text-sm">/year</span>
+                  <p className="text-xs text-green-600 mt-1">
+                    {formatPrice(Math.round(config.price_yearly / 12))}/month (billed yearly)
+                  </p>
                 </div>
               </CardHeader>
 
@@ -105,7 +72,7 @@ const TierSelection = ({ onSelect, selectedTier, selectedBillingCycle = 'yearly'
                 <Button
                   className="w-full"
                   variant={isSelected ? 'default' : 'outline'}
-                  onClick={() => onSelect(tierKey, billingCycle)}
+                  onClick={() => onSelect(tierKey)}
                 >
                   {isSelected ? 'Selected' : `Choose ${config.name}`}
                 </Button>

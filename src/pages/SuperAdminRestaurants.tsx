@@ -45,7 +45,7 @@ const getRestaurantSubscriptionPayload = (status: RestaurantFormStatus, plan: st
       subscription_status: "active",
       plan,
       tier: plan,
-      billing_cycle: "monthly",
+      billing_cycle: "yearly",
       trial_ends_at: endDate,
       trial_end_date: endDate,
       subscription_start_date: startDate,
@@ -358,8 +358,8 @@ const SuperAdminRestaurants = () => {
                 <Select value={formPlan} onValueChange={setFormPlan}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="medium_smart">⚡ মিডিয়াম স্মার্ট — ৳৯৯৯/মাস</SelectItem>
-                    <SelectItem value="high_smart">👑 হাই স্মার্ট — ৳১,৯৯৯/মাস</SelectItem>
+                    <SelectItem value="medium_smart">⚡ মিডিয়াম স্মার্ট — ৳৯৫৯০/বছর</SelectItem>
+                    <SelectItem value="high_smart">👑 হাই স্মার্ট — ৳১৯,১৯০/বছর</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

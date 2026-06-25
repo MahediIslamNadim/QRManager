@@ -23,7 +23,6 @@ interface RequestBody {
 }
 
 const VALID_PLANS = ["medium_smart", "high_smart"] as const;
-const VALID_BILLING_CYCLES = ["monthly", "yearly"] as const;
 
 const VALID_ACTIONS: Action[] = ["approve", "reject", "update", "reopen", "delete"];
 
@@ -31,16 +30,9 @@ function getSafePlan(plan?: string | null): string {
   return VALID_PLANS.includes(plan as typeof VALID_PLANS[number]) ? (plan as string) : "medium_smart";
 }
 
-function getSafeBillingCycle(billingCycle?: string | null): "monthly" | "yearly" {
-  return VALID_BILLING_CYCLES.includes(billingCycle as typeof VALID_BILLING_CYCLES[number])
-    ? (billingCycle as "monthly" | "yearly")
-    : "monthly";
-}
-
-function getExpiryDate(billingCycle?: string | null): string {
+function getExpiryDate(): string {
   const d = new Date();
-  if (getSafeBillingCycle(billingCycle) === "yearly") d.setFullYear(d.getFullYear() + 1);
-  else d.setMonth(d.getMonth() + 1);
+  d.setFullYear(d.getFullYear() + 1);
   return d.toISOString();
 }
 
@@ -131,9 +123,8 @@ async function syncRestaurantSubscription(
   }
 
   const tier = getSafePlan(payment.plan);
-  const billingCycle = getSafeBillingCycle(payment.billing_cycle);
   const startDate = now;
-  const endDate = getExpiryDate(billingCycle);
+  const endDate = getExpiryDate();
 
   const { error: deactivateError } = await admin
     .from("subscriptions")
@@ -155,7 +146,7 @@ async function syncRestaurantSubscription(
 
     const subscriptionPayload = {
       tier,
-      billing_cycle: billingCycle,
+      billing_cycle: "yearly",
       amount: Number(payment.amount ?? 0),
       payment_method: payment.payment_method ?? null,
       transaction_id: payment.transaction_id,
@@ -192,7 +183,7 @@ async function syncRestaurantSubscription(
       subscription_status: "active",
       plan: tier,
       tier,
-      billing_cycle: billingCycle,
+      billing_cycle: "yearly",
       trial_ends_at: endDate,
       trial_end_date: endDate,
       subscription_start_date: startDate,
@@ -280,20 +271,19 @@ Deno.serve(async (req) => {
     // ── APPROVE ─────────────────────────────────────────────────────────────
     if (action === "approve") {
       const plan = getSafePlan(body.plan ?? payment.plan);
-      const billingCycle = getSafeBillingCycle(body.billing_cycle ?? payment.billing_cycle);
       const amount = typeof body.amount === "number" && Number.isFinite(body.amount) ? body.amount : payment.amount;
       const tier = plan;
 
       const { error: payErr } = await admin
         .from("payment_requests")
-        .update({ status: "approved", plan, billing_cycle: billingCycle, amount, admin_notes: body.admin_notes ?? null, updated_at: now })
+        .update({ status: "approved", plan, billing_cycle: "yearly", amount, admin_notes: body.admin_notes ?? null, updated_at: now })
         .eq("id", payment_id);
       if (payErr) return json({ error: "Internal server error" }, 500);
 
       await syncRestaurantSubscription(admin, payment.restaurant_id, {
         ...payment,
         plan,
-        billing_cycle: billingCycle,
+        billing_cycle: "yearly",
         amount,
         admin_notes: body.admin_notes ?? null,
       });
@@ -336,7 +326,6 @@ Deno.serve(async (req) => {
     if (action === "update") {
       const newStatus = body.status ?? payment.status;
       const newPlan = getSafePlan(body.plan ?? payment.plan);
-      const newBillingCycle = getSafeBillingCycle(body.billing_cycle ?? payment.billing_cycle);
 
       if (!["pending", "approved", "rejected"].includes(newStatus as string)) {
         return json({ error: "Invalid status value" }, 400);
@@ -344,7 +333,7 @@ Deno.serve(async (req) => {
 
       const paymentUpdatePayload: Record<string, unknown> = {
         plan: newPlan,
-        billing_cycle: newBillingCycle,
+        billing_cycle: "yearly",
         status: newStatus,
         admin_notes: body.admin_notes ?? null,
         updated_at: now,
@@ -363,7 +352,7 @@ Deno.serve(async (req) => {
         await syncRestaurantSubscription(admin, payment.restaurant_id, {
           ...payment,
           plan: newPlan,
-          billing_cycle: newBillingCycle,
+          billing_cycle: "yearly",
           amount: typeof body.amount === "number" ? body.amount : payment.amount,
           admin_notes: body.admin_notes ?? null,
         });

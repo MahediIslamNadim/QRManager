@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/hooks/useAuth';
-import { TIERS, formatPrice, TierName, BillingCycle } from '@/constants/tiers';
+import { TIERS, formatPrice, TierName } from '@/constants/tiers';
 import { CreditCard, Lock, ArrowLeft, Check } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -18,7 +18,6 @@ export default function PaymentPage() {
   const { restaurantId } = useAuth();
 
   const tier = (searchParams.get('tier') || 'medium_smart') as TierName;
-  const billingCycle = (searchParams.get('billing') || 'yearly') as BillingCycle;
 
   const [processing, setProcessing] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'bkash' | 'nagad' | 'card'>('bkash');
@@ -31,7 +30,7 @@ export default function PaymentPage() {
   const [phoneNumber, setPhoneNumber] = useState('');
 
   const tierConfig = TIERS[tier];
-  const amount = billingCycle === 'monthly' ? tierConfig.price_monthly : tierConfig.price_yearly;
+  const amount = tierConfig.price_yearly;
 
   const handlePayment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,21 +51,15 @@ export default function PaymentPage() {
       // For now, simulate payment processing
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // Calculate subscription dates
       const startDate = new Date();
       const endDate = new Date();
-      if (billingCycle === 'monthly') {
-        endDate.setMonth(endDate.getMonth() + 1);
-      } else {
-        endDate.setFullYear(endDate.getFullYear() + 1);
-      }
+      endDate.setFullYear(endDate.getFullYear() + 1);
 
-      // Update restaurant subscription
       const { error: updateError } = await supabase
         .from('restaurants')
         .update({
           tier,
-          billing_cycle: billingCycle,
+          billing_cycle: 'yearly',
           subscription_status: 'active',
           subscription_start_date: startDate.toISOString(),
           subscription_end_date: endDate.toISOString(),
@@ -76,20 +69,19 @@ export default function PaymentPage() {
 
       if (updateError) throw updateError;
 
-      // Create subscription record
       const { error: subscriptionError } = await supabase
         .from('subscriptions')
         .insert({
           restaurant_id: restaurantId,
           tier,
-          billing_cycle: billingCycle,
+          billing_cycle: 'yearly',
           amount,
           start_date: startDate.toISOString(),
           end_date: endDate.toISOString(),
           status: 'active',
           payment_method: paymentMethod,
           transaction_id: `TXN-${Date.now()}`, // Placeholder
-          notes: `Activated ${tierConfig.name} - ${billingCycle}`
+          notes: `Activated ${tierConfig.name} - yearly`
         });
 
       if (subscriptionError) throw subscriptionError;
@@ -302,7 +294,7 @@ export default function PaymentPage() {
 
                 <div>
                   <div className="text-sm text-muted-foreground mb-1">Billing Cycle</div>
-                  <div className="font-semibold capitalize">{billingCycle}</div>
+                  <div className="font-semibold">Yearly</div>
                 </div>
 
                 <div className="border-t pt-4">
@@ -310,14 +302,10 @@ export default function PaymentPage() {
                     <span className="text-sm">Subtotal</span>
                     <span className="font-semibold">{formatPrice(amount)}</span>
                   </div>
-                  {billingCycle === 'yearly' && (
-                    <div className="flex justify-between items-center text-success text-sm mb-2">
-                      <span>Annual Savings (20%)</span>
-                      <span className="font-semibold">
-                        -{formatPrice(tierConfig.price_monthly * 12 - tierConfig.price_yearly)}
-                      </span>
-                    </div>
-                  )}
+                  <div className="flex justify-between items-center text-success text-sm mb-2">
+                    <span>Annual Savings</span>
+                    <span className="font-semibold">Best value</span>
+                  </div>
                   <div className="flex justify-between items-center pt-2 border-t">
                     <span className="font-bold">Total</span>
                     <span className="font-bold text-xl">{formatPrice(amount)}</span>

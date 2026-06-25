@@ -31,7 +31,6 @@ interface PaymentRequest {
 }
 
 type PaymentPlan = "medium_smart" | "high_smart";
-type BillingCycle = "monthly" | "yearly";
 
 const invokePayment = async (body: Record<string, unknown>) => {
   const { data, error } = await supabase.functions.invoke("process-payment", { body });
@@ -58,7 +57,7 @@ const SuperAdminPayments = () => {
   const [selectedPayment, setSelectedPayment] = useState<PaymentRequest | null>(null);
   const [adminNotes, setAdminNotes] = useState("");
   const [editPlan, setEditPlan] = useState<PaymentPlan>("medium_smart");
-  const [editBillingCycle, setEditBillingCycle] = useState<BillingCycle>("monthly");
+
   const [editAmount, setEditAmount] = useState(0);
   const [editStatus, setEditStatus] = useState<"pending" | "approved" | "rejected">("pending");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -156,14 +155,14 @@ const SuperAdminPayments = () => {
     setSelectedPayment(null);
     setAdminNotes("");
     setEditPlan("medium_smart");
-    setEditBillingCycle("monthly");
+
     setEditAmount(0);
     setEditStatus("pending");
   };
 
   const approveMutation = useMutation({
-    mutationFn: ({ paymentId, plan, billingCycle, amount }: { paymentId: string; plan: string; billingCycle?: string; amount: number }) =>
-      invokePayment({ action: "approve", payment_id: paymentId, plan, billing_cycle: billingCycle, amount, admin_notes: adminNotes || null }),
+    mutationFn: ({ paymentId, plan, amount }: { paymentId: string; plan: string; amount: number }) =>
+      invokePayment({ action: "approve", payment_id: paymentId, plan, billing_cycle: 'yearly', amount, admin_notes: adminNotes || null }),
     onSuccess: () => { toast.success("✅ পেমেন্ট অনুমোদিত! রেস্টুরেন্ট সক্রিয় করা হয়েছে।"); closeDialog(); invalidate(); },
     onError: (err: any) => toast.error(err.message),
   });
@@ -182,7 +181,7 @@ const SuperAdminPayments = () => {
         action: "update",
         payment_id: selectedPayment.id,
         plan: editPlan,
-        billing_cycle: editBillingCycle,
+        billing_cycle: 'yearly',
         amount: editAmount,
         status: editStatus,
         admin_notes: adminNotes || null,
@@ -208,13 +207,13 @@ const SuperAdminPayments = () => {
     setSelectedPayment(p);
     setAdminNotes(p.admin_notes || "");
     setEditPlan(p.plan === "high_smart" ? "high_smart" : "medium_smart");
-    setEditBillingCycle(p.billing_cycle === "yearly" ? "yearly" : "monthly");
+
     setEditAmount(Number(p.amount) || 0);
     setEditStatus((p.status as "pending" | "approved" | "rejected") || "pending");
     setDialogOpen(true);
   };
 
-  const getBillingLabel = (cycle?: string) => cycle === "yearly" ? "বার্ষিক" : "মাসিক";
+  const getBillingLabel = () => "বার্ষিক";
 
   const statusFilterLabels: Record<StatusFilter, string> = {
     all: "সব",
@@ -277,7 +276,7 @@ const SuperAdminPayments = () => {
                     {sslTxns.map((t: any) => (
                       <tr key={t.id} className="hover:bg-muted/20">
                         <td className="px-3 py-2 font-medium">{t.restaurant_name}</td>
-                        <td className="px-3 py-2">{t.plan} / {t.billing_cycle === "yearly" ? "বার্ষিক" : "মাসিক"}</td>
+                        <td className="px-3 py-2">{t.plan} / বার্ষিক</td>
                         <td className="px-3 py-2">৳{Number(t.amount).toLocaleString()}</td>
                         <td className="px-3 py-2">
                           <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${sslStatusColors[t.status] ?? "bg-muted text-muted-foreground"}`}>
@@ -385,7 +384,7 @@ const SuperAdminPayments = () => {
                       </td>
                       <td className="p-4">
                         <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary capitalize">{p.plan}</span>
-                        <span className="text-xs text-muted-foreground ml-1">{getBillingLabel(p.billing_cycle)}</span>
+                        <span className="text-xs text-muted-foreground ml-1">বার্ষিক</span>
                       </td>
                       <td className="p-4 text-muted-foreground text-sm capitalize hidden sm:table-cell">{p.payment_method}</td>
                       <td className="p-4 font-mono text-sm text-foreground hidden md:table-cell">{p.transaction_id}</td>
@@ -499,7 +498,7 @@ const SuperAdminPayments = () => {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">বিলিং</span>
-                  <span className="text-foreground">{getBillingLabel(selectedPayment.billing_cycle)}</span>
+                  <span className="text-foreground">{getBillingLabel()}</span>
                 </div>
                 {selectedPayment.phone_number && (
                   <div className="flex justify-between">
@@ -524,16 +523,7 @@ const SuperAdminPayments = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">বিলিং</Label>
-                  <Select value={editBillingCycle} onValueChange={v => setEditBillingCycle(v as BillingCycle)}>
-                    <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="monthly">মাসিক</SelectItem>
-                      <SelectItem value="yearly">বার্ষিক</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+
                 <div className="space-y-1.5">
                   <Label className="text-xs text-muted-foreground">টাকা (৳)</Label>
                   <Input type="number" value={editAmount} onChange={e => setEditAmount(Number(e.target.value))} className="h-9 text-sm" />
@@ -564,7 +554,7 @@ const SuperAdminPayments = () => {
                     onClick={() => approveMutation.mutate({
                       paymentId: selectedPayment.id,
                       plan: editPlan || selectedPayment.plan,
-                      billingCycle: editBillingCycle,
+
                       amount: editAmount,
                     })}
                     disabled={approveMutation.isPending}>

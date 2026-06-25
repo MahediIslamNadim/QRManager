@@ -25,11 +25,10 @@ async function validateWithSSL(
 
 async function activateSubscription(
   admin: ReturnType<typeof createClient>,
-  txn: { restaurant_id: string; plan: string; billing_cycle: string },
+  txn: { restaurant_id: string; plan: string },
 ) {
   const d = new Date();
-  if (txn.billing_cycle === "yearly") d.setFullYear(d.getFullYear() + 1);
-  else d.setMonth(d.getMonth() + 1);
+  d.setFullYear(d.getFullYear() + 1);
   const expiryDate = d.toISOString();
   const now = new Date().toISOString();
 
@@ -145,7 +144,7 @@ Deno.serve(async (req) => {
       })
       .eq("tran_id", tran_id)
       .eq("status", "pending")
-      .select("restaurant_id, plan, billing_cycle");
+      .select("restaurant_id, plan");
 
     if (claimError) {
       console.error("ssl-ipn: failed to claim transaction:", claimError.message);

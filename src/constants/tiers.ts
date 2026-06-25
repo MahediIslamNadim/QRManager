@@ -2,19 +2,17 @@
 // Created: April 8, 2026
 
 export type TierType = 'medium_smart' | 'high_smart';
-export type BillingCycle = 'monthly' | 'yearly';
 
 export interface TierConfig {
   name: string;
-  name_bn: string; // Bangla name
+  name_bn: string;
   description: string;
   description_bn: string;
-  price_monthly: number;
   price_yearly: number;
-  maxTables: number; // -1 means unlimited
-  maxStaff: number;  // -1 means unlimited
+  maxTables: number;
+  maxStaff: number;
   features: string[];
-  color: string; // For UI badges
+  color: string;
 }
 
 export const TIERS: Record<TierType, TierConfig> = {
@@ -23,8 +21,7 @@ export const TIERS: Record<TierType, TierConfig> = {
     name_bn: 'মিডিয়াম স্মার্ট',
     description: 'Complete QR ordering system with analytics and payments',
     description_bn: 'সম্পূর্ণ QR ordering সিস্টেম analytics এবং payments সহ',
-    price_monthly: 999,
-    price_yearly: 9590, // ~20% discount (2 months free)
+    price_yearly: 9590,
     maxTables: 20,
     maxStaff: 5,
     features: [
@@ -37,7 +34,7 @@ export const TIERS: Record<TierType, TierConfig> = {
       'sales_reports',
       'whatsapp_notifications',
       'email_notifications',
-      'online_payments', // bKash, Nagad
+      'online_payments',
       'cash_tracking',
       'basic_inventory',
       'customer_feedback',
@@ -51,12 +48,11 @@ export const TIERS: Record<TierType, TierConfig> = {
     name_bn: 'হাই স্মার্ট',
     description: 'Premium features with unlimited tables, staff, and AI',
     description_bn: 'প্রিমিয়াম features unlimited tables, staff এবং AI সহ',
-    price_monthly: 1999,
-    price_yearly: 19190, // ~20% discount (2 months free)
-    maxTables: -1, // unlimited
-    maxStaff: -1,  // unlimited
+    price_yearly: 19190,
+    maxTables: -1,
+    maxStaff: -1,
     features: [
-      'all_medium_features', // Includes all Medium Smart features
+      'all_medium_features',
       'unlimited_tables',
       'unlimited_staff',
       'ai_recommendations',
@@ -116,27 +112,24 @@ export const getTierConfig = (tier: TierType): TierConfig => {
   return TIERS[tier];
 };
 
-export const getTierPrice = (tier: TierType, cycle: BillingCycle): number => {
-  const config = TIERS[tier];
-  return cycle === 'monthly' ? config.price_monthly : config.price_yearly;
+export const getTierPrice = (tier: TierType): number => {
+  return TIERS[tier].price_yearly;
 };
 
-export const getMonthlyEquivalent = (tier: TierType, cycle: BillingCycle): number => {
-  const config = TIERS[tier];
-  if (cycle === 'monthly') return config.price_monthly;
-  return Math.round(config.price_yearly / 12);
+export const getMonthlyEquivalent = (tier: TierType): number => {
+  return Math.round(TIERS[tier].price_yearly / 12);
 };
 
 export const getSavings = (tier: TierType): number => {
   const config = TIERS[tier];
-  const monthlyTotal = config.price_monthly * 12;
-  return monthlyTotal - config.price_yearly;
+  const monthlyEquivalent = Math.round(config.price_yearly / 12);
+  return monthlyEquivalent * 12 - config.price_yearly;
 };
 
 export const getSavingsPercentage = (tier: TierType): number => {
   const config = TIERS[tier];
-  const monthlyTotal = config.price_monthly * 12;
-  return Math.round(((monthlyTotal - config.price_yearly) / monthlyTotal) * 100);
+  const monthlyEquivalent = Math.round(config.price_yearly / 12);
+  return Math.round(((monthlyEquivalent * 12 - config.price_yearly) / (monthlyEquivalent * 12)) * 100);
 };
 
 export const canAddTable = (currentCount: number, tier: TierType): boolean => {
@@ -154,7 +147,6 @@ export const canAddStaff = (currentCount: number, tier: TierType): boolean => {
 export const hasFeature = (tier: TierType, feature: string): boolean => {
   const config = TIERS[tier];
   
-  // High Smart has all Medium Smart features
   if (tier === 'high_smart' && TIERS.medium_smart.features.includes(feature)) {
     return true;
   }
@@ -162,14 +154,12 @@ export const hasFeature = (tier: TierType, feature: string): boolean => {
   return config.features.includes(feature);
 };
 
-// Trial configuration
 export const TRIAL_CONFIG = {
-  duration_days: 30, // Sylhet special: 30 days
-  tier: 'medium_smart' as TierType, // Trial gives Medium Smart features
+  duration_days: 30,
+  tier: 'medium_smart' as TierType,
   features_included: TIERS.medium_smart.features
 };
 
-// Type aliases and additional types
 export type TierName = TierType;
 export type SubscriptionStatus = 'trial' | 'active' | 'expired' | 'cancelled';
 
@@ -178,13 +168,12 @@ export const formatPrice = (amount: number): string => {
   return `৳${amount.toLocaleString('en-BD')}`;
 };
 
-export const getPricingDisplay = (tier: TierType, cycle: BillingCycle) => {
+export const getPricingDisplay = (tier: TierType) => {
   const config = TIERS[tier];
-  const price = cycle === 'monthly' ? config.price_monthly : config.price_yearly;
   return {
-    price,
-    formatted: formatPrice(price),
-    monthly_equivalent: cycle === 'yearly' ? Math.round(config.price_yearly / 12) : config.price_monthly
+    price: config.price_yearly,
+    formatted: formatPrice(config.price_yearly),
+    monthly_equivalent: Math.round(config.price_yearly / 12)
   };
 };
 
@@ -199,11 +188,9 @@ export const isTrialExpired = (trialEndDate: Date): boolean => {
   return new Date() > trialEndDate;
 };
 
-// Launch offer (first 50 customers)
 export const LAUNCH_OFFER = {
   enabled: true,
   max_customers: 50,
-  discount_percentage: 20, // 2 months free
-  medium_yearly_price: 9590,  // Original: 999 * 12 = 11988
-  high_yearly_price: 19190    // Original: 1999 * 12 = 23988
+  medium_yearly_price: 9590,
+  high_yearly_price: 19190
 };

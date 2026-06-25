@@ -526,8 +526,8 @@ const Login = () => {
                         <label style={{ ...labelStyle, marginBottom: 10 }}>প্যাকেজ বেছে নিন <span style={{ color: "#86efac", fontWeight: 700, textTransform: "none", letterSpacing: 0 }}>— {FREE_TRIAL_DAYS} দিন ফ্রি</span></label>
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                           {([
-                            { id: "medium_smart" as const, label: "Medium Smart", price: "৳৯৯৯", period: "/মাস", features: ["QR অর্ডারিং", "রিয়েলটাইম ট্র্যাকিং", "৩টি স্টাফ অ্যাকাউন্ট"] },
-                            { id: "high_smart" as const, label: "High Smart", price: "৳১৯৯৯", period: "/মাস", features: ["সব Medium ফিচার", "AI অ্যানালিটিক্স", "আনলিমিটেড স্টাফ"] },
+                            { id: "medium_smart" as const, label: "Medium Smart", price: "৳৯৫৯০", period: "/বছর", features: ["QR অর্ডারিং", "রিয়েলটাইম ট্র্যাকিং", "৩টি স্টাফ অ্যাকাউন্ট"] },
+                            { id: "high_smart" as const, label: "High Smart", price: "৳১৯১৯০", period: "/বছর", features: ["সব Medium ফিচার", "AI অ্যানালিটিক্স", "আনলিমিটেড স্টাফ"] },
                           ]).map(plan => {
                             const active = selectedPlan === plan.id;
                             return (

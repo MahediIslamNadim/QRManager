@@ -33,7 +33,7 @@ export default function Index() {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const [billingCycle, setBillingCycle] = useState<"monthly"|"yearly">("monthly");
+
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -63,7 +63,6 @@ export default function Index() {
       icon: "⚡",
       name: TIERS.medium_smart.name_bn,
       desc: "মাঝারি রেস্টুরেন্টের জন্য সেরা চয়েস",
-      price_monthly: TIERS.medium_smart.price_monthly,
       price_yearly: TIERS.medium_smart.price_yearly,
       hot: true,
       color: "#3b82f6",
@@ -74,7 +73,6 @@ export default function Index() {
       icon: "👑",
       name: TIERS.high_smart.name_bn,
       desc: "বড় রেস্টুরেন্টের জন্য",
-      price_monthly: TIERS.high_smart.price_monthly,
       price_yearly: TIERS.high_smart.price_yearly,
       hot: false,
       color: "#a855f7",
@@ -300,29 +298,15 @@ export default function Index() {
               <h2 style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:"clamp(30px,5vw,60px)", fontWeight:700, color:"#FFFFFF", marginBottom:10 }}>সাশ্রয়ী <span style={goldText}>প্রাইসিং</span></h2>
               <p style={{ fontSize:"clamp(13px,3vw,16px)", color:"rgba(255,255,255,0.65)", fontFamily:"'DM Sans', sans-serif", marginBottom:28 }}>আপনার রেস্টুরেন্টের আকার অনুযায়ী প্ল্যান বেছে নিন</p>
 
-              {/* Billing cycle toggle */}
-              <div style={{ display:"inline-flex", alignItems:"center", gap:0, borderRadius:100, border:"1px solid rgba(201,168,76,0.3)", padding:4, background:"rgba(201,168,76,0.05)" }}>
-                {(["monthly","yearly"] as const).map(cycle => (
-                  <button key={cycle} onClick={() => setBillingCycle(cycle)}
-                    style={{ padding:"8px 22px", borderRadius:100, fontSize:13, fontWeight:600, border:"none", cursor:"pointer", transition:"all 0.25s", fontFamily:"'DM Sans', sans-serif",
-                      background: billingCycle === cycle ? gold : "transparent",
-                      color: billingCycle === cycle ? "#0a0a0a" : "rgba(255,255,255,0.6)",
-                    }}>
-                    {cycle === "monthly" ? "মাসিক" : (
-                      <span style={{ display:"flex", alignItems:"center", gap:6 }}>
-                        বার্ষিক
-                        <span style={{ fontSize:10, fontWeight:700, padding:"2px 7px", borderRadius:20, background:"rgba(34,197,94,0.2)", color:"#4ade80" }}>২০% ছাড়</span>
-                      </span>
-                    )}
-                  </button>
-                ))}
+              <div style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"8px 22px", borderRadius:100, border:"1px solid rgba(201,168,76,0.3)", background:"rgba(201,168,76,0.05)", fontSize:13, fontWeight:600, color:"rgba(255,255,255,0.8)", fontFamily:"'DM Sans', sans-serif" }}>
+                বার্ষিক বিলিং <span style={{ fontSize:10, fontWeight:700, padding:"2px 7px", borderRadius:20, background:"rgba(34,197,94,0.2)", color:"#4ade80", marginLeft:6 }}>সাশ্রয়ী মূল্য</span>
               </div>
             </div>
           </Reveal>
 
           <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2,1fr)", gap:20, maxWidth:800, margin:"0 auto" }}>
             {plans.map((p, i) => {
-              const price = billingCycle === "monthly" ? p.price_monthly : p.price_yearly;
+              const price = p.price_yearly;
               return (
                 <Reveal key={p.key} delay={i * 0.12}>
                   <div style={{ borderRadius:20, padding:"clamp(28px,5vw,40px) clamp(20px,4vw,32px)", backgroundColor: p.hot ? "#141414" : "#111111", border: p.hot ? "1px solid rgba(201,168,76,0.5)" : "1px solid rgba(201,168,76,0.15)", boxShadow: p.hot ? "0 0 60px rgba(201,168,76,0.1), inset 0 1px 0 rgba(201,168,76,0.2)" : "none", position:"relative", display:"flex", flexDirection:"column", transition:"all 0.3s" }}
@@ -337,14 +321,12 @@ export default function Index() {
                     <div style={{ marginBottom:8, display:"flex", alignItems:"baseline", gap:4 }}>
                       <span style={{ fontSize:17, color:"rgba(201,168,76,0.8)", fontFamily:"'DM Sans', sans-serif", fontWeight:600 }}>৳</span>
                       <span style={{ fontSize:"clamp(40px,8vw,56px)", fontWeight:700, fontFamily:"'Cormorant Garamond', serif", lineHeight:1, ...(p.hot ? goldText : { color:"#FFFFFF" }) }}>{price.toLocaleString("bn-BD")}</span>
-                      <span style={{ fontSize:14, color:"rgba(255,255,255,0.5)", fontFamily:"'DM Sans', sans-serif" }}>/{billingCycle === "monthly" ? "মাস" : "বছর"}</span>
+                      <span style={{ fontSize:14, color:"rgba(255,255,255,0.5)", fontFamily:"'DM Sans', sans-serif" }}>/বছর</span>
                     </div>
-                    {billingCycle === "yearly" && (
-                      <div style={{ fontSize:12, color:"#4ade80", fontFamily:"'DM Sans', sans-serif", marginBottom:20 }}>
-                        ৳{(p.price_monthly * 12 - p.price_yearly).toLocaleString("bn-BD")} সাশ্রয় হচ্ছে বার্ষিকে
-                      </div>
-                    )}
-                    <div style={{ borderTop:"1px solid rgba(201,168,76,0.15)", paddingTop:24, marginBottom:24, flex:1, marginTop: billingCycle === "yearly" ? 0 : 16 }}>
+                    <div style={{ fontSize:12, color:"#4ade80", fontFamily:"'DM Sans', sans-serif", marginBottom:20 }}>
+                      বার্ষিকে সাশ্রয় করছেন!
+                    </div>
+                    <div style={{ borderTop:"1px solid rgba(201,168,76,0.15)", paddingTop:24, marginBottom:24, flex:1 }}>
                       {p.features.map((f, fi) => (
                         <div key={fi} style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
                           <span style={{ ...goldText, fontSize:12, fontWeight:800, flexShrink:0 }}>✦</span>

@@ -138,8 +138,8 @@ export const trialExpiringEmail = (
 
   <div class="info-box">
     <strong>${TIERS[tier].name}</strong><br>
-    From ${formatPrice(TIERS[tier].price_monthly)}/month<br>
-    <small>Save 20% with annual billing</small>
+    From ${formatPrice(TIERS[tier].price_yearly)}/year<br>
+    <small>Best value annual billing</small>
   </div>
 
   <a href="https://qrmanager.com/upgrade" class="button">Upgrade Now →</a>
@@ -199,7 +199,7 @@ export const subscriptionActivatedEmail = (
     </tr>
     <tr>
       <td style="padding: 8px 0;"><strong>Billing:</strong></td>
-      <td style="text-align: right;">${billingCycle === 'monthly' ? 'Monthly' : 'Yearly'}</td>
+      <td style="text-align: right;">Yearly</td>
     </tr>
     <tr>
       <td style="padding: 8px 0;"><strong>Amount:</strong></td>

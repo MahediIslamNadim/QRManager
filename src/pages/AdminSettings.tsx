@@ -85,7 +85,7 @@ const BrandingGate = ({ restaurantId, children }: { restaurantId: string | undef
             High Smart Package কিনুন
           </a>
           <p className="text-xs text-muted-foreground">
-            মাত্র ৳১৯৯৯/মাস — সব প্রিমিয়াম ফিচার আনলক হবে
+            মাত্র ৳১৯১৯০/বছর — সব প্রিমিয়াম ফিচার আনলক হবে
           </p>
         </div>
       </div>
@@ -94,7 +94,7 @@ const BrandingGate = ({ restaurantId, children }: { restaurantId: string | undef
 };
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { TIERS, formatPrice, type TierName, type BillingCycle } from "@/constants/tiers";
+import { TIERS, formatPrice, type TierName } from "@/constants/tiers";
 
 if (!import.meta.env.VITE_BKASH_NUMBER) {
   console.warn("VITE_BKASH_NUMBER env var is not set — payments will fail");
@@ -105,7 +105,6 @@ const plans = [
   {
     id: 'medium_smart' as TierName,
     name: TIERS.medium_smart.name_bn,
-    monthlyPrice: TIERS.medium_smart.price_monthly,
     yearlyPrice: TIERS.medium_smart.price_yearly,
     popular: true,
     maxTables: TIERS.medium_smart.maxTables,
@@ -130,7 +129,6 @@ const plans = [
   {
     id: 'high_smart' as TierName,
     name: TIERS.high_smart.name_bn,
-    monthlyPrice: TIERS.high_smart.price_monthly,
     yearlyPrice: TIERS.high_smart.price_yearly,
     popular: false,
     maxTables: -1,
@@ -184,7 +182,6 @@ const AdminSettings = () => {
 
   const [payDialog, setPayDialog] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState("");
-  const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
   const [transactionId, setTransactionId] = useState("");
   const [payPhone, setPayPhone] = useState("");
   const [paySubmitting, setPaySubmitting] = useState(false);
@@ -360,13 +357,13 @@ const AdminSettings = () => {
     if (!user || !restaurantId || !transactionId.trim()) return;
     setPaySubmitting(true);
     const plan = plans.find(p => p.id === selectedPlan);
-    const amount = billingCycle === "monthly" ? plan?.monthlyPrice : plan?.yearlyPrice;
+    const amount = plan?.yearlyPrice;
     try {
       const { error } = await supabase.from("payment_requests").insert({
         user_id: user.id,
         restaurant_id: restaurantId,
         plan: selectedPlan,
-        billing_cycle: billingCycle,
+        billing_cycle: "yearly",
         amount: amount || 0,
         payment_method: "bkash",
         transaction_id: transactionId.trim(),
@@ -387,7 +384,7 @@ const AdminSettings = () => {
   };
 
   const selectedPlanData = plans.find(p => p.id === selectedPlan);
-  const selectedAmount = billingCycle === "monthly" ? selectedPlanData?.monthlyPrice : selectedPlanData?.yearlyPrice;
+  const selectedAmount = selectedPlanData?.yearlyPrice;
 
   return (
     <DashboardLayout role="admin" title="সেটিংস">
@@ -455,22 +452,10 @@ const AdminSettings = () => {
           {/* ── Plan Tab ── */}
           <TabsContent value="plan">
             <div className="space-y-6">
-              {/* Billing toggle */}
-              <div className="flex items-center justify-center gap-3">
-                <button onClick={() => setBillingCycle("monthly")}
-                  className={`px-5 py-2 rounded-xl text-sm font-semibold transition-all ${billingCycle === "monthly" ? "bg-primary text-primary-foreground shadow-md" : "bg-secondary text-muted-foreground"}`}>
-                  মাসিক
-                </button>
-                <button onClick={() => setBillingCycle("yearly")}
-                  className={`px-5 py-2 rounded-xl text-sm font-semibold transition-all ${billingCycle === "yearly" ? "bg-primary text-primary-foreground shadow-md" : "bg-secondary text-muted-foreground"}`}>
-                  বার্ষিক <span className="text-xs ml-1 opacity-80">(১৭% সেভ)</span>
-                </button>
-              </div>
-
               {/* Plan cards */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
                 {plans.map((plan) => {
-                  const price = billingCycle === "monthly" ? plan.monthlyPrice : plan.yearlyPrice;
+                  const price = plan.yearlyPrice;
                   const isCurrentPlan = currentPlan === plan.id;
                   return (
                     <Card key={plan.id} className={`relative overflow-hidden transition-all duration-300 hover:shadow-lg ${plan.popular ? "border-primary/50 shadow-primary/10 shadow-lg" : ""} ${isCurrentPlan ? "ring-2 ring-primary" : ""}`}>
@@ -487,7 +472,7 @@ const AdminSettings = () => {
                         <h3 className="font-display font-bold text-lg text-foreground mb-1 mt-4">{plan.name}</h3>
                         <div className="mb-4">
                           <span className="text-3xl font-display font-bold text-foreground">৳{price}</span>
-                          <span className="text-sm text-muted-foreground">/{billingCycle === "monthly" ? "মাস" : "বছর"}</span>
+                          <span className="text-sm text-muted-foreground">/বছর</span>
                         </div>
                         <ul className="text-sm text-muted-foreground space-y-2 mb-6 text-left">
                           {plan.features.map((f, i) => (
@@ -851,7 +836,7 @@ const AdminSettings = () => {
             <div className="bg-secondary/50 rounded-xl p-4 text-center">
               <p className="text-xs text-muted-foreground mb-1">নির্বাচিত প্ল্যান</p>
               <p className="font-display font-bold text-lg text-foreground capitalize">
-                {selectedPlanData?.name} — {billingCycle === "monthly" ? "মাসিক" : "বার্ষিক"}
+                {selectedPlanData?.name} — বার্ষিক
               </p>
               <p className="text-3xl font-bold text-pink-500 mt-1">৳{selectedAmount}</p>
             </div>

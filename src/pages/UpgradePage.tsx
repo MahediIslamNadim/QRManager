@@ -12,7 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Check, Zap, Crown, ArrowRight, Clock, Shield, CheckCircle2, Copy, Loader2 } from 'lucide-react';
-import { TIERS, TierName, BillingCycle, formatPrice } from '@/constants/tiers';
+import { TIERS, TierName, formatPrice } from '@/constants/tiers';
 import TierSelection from '@/components/TierSelection';
 
 const BKASH_NUMBER = import.meta.env.VITE_BKASH_NUMBER ?? "";
@@ -26,7 +26,6 @@ const UpgradePage = () => {
   const tierSelectionRef = useRef<HTMLDivElement | null>(null);
 
   const [selectedTier, setSelectedTier] = useState<TierName>('medium_smart');
-  const [selectedBillingCycle, setSelectedBillingCycle] = useState<BillingCycle>('yearly');
 
   useEffect(() => {
     const tierParam = searchParams.get('tier');
@@ -90,9 +89,7 @@ const UpgradePage = () => {
       if (!transactionId.trim()) throw new Error('Transaction ID দিন');
 
       const tierConfig = TIERS[selectedTier];
-      const amount = selectedBillingCycle === 'monthly'
-        ? tierConfig.price_monthly
-        : tierConfig.price_yearly;
+      const amount = tierConfig.price_yearly;
 
       if (!isRestaurantOwner) throw new Error('Only the restaurant owner can submit a plan upgrade request.');
       if (pendingPaymentRequest) throw new Error('A payment request is already pending for this restaurant.');
@@ -118,7 +115,7 @@ const UpgradePage = () => {
         user_id: user.id,
         restaurant_id: restaurantId,
         plan: selectedTier,
-        billing_cycle: selectedBillingCycle,
+        billing_cycle: "yearly",
         amount,
         payment_method: paymentMethod,
         transaction_id: normalizedTransactionId,
@@ -137,9 +134,8 @@ const UpgradePage = () => {
     onError: (err: any) => toast.error(err.message || 'Submit ব্যর্থ হয়েছে'),
   });
 
-  const handleTierSelect = (tier: TierName, billingCycle: BillingCycle) => {
+  const handleTierSelect = (tier: TierName) => {
     setSelectedTier(tier);
-    setSelectedBillingCycle(billingCycle);
     setShowPaymentForm(true);
     setPaySuccess(false);
   };
@@ -189,7 +185,7 @@ const UpgradePage = () => {
                     </h3>
                     <p className="text-sm text-muted-foreground">
                       {subscriptionStatus === 'trial' && `${daysRemaining} days remaining`}
-                      {subscriptionStatus === 'active' && `${restaurant.billing_cycle === 'monthly' ? 'Monthly' : 'Yearly'} subscription`}
+                      {subscriptionStatus === 'active' && 'Yearly subscription'}
                       {subscriptionStatus === 'expired' && 'Please upgrade to continue'}
                     </p>
                   </div>
@@ -232,27 +228,16 @@ const UpgradePage = () => {
                   <div>
                     <h3 className="font-bold text-xl">{TIERS[selectedTier].name}</h3>
                     <p className="text-sm text-muted-foreground">
-                      {selectedBillingCycle === 'monthly' ? 'মাসিক বিলিং' : 'বার্ষিক বিলিং (২০% ছাড়)'}
+                      বার্ষিক বিলিং
                     </p>
                   </div>
                   <div className="text-right">
                     <div className="text-3xl font-bold">
-                      {formatPrice(
-                        selectedBillingCycle === 'monthly'
-                          ? TIERS[selectedTier].price_monthly
-                          : TIERS[selectedTier].price_yearly
-                      )}
+                      {formatPrice(TIERS[selectedTier].price_yearly)}
                     </div>
-                    <p className="text-sm text-muted-foreground">
-                      {selectedBillingCycle === 'monthly' ? '/মাস' : '/বছর'}
-                    </p>
+                    <p className="text-sm text-muted-foreground">/বছর</p>
                   </div>
                 </div>
-                {selectedBillingCycle === 'yearly' && (
-                  <div className="bg-success/10 border border-success/30 rounded-lg p-3 text-sm text-success">
-                    আপনি বছরে {formatPrice(TIERS[selectedTier].price_monthly * 12 - TIERS[selectedTier].price_yearly)} সাশ্রয় করছেন! (২ মাস বিনামূল্যে)
-                  </div>
-                )}
               </div>
 
               {paySuccess ? (
@@ -342,7 +327,7 @@ const UpgradePage = () => {
                       paymentMethod === 'bkash' ? 'text-pink-700' : 'text-orange-700'
                     }`}>
                       <li>উপরের নম্বরে <strong>Send Money</strong> করুন</li>
-                      <li>Amount: <strong>{formatPrice(selectedBillingCycle === 'monthly' ? TIERS[selectedTier].price_monthly : TIERS[selectedTier].price_yearly)}</strong></li>
+                      <li>Amount: <strong>{formatPrice(TIERS[selectedTier].price_yearly)}</strong></li>
                       <li>Transaction ID নিচে লিখুন এবং সাবমিট করুন</li>
                     </ol>
                   </div>
@@ -394,7 +379,6 @@ const UpgradePage = () => {
             <TierSelection
               onSelect={handleTierSelect}
               selectedTier={selectedTier}
-              selectedBillingCycle={selectedBillingCycle}
             />
           </div>
         )}

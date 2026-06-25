@@ -6,7 +6,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
  * Called from UpgradePage when user clicks "Pay with SSLCommerz".
  * Returns the SSLCommerz gateway URL to redirect the user to.
  *
- * Body: { restaurant_id, plan, billing_cycle }
+ * Body: { restaurant_id, plan }
  * Response: { gateway_url, tran_id }
  */
 
@@ -16,11 +16,10 @@ const corsHeaders = {
 };
 
 const VALID_PLANS = ["medium_smart", "high_smart"] as const;
-const VALID_BILLING = ["monthly", "yearly"] as const;
 
-const PLAN_AMOUNTS: Record<string, Record<string, number>> = {
-  medium_smart: { monthly: 999, yearly: 9590 },
-  high_smart:   { monthly: 1999, yearly: 19190 },
+const PLAN_AMOUNTS: Record<string, number> = {
+  medium_smart: 9590,
+  high_smart:   19190,
 };
 
 Deno.serve(async (req) => {
@@ -47,16 +46,13 @@ Deno.serve(async (req) => {
 
     const admin = createClient(supabaseUrl, serviceKey);
 
-    let body: { restaurant_id?: string; plan?: string; billing_cycle?: string };
+    let body: { restaurant_id?: string; plan?: string };
     try { body = await req.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
 
-    const { restaurant_id, plan, billing_cycle } = body;
+    const { restaurant_id, plan } = body;
     if (!restaurant_id) return json({ error: "restaurant_id required" }, 400);
     if (!plan || !VALID_PLANS.includes(plan as typeof VALID_PLANS[number])) {
       return json({ error: "Invalid plan. Use medium_smart or high_smart" }, 400);
-    }
-    if (!billing_cycle || !VALID_BILLING.includes(billing_cycle as typeof VALID_BILLING[number])) {
-      return json({ error: "Invalid billing_cycle. Use monthly or yearly" }, 400);
     }
 
     // Verify the caller owns this restaurant
@@ -75,7 +71,7 @@ Deno.serve(async (req) => {
       .eq("id", user.id)
       .maybeSingle();
 
-    const amount = PLAN_AMOUNTS[plan][billing_cycle];
+    const amount = PLAN_AMOUNTS[plan];
     const tran_id = `SSL_${restaurant_id.replace(/-/g, "").slice(0, 8)}_${Date.now()}`;
 
     // SSL credentials from env
@@ -100,7 +96,7 @@ Deno.serve(async (req) => {
       fail_url:         `${fnBaseUrl}/ssl-result?status=failed`,
       cancel_url:       `${fnBaseUrl}/ssl-result?status=cancelled`,
       ipn_url:          `${fnBaseUrl}/ssl-ipn`,
-      product_name:     `QR Manager ${plan} (${billing_cycle})`,
+      product_name:     `QR Manager ${plan} (Yearly)`,
       product_category: "SaaS",
       product_profile:  "non-physical-goods",
       shipping_method:  "NO",
@@ -130,7 +126,7 @@ Deno.serve(async (req) => {
       restaurant_id,
       user_id: user.id,
       plan,
-      billing_cycle,
+      billing_cycle: "yearly",
       amount,
       tran_id,
       status: "pending",

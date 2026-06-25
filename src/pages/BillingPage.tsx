@@ -132,7 +132,7 @@ const BillingPage = () => {
                   {TIERS[subscription?.tier as keyof typeof TIERS]?.name_bn || 'Trial'}
                 </p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  {subscription?.billing_cycle === 'monthly' ? 'Billed monthly' : 'Billed annually'}
+                  Billed annually
                 </p>
               </div>
 
@@ -140,14 +140,10 @@ const BillingPage = () => {
                 <div>
                   <p className="text-sm text-muted-foreground mb-1">Amount</p>
                   <p className="text-2xl font-bold">
-                    {formatPrice(
-                      subscription.billing_cycle === 'monthly'
-                        ? TIERS[subscription.tier as keyof typeof TIERS]?.price_monthly || 0
-                        : TIERS[subscription.tier as keyof typeof TIERS]?.price_yearly || 0
-                    )}
+                    {formatPrice(TIERS[subscription.tier as keyof typeof TIERS]?.price_yearly || 0)}
                   </p>
                   <p className="text-sm text-muted-foreground mt-1">
-                    {subscription.billing_cycle === 'monthly' ? 'per month' : 'per year'}
+                    per year
                   </p>
                 </div>
               )}
@@ -170,11 +166,7 @@ const BillingPage = () => {
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Renewal amount:</span>
                   <span className="font-semibold">
-                    {formatPrice(
-                      subscription.billing_cycle === 'monthly'
-                        ? TIERS[subscription.tier as keyof typeof TIERS]?.price_monthly || 0
-                        : TIERS[subscription.tier as keyof typeof TIERS]?.price_yearly || 0
-                    )}
+                    {formatPrice(TIERS[subscription.tier as keyof typeof TIERS]?.price_yearly || 0)}
                   </span>
                 </div>
               </div>
@@ -265,7 +257,7 @@ const BillingPage = () => {
                       <div>
                         <p className="font-medium">
                           {TIERS[invoice.tier as keyof typeof TIERS]?.name_bn} - {' '}
-                          {invoice.billing_cycle === 'monthly' ? 'Monthly' : 'Annual'}
+                          Annual
                         </p>
                         <p className="text-sm text-muted-foreground">
                           {format(new Date(invoice.created_at), 'MMM dd, yyyy')}

@@ -67,12 +67,12 @@ export default function TrialExpiredModal({
               <div className="mb-4">
                 <div className="flex items-baseline gap-2">
                   <span className="text-3xl font-bold">
-                    {formatPrice(tierConfig.price_monthly)}
+                    {formatPrice(tierConfig.price_yearly)}
                   </span>
-                  <span className="text-muted-foreground">/মাস</span>
+                  <span className="text-muted-foreground">/বছর</span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  অথবা {formatPrice(tierConfig.price_yearly)}/বছর (২০% ছাড়)
+                  {formatPrice(Math.round(tierConfig.price_yearly / 12))}/মাস (বার্ষিক বিলিং)
                 </p>
               </div>
 
@@ -120,12 +120,12 @@ export default function TrialExpiredModal({
               <div className="mb-4">
                 <div className="flex items-baseline gap-2">
                   <span className="text-3xl font-bold">
-                    {formatPrice(otherTierConfig.price_monthly)}
+                    {formatPrice(otherTierConfig.price_yearly)}
                   </span>
-                  <span className="text-muted-foreground">/মাস</span>
+                  <span className="text-muted-foreground">/বছর</span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  অথবা {formatPrice(otherTierConfig.price_yearly)}/বছর (২০% ছাড়)
+                  {formatPrice(Math.round(otherTierConfig.price_yearly / 12))}/মাস (বার্ষিক বিলিং)
                 </p>
               </div>
 

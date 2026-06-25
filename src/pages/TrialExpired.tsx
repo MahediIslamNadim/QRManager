@@ -15,7 +15,7 @@ import { PLANS_LIST } from "@/constants/pricing";
 const paidPlans = PLANS_LIST.map(p => ({
   id: p.id,
   name: p.name,
-  price: p.monthlyPrice,
+  price: p.yearlyPrice,
   priceText: p.priceText,
   features: p.features.slice(0, 4),
   popular: 'popular' in p ? (p as any).popular : false,

@@ -234,14 +234,12 @@ export const generateInvoiceHTML = (data: InvoiceData): string => {
         <td>
           <strong>${tierConfig?.name || 'QR Manager Subscription'}</strong><br>
           <span style="font-size: 13px; color: #6b7280;">
-            ${data.billingCycle === 'monthly' ? 'Monthly Subscription' : 'Annual Subscription'}
+            Annual Subscription
           </span>
         </td>
         <td>
           ${format(data.date, 'MMM dd, yyyy')} - ${format(
-            data.billingCycle === 'monthly' 
-              ? new Date(data.date.getTime() + 30 * 24 * 60 * 60 * 1000)
-              : new Date(data.date.getTime() + 365 * 24 * 60 * 60 * 1000),
+            new Date(data.date.getTime() + 365 * 24 * 60 * 60 * 1000),
             'MMM dd, yyyy'
           )}
         </td>
