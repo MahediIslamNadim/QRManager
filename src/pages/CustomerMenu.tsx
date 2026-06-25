@@ -302,6 +302,7 @@ const CustomerMenu = () => {
     }
 
     if (!restaurantId || !tableId || !sessionToken) {
+      setLoading(false);
       return;
     }
 
