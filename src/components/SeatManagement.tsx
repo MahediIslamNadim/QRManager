@@ -12,9 +12,10 @@ interface SeatManagementProps {
   restaurantId: string;
   open: boolean;
   onClose: () => void;
+  shortCode?: string | null;
 }
 
-const SeatManagement = ({ table, restaurantId, open, onClose }: SeatManagementProps) => {
+const SeatManagement = ({ table, restaurantId, open, onClose, shortCode }: SeatManagementProps) => {
   const queryClient = useQueryClient();
   const [showSeatQR, setShowSeatQR] = useState<{ url: string; label: string; sublabel?: string } | null>(null);
   const qrCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -149,15 +150,31 @@ const SeatManagement = ({ table, restaurantId, open, onClose }: SeatManagementPr
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
       const { error } = await supabase.from("table_seats").update({ status }).eq("id", id);
       if (error) throw error;
+      const { data: allSeats } = await supabase
+        .from("table_seats")
+        .select("status")
+        .eq("table_id", table.id);
+      if (allSeats) {
+        const occupiedCount = allSeats.filter(s => s.status === "occupied").length;
+        await supabase.from("restaurant_tables").update({ current_customers: occupiedCount }).eq("id", table.id);
+      }
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["table-seats", table.id] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["table-seats", table.id] });
+      queryClient.invalidateQueries({ queryKey: ["tables"] });
+      queryClient.invalidateQueries({ queryKey: ["all-seats"] });
+    },
   });
 
+  const base = shortCode
+    ? `${window.location.origin}/r/${shortCode}`
+    : `${window.location.origin}/menu/${restaurantId}`;
+
   const seatMenuUrl = (seatId: string) =>
-    `${window.location.origin}/menu/${restaurantId}?table=${table.id}&seat=${seatId}`;
+    `${base}?table=${table.id}&seat=${seatId}`;
 
   const tableMenuUrl = () =>
-    `${window.location.origin}/menu/${restaurantId}?table=${table.id}`;
+    `${base}?table=${table.id}`;
 
   if (!table) return null;
 

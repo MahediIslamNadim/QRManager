@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -80,6 +80,21 @@ const WaiterSeats = () => {
   const selectedTableData = tables.find((t: any) => t.id === selectedTable);
   const occupiedCount = seats.filter((s: any) => s.status === "occupied").length;
   const availableCount = seats.filter((s: any) => s.status !== "occupied").length;
+
+  // Real-time: auto-refresh when tables or seats change
+  useEffect(() => {
+    if (!restaurantId) return;
+    const channel = supabase
+      .channel(`waiter-seats-${restaurantId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "restaurant_tables", filter: `restaurant_id=eq.${restaurantId}` }, () => {
+        queryClient.invalidateQueries({ queryKey: ["waiter-tables-seats", restaurantId] });
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "table_seats" }, () => {
+        queryClient.invalidateQueries({ queryKey: ["waiter-seats-list"] });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [restaurantId, queryClient]);
 
   return (
     <DashboardLayout role="waiter" title="সিট ম্যানেজমেন্ট">

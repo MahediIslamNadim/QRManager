@@ -131,8 +131,17 @@ const AdminTables = () => {
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!restaurantId) throw new Error("No restaurant");
-      const payload = { restaurant_id: restaurantId, name: form.name, seats: Number(form.seats) };
-      // ✅ Check table limit before creating
+      const seatCount = Number(form.seats);
+      const payload = { restaurant_id: restaurantId, name: form.name, seats: seatCount };
+      const { data: existing } = await supabase
+        .from("restaurant_tables")
+        .select("id")
+        .eq("restaurant_id", restaurantId)
+        .eq("name", form.name)
+        .maybeSingle();
+      if (existing && existing.id !== editingTable?.id) {
+        throw new Error(`"${form.name}" নামে একটি টেবিল ইতিমধ্যে আছে। ভিন্ন নাম দিন।`);
+      }
       if (!editingTable) {
         const check = checkBeforeCreate();
         if (!check.allowed) {
@@ -143,12 +152,19 @@ const AdminTables = () => {
         const { error } = await supabase.from("restaurant_tables").update(payload).eq("id", editingTable.id).eq("restaurant_id", restaurantId);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("restaurant_tables").insert(payload);
+        const { data: newTable, error } = await supabase.from("restaurant_tables").insert(payload).select("id").single();
         if (error) throw error;
+        const seatsToInsert = [];
+        for (let i = 1; i <= seatCount; i++) {
+          seatsToInsert.push({ table_id: newTable.id, restaurant_id: restaurantId, seat_number: i });
+        }
+        const { error: seatsError } = await supabase.from("table_seats").insert(seatsToInsert);
+        if (seatsError) throw seatsError;
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tables", restaurantId] });
+      queryClient.invalidateQueries({ queryKey: ["all-seats", restaurantId] });
       toast.success(editingTable ? "টেবিল আপডেট হয়েছে" : "টেবিল যোগ হয়েছে");
       setShowForm(false);
       setEditingTable(null);
@@ -159,6 +175,16 @@ const AdminTables = () => {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
+      const { data: activeOrders } = await supabase
+        .from("orders")
+        .select("id")
+        .eq("table_id", id)
+        .eq("restaurant_id", restaurantId)
+        .in("status", ["pending", "preparing", "served"])
+        .limit(1);
+      if (activeOrders && activeOrders.length > 0) {
+        throw new Error("এই টেবিলে অ্যাক্টিভ অর্ডার আছে। আগে অর্ডারগুলো ডেলিভার করুন।");
+      }
       const { error } = await supabase.from("restaurant_tables").delete().eq("id", id).eq("restaurant_id", restaurantId);
       if (error) throw error;
     },
@@ -502,51 +528,21 @@ const AdminTables = () => {
                       <div className={`w-2 h-2 rounded-full ${color.dot}`} />
                       <span className="text-xs font-medium text-muted-foreground">{color.label}</span>
                     </div>
-                    <div className="flex items-center justify-center gap-3 text-sm text-muted-foreground mb-1">
-                      <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" />{table.seats} সিট</span>
-                      <span className="flex items-center gap-1 font-semibold text-foreground">👤 {table.current_customers || 0} জন</span>
-                    </div>
-
-                    {/* Customer count controls */}
-                    <div className="flex items-center justify-center gap-2 mb-2" onClick={e => e.stopPropagation()}>
-                      <button
-                        onClick={() => {
-                          const nc = Math.max(0, (table.current_customers || 0) - 1);
-                          Promise.resolve(supabase.from("restaurant_tables").update({ current_customers: nc }).eq("id", table.id).eq("restaurant_id", restaurantId))
-                            .then(({ error }) => { if (!error) queryClient.invalidateQueries({ queryKey: ["tables", restaurantId] }); else toast.error("আপডেট ব্যর্থ: " + error.message); })
-                            .catch((e: any) => toast.error("আপডেট ব্যর্থ: " + e.message));
-                        }}
-                        className="w-7 h-7 rounded-lg bg-card border border-border flex items-center justify-center hover:bg-accent active:scale-90 transition-all"
-                      >
-                        <UserMinus className="w-3.5 h-3.5 text-destructive" />
-                      </button>
-                      <span className="text-sm font-bold text-foreground w-6 text-center">{table.current_customers || 0}</span>
-                      <button
-                        onClick={() => {
-                          const nc = Math.min(table.seats, (table.current_customers || 0) + 1);
-                          Promise.resolve(supabase.from("restaurant_tables").update({ current_customers: nc }).eq("id", table.id).eq("restaurant_id", restaurantId))
-                            .then(({ error }) => { if (!error) queryClient.invalidateQueries({ queryKey: ["tables", restaurantId] }); else toast.error("আপডেট ব্যর্থ: " + error.message); })
-                            .catch((e: any) => toast.error("আপডেট ব্যর্থ: " + e.message));
-                        }}
-                        className="w-7 h-7 rounded-lg bg-primary text-primary-foreground flex items-center justify-center active:scale-90 transition-all"
-                      >
-                        <UserPlus className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-
-                    {/* Seat info */}
+                    {/* Customer count — auto-derived from seat occupancy */}
                     {(() => {
                       const tableSeats = allSeats.filter((s: any) => s.table_id === table.id);
+                      const occupiedSeats = tableSeats.filter((s: any) => s.status === "occupied").length;
+                      const availableSeats = tableSeats.filter((s: any) => s.status === "available").length;
                       if (tableSeats.length > 0) {
-                        const occupied = tableSeats.filter((s: any) => s.status === "occupied").length;
-                        const available = tableSeats.filter((s: any) => s.status === "available").length;
                         return (
                           <>
-                            <div className="flex items-center justify-center gap-1.5 text-xs mb-1" onClick={e => e.stopPropagation()}>
-                              <Armchair className="w-3 h-3 text-muted-foreground" />
-                              <span className="text-success font-medium">{available} ফাঁকা</span>
+                            <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground mb-1" onClick={e => e.stopPropagation()}>
+                              <Users className="w-3.5 h-3.5" />
+                              <span className="text-success font-semibold">{availableSeats} ফাঁকা</span>
                               <span className="text-muted-foreground">•</span>
-                              <span className="text-destructive font-medium">{occupied} ব্যস্ত</span>
+                              <span className="text-destructive font-semibold">{occupiedSeats} ব্যস্ত</span>
+                              <span className="text-muted-foreground">•</span>
+                              <span>{tableSeats.length} সিট</span>
                             </div>
                             <div className="flex flex-wrap items-center justify-center gap-1 mb-1" onClick={e => e.stopPropagation()}>
                               {tableSeats.map((seat: any) => (
@@ -564,7 +560,11 @@ const AdminTables = () => {
                           </>
                         );
                       }
-                      return null;
+                      return (
+                        <div className="flex items-center justify-center gap-1 text-sm text-muted-foreground mb-2" onClick={e => e.stopPropagation()}>
+                          <Users className="w-3.5 h-3.5" /> <span className="font-semibold text-foreground">{table.current_customers || 0}</span> জন
+                        </div>
+                      );
                     })()}
 
                     {orderCount > 0 && (
@@ -626,6 +626,7 @@ const AdminTables = () => {
             restaurantId={restaurantId}
             open={!!seatTable}
             onClose={() => setSeatTable(null)}
+            shortCode={restaurant?.short_code}
           />
         )}
       </div>
