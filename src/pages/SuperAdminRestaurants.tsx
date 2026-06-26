@@ -34,7 +34,7 @@ const getRestaurantSubscriptionPayload = (status: RestaurantFormStatus, plan: st
   trialEnd.setDate(trialEnd.getDate() + 30);
 
   const paidEnd = new Date(now);
-  paidEnd.setMonth(paidEnd.getMonth() + 1);
+  paidEnd.setFullYear(paidEnd.getFullYear() + 1);
 
   if (status === "active_paid") {
     const startDate = now.toISOString();
@@ -288,11 +288,12 @@ const SuperAdminRestaurants = () => {
                       </td>
                       <td className="p-4">
                         <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          r.status === 'active' ? 'bg-success/10 text-success' :
+                          r.status === 'active_paid' ? 'bg-success/10 text-success' :
+                          r.status === 'trial' ? 'bg-blue-500/10 text-blue-500' :
                           r.status === 'pending' ? 'bg-warning/10 text-warning' :
                           'bg-muted text-muted-foreground'
                         }`}>
-                          {r.status === 'active' ? 'সক্রিয়' : r.status === 'pending' ? 'পেন্ডিং' : 'নিষ্ক্রিয়'}
+                          {r.status === 'active_paid' ? 'সক্রিয়' : r.status === 'trial' ? 'ট্রায়াল' : r.status === 'pending' ? 'পেন্ডিং' : 'নিষ্ক্রিয়'}
                         </span>
                       </td>
                       <td className="p-4 text-right">
@@ -346,7 +347,7 @@ const SuperAdminRestaurants = () => {
                 <Select value={formStatus} onValueChange={(value) => setFormStatus(value as RestaurantFormStatus)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="active">সক্রিয় (ট্রায়াল)</SelectItem>
+                    <SelectItem value="trial">সক্রিয় (ট্রায়াল)</SelectItem>
                     <SelectItem value="active_paid">সক্রিয় (পেইড)</SelectItem>
                     <SelectItem value="pending">পেন্ডিং</SelectItem>
                     <SelectItem value="inactive">নিষ্ক্রিয়</SelectItem>

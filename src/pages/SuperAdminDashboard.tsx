@@ -88,9 +88,11 @@ const SuperAdminDashboard = () => {
                       <p className="text-sm text-muted-foreground">{r.orderCount} অর্ডার</p>
                     </div>
                     <span className={`text-xs px-3 py-1 rounded-full font-medium ${
-                      r.status === "active" ? "bg-success/10 text-success" : "bg-warning/10 text-warning"
+                      r.status === "active_paid" ? "bg-success/10 text-success" :
+                      r.status === "trial" ? "bg-blue-500/10 text-blue-500" :
+                      "bg-warning/10 text-warning"
                     }`}>
-                      {r.status === "active" ? "সক্রিয়" : "পেন্ডিং"}
+                      {r.status === "active_paid" ? "সক্রিয়" : r.status === "trial" ? "ট্রায়াল" : "পেন্ডিং"}
                     </span>
                   </div>
                 ))}

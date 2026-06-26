@@ -80,6 +80,7 @@ const ProtectedRoute = ({ children, allowedRoles, allowMissingRestaurant = false
 
       if (role === "super_admin") return <Navigate to="/super-admin" replace />;
       if (role === "waiter") return <Navigate to="/waiter" replace />;
+      if (role === "kitchen") return <Navigate to="/admin/kitchen" replace />;
       return <Navigate to="/admin" replace />;
     }
   }
