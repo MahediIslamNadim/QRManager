@@ -52,6 +52,7 @@ serve(async (req) => {
       .from("restaurants")
       .select("id, name, phone, whatsapp_api_key, notify_daily_report")
       .eq("notify_daily_report", true)
+      .eq("status", "active_paid")
       .not("whatsapp_api_key", "is", null)
       .not("phone", "is", null);
 

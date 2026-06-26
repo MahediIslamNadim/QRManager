@@ -69,6 +69,21 @@ const getRestaurantSubscriptionPayload = (status: RestaurantFormStatus, plan: st
     };
   }
 
+  if (status === "pending") {
+    return {
+      status,
+      subscription_status: "trial",
+      plan,
+      tier: plan,
+      billing_cycle: null,
+      trial_ends_at: null,
+      trial_end_date: null,
+      subscription_start_date: null,
+      subscription_end_date: null,
+      next_billing_date: null,
+    };
+  }
+
   const trialDate = status === "trial" ? trialEnd.toISOString() : null;
 
   return {

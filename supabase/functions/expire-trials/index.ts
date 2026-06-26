@@ -32,8 +32,8 @@ Deno.serve(async (req) => {
       .from("restaurants")
       .select("id, name, trial_ends_at, status, subscription_status")
       .lt("trial_ends_at", now)
-      .not("status", "in", '("active_paid","inactive")')
-      .not("subscription_status", "in", '("active","expired","cancelled")');
+      .not("status", "in", "(active_paid,inactive)")
+      .not("subscription_status", "in", "(active,expired,cancelled)");
 
     if (fetchErr) throw fetchErr;
     if (!expired || expired.length === 0) {
